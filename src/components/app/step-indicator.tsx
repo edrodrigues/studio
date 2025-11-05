@@ -4,6 +4,7 @@
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Home, FileUp, CheckCircle, DraftingCompass } from "lucide-react";
+import { useEffect, useState } from "react";
 
 const steps = [
   { href: "/", label: "Comece Aqui", icon: Home },
@@ -51,6 +52,11 @@ function Step({
 
 export function StepIndicator() {
   const pathname = usePathname();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Find the index of the current active step
   let activeIndex = steps.findIndex(
@@ -63,6 +69,8 @@ export function StepIndicator() {
   if (pathname.startsWith("/preencher")) {
     activeIndex = 3; 
   }
+  
+  const progressScale = isMounted ? (Math.max(0, activeIndex) / (steps.length - 1)) : 0;
 
 
   return (
@@ -72,7 +80,7 @@ export function StepIndicator() {
           <div className="absolute left-0 right-0 top-5 mx-auto h-0.5 w-[calc(100%-80px)] max-w-4xl bg-border" />
           <div
             className="absolute left-0 right-0 top-5 mx-auto h-0.5 w-[calc(100%-80px)] max-w-4xl origin-left bg-primary transition-transform duration-500 ease-in-out"
-            style={{ transform: `scaleX(${(Math.max(0, activeIndex) / (steps.length - 1))})` }}
+            style={{ transform: `scaleX(${progressScale})` }}
           />
           {steps.map((step, index) => (
             <div key={step.href} className="relative z-10 flex w-20 justify-center">

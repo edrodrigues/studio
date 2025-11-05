@@ -45,14 +45,17 @@ export default function PreencherContratoPage() {
 
   useEffect(() => {
     setIsClient(true);
+  }, []);
+
+  useEffect(() => {
     const foundContract = contracts.find((c) => c.id === id);
     if (foundContract) {
       setContract(foundContract);
     } else if(isClient) {
       // Potentially redirect if contract is not found on the client
-      // router.replace('/gerar-exportar'); 
+      // router.replace('/gerar-exportar');
     }
-  }, [id, contracts, isClient]);
+  }, [id, contracts, isClient, router]);
 
   const handleContentChange = useCallback((newContent: string) => {
     if (contract) {

@@ -11,6 +11,9 @@ import { handleGenerateContract } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import useLocalStorage from "@/hooks/use-local-storage";
 import { type Contract } from "@/lib/types";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const fileToDataURI = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -27,6 +30,8 @@ export default function DocumentosIniciaisPage() {
     termOfExecution: null,
     budgetSpreadsheet: null,
   });
+  const [contractType, setContractType] = useState<string>('');
+  const [processType, setProcessType] = useState<string>('');
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const { toast } = useToast();
@@ -36,7 +41,7 @@ export default function DocumentosIniciaisPage() {
     setFiles((prev) => ({ ...prev, [key]: file }));
   };
 
-  const canGenerate = Object.values(files).every((file) => file !== null);
+  const canGenerate = Object.values(files).every((file) => file !== null) && contractType && processType;
 
   const handleSubmit = async () => {
     if (!canGenerate) return;
@@ -91,6 +96,46 @@ export default function DocumentosIniciaisPage() {
         <p className="mt-4 max-w-xl text-muted-foreground sm:text-lg">
           Analise os documentos iniciais com a IA e depois clique em "Indexar Documentos" para que eles sejam usados de contexto para os demais documentos.
         </p>
+      </section>
+
+      <section className="mx-auto max-w-5xl mb-8">
+        <Card>
+            <CardHeader>
+                <CardTitle>Definições Iniciais</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                    <Label>Tipo de Contrato</Label>
+                    <RadioGroup value={contractType} onValueChange={setContractType} className="flex space-x-4">
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="TED" id="ted" />
+                            <Label htmlFor="ted">TED</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="ACT" id="act" />
+                            <Label htmlFor="act">ACT</Label>
+                        </div>
+                         <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="outro" id="outro-contrato" />
+                            <Label htmlFor="outro-contrato">Outro</Label>
+                        </div>
+                    </RadioGroup>
+                </div>
+                 <div className="space-y-3">
+                    <Label>Tipo de Processo</Label>
+                    <RadioGroup value={processType} onValueChange={setProcessType} className="flex space-x-4">
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="ufpe-parceiro" id="ufpe-parceiro" />
+                            <Label htmlFor="ufpe-parceiro">UFPE - Parceiro</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="fade-ufpe" id="fade-ufpe" />
+                            <Label htmlFor="fade-ufpe">Fade - UFPE</Label>
+                        </div>
+                    </RadioGroup>
+                </div>
+            </CardContent>
+        </Card>
       </section>
 
       <section className="mx-auto grid max-w-5xl grid-cols-1 gap-8 md:grid-cols-3">

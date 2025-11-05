@@ -58,30 +58,29 @@ export function StepIndicator() {
     setIsMounted(true);
   }, []);
 
-  // Return a placeholder or null during server-side rendering or before hydration.
   if (!isMounted) {
     return (
-        <div className="border-b bg-card">
-            <div className="container py-4">
-                <div className="relative flex items-start justify-between">
-                    <div className="absolute left-0 right-0 top-5 mx-auto h-0.5 w-[calc(100%-80px)] max-w-4xl bg-border" />
-                    <div
-                        className="absolute left-0 right-0 top-5 mx-auto h-0.5 w-[calc(100%-80px)] max-w-4xl origin-left bg-primary transition-transform duration-500 ease-in-out"
-                        style={{ transform: `scaleX(0)` }}
-                    />
-                    {steps.map((step, index) => (
-                        <div key={step.href} className="relative z-10 flex w-20 justify-center">
-                            <Step
-                                icon={step.icon}
-                                label={step.label}
-                                isActive={false}
-                                isCompleted={false}
-                            />
-                        </div>
-                    ))}
-                </div>
-            </div>
+      <div className="border-b bg-card">
+        <div className="container py-4">
+          <div className="relative mx-auto flex max-w-4xl items-start justify-between">
+            <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2 bg-border" />
+            <div
+              className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] origin-left -translate-x-1/2 bg-primary transition-transform duration-500 ease-in-out"
+              style={{ transform: `scaleX(0)` }}
+            />
+            {steps.map((step) => (
+              <div key={step.href} className="relative z-10 flex w-20 justify-center">
+                <Step
+                  icon={step.icon}
+                  label={step.label}
+                  isActive={false}
+                  isCompleted={false}
+                />
+              </div>
+            ))}
+          </div>
         </div>
+      </div>
     );
   }
 
@@ -94,18 +93,19 @@ export function StepIndicator() {
 
   // Special case for dynamic preencher routes, which are part of the last step now
   if (pathname.startsWith("/preencher")) {
-    activeIndex = 3; 
+    activeIndex = 3;
   }
-  
-  const progressScale = Math.max(0, activeIndex) / (steps.length - 1);
+
+  const progressScale = activeIndex === -1 ? 0 : activeIndex / (steps.length - 1);
+
 
   return (
     <div className="border-b bg-card">
       <div className="container py-4">
-        <div className="relative flex items-start justify-between">
-          <div className="absolute left-0 right-0 top-5 mx-auto h-0.5 w-[calc(100%-80px)] max-w-4xl bg-border" />
+        <div className="relative mx-auto flex max-w-4xl items-start justify-between">
+          <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2 bg-border" />
           <div
-            className="absolute left-0 right-0 top-5 mx-auto h-0.5 w-[calc(100%-80px)] max-w-4xl origin-left bg-primary transition-transform duration-500 ease-in-out"
+            className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] origin-left -translate-x-1/2 bg-primary transition-transform duration-500 ease-in-out"
             style={{ transform: `scaleX(${progressScale})` }}
           />
           {steps.map((step, index) => (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef, useTransition } from "react";
+import { useState, useMemo, useCallback, useRef, useTransition, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { Plus, Upload, File as FileIcon, Trash2, Wand2, Loader2, Check } from "lucide-react";
 import { collection, doc } from "firebase/firestore";

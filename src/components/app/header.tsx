@@ -20,8 +20,8 @@ function NavLink({ href, label }: { href: string; label: string }) {
         <Link
             href={href}
             className={cn(
-                "transition-colors hover:text-secondary",
-                isActive ? "text-secondary font-semibold" : "text-muted-foreground"
+                "transition-colors hover:text-foreground text-sm",
+                isActive ? "text-primary font-semibold" : "text-muted-foreground"
             )}
         >
             {label}
@@ -31,7 +31,7 @@ function NavLink({ href, label }: { href: string; label: string }) {
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-40 w-full border-b bg-card">
+    <header className="sticky top-0 z-40 w-full border-b bg-background">
       <div className="container flex h-16 items-center space-x-4 sm:justify-between sm:space-x-0">
         <div className="flex gap-6 md:gap-10">
           <Link href="/" className="flex items-center space-x-2">
@@ -40,7 +40,7 @@ export function Header() {
           </Link>
         </div>
 
-        <nav className="flex-1">
+        <nav className="hidden flex-1 md:flex">
           <ul className="flex justify-center gap-4 lg:gap-6">
             {navLinks.map((link) => (
               <li key={link.href}>

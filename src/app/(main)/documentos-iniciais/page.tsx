@@ -3,7 +3,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Clock, CircleDollarSign, Loader2, Bot } from "lucide-react";
+import { FileText, Clock, CircleDollarSign, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { FileUploader } from "@/components/app/file-uploader";
@@ -36,6 +36,7 @@ export default function DocumentosIniciaisPage() {
   const [processType, setProcessType] = useState<string>('');
   const [isPending, startTransition] = useTransition();
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [feedbackFiles, setFeedbackFiles] = useState<UploadedFile[]>([]);
   const router = useRouter();
   const { toast } = useToast();
   const [, setContracts] = useLocalStorage<Contract[]>("contracts", []);
@@ -43,14 +44,17 @@ export default function DocumentosIniciaisPage() {
   const handleFileSelect = (key: string) => (file: File | null) => {
     setFiles((prev) => ({ ...prev, [key]: file }));
   };
-
-  const uploadedFiles: UploadedFile[] = Object.entries(files)
-    .filter(([, file]) => file !== null)
-    .map(([key, file]) => ({ id: key, file: file! }));
+  
+  const handleFeedbackClick = (fileKey: string) => () => {
+    const file = files[fileKey];
+    if (file) {
+      setFeedbackFiles([{ id: fileKey, file }]);
+      setIsFeedbackModalOpen(true);
+    }
+  };
 
 
   const canGenerate = Object.values(files).every((file) => file !== null) && contractType && processType;
-  const canGetFeedback = uploadedFiles.length > 0;
 
 
   const handleSubmit = async () => {
@@ -155,6 +159,7 @@ export default function DocumentosIniciaisPage() {
             title="Plano de Trabalho"
             description="Documento com o escopo e atividades."
             onFileSelect={handleFileSelect("planOfWork")}
+            onFeedbackClick={handleFeedbackClick("planOfWork")}
             name="planOfWork"
           />
           <FileUploader
@@ -162,6 +167,7 @@ export default function DocumentosIniciaisPage() {
             title="Termo de Execução"
             description="Cronograma e prazos do projeto."
             onFileSelect={handleFileSelect("termOfExecution")}
+            onFeedbackClick={handleFeedbackClick("termOfExecution")}
             name="termOfExecution"
           />
           <FileUploader
@@ -169,20 +175,12 @@ export default function DocumentosIniciaisPage() {
             title="Planilha de Orçamento"
             description="Valores e distribuição de recursos."
             onFileSelect={handleFileSelect("budgetSpreadsheet")}
+            onFeedbackClick={handleFeedbackClick("budgetSpreadsheet")}
             name="budgetSpreadsheet"
           />
         </section>
 
         <section className="mt-12 flex justify-center gap-4 py-8">
-          <Button
-            size="lg"
-            variant="outline"
-            onClick={() => setIsFeedbackModalOpen(true)}
-            disabled={!canGetFeedback || isPending}
-          >
-            <Bot className="mr-2 h-4 w-4" />
-            Feedback de IA
-          </Button>
           <Button
             size="lg"
             onClick={handleSubmit}
@@ -202,7 +200,7 @@ export default function DocumentosIniciaisPage() {
       <FeedbackModal
         isOpen={isFeedbackModalOpen}
         onClose={() => setIsFeedbackModalOpen(false)}
-        files={uploadedFiles}
+        files={feedbackFiles}
       />
     </>
   );

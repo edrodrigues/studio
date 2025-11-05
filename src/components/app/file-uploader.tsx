@@ -1,20 +1,22 @@
+
 "use client";
 
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, UploadCloud } from "lucide-react";
+import { Check, UploadCloud, Bot } from "lucide-react";
 
 interface FileUploaderProps {
   icon: ReactNode;
   title: string;
   description: string;
   onFileSelect: (file: File | null) => void;
+  onFeedbackClick: () => void;
   name: string;
 }
 
-export function FileUploader({ icon, title, description, onFileSelect, name }: FileUploaderProps) {
+export function FileUploader({ icon, title, description, onFileSelect, onFeedbackClick, name }: FileUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -37,7 +39,7 @@ export function FileUploader({ icon, title, description, onFileSelect, name }: F
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col items-center justify-center space-y-2">
         <input
           type="file"
           name={name}
@@ -46,7 +48,7 @@ export function FileUploader({ icon, title, description, onFileSelect, name }: F
           className="hidden"
           accept=".pdf,.doc,.docx,.txt,.md,.xlsx,.xls"
         />
-        <Button onClick={handleButtonClick} variant={file ? "secondary" : "default"}>
+        <Button onClick={handleButtonClick} variant={file ? "secondary" : "default"} className="w-full">
           {file ? (
             <>
               <Check className="mr-2 h-4 w-4" />
@@ -59,6 +61,12 @@ export function FileUploader({ icon, title, description, onFileSelect, name }: F
             </>
           )}
         </Button>
+        {file && (
+            <Button onClick={onFeedbackClick} variant="outline" className="w-full">
+                <Bot className="mr-2 h-4 w-4" />
+                Feedback de IA
+            </Button>
+        )}
       </CardContent>
     </Card>
   );

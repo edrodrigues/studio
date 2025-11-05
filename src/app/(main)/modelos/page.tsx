@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useTransition } from "react";
 import ReactMarkdown from "react-markdown";
-import { Plus, Upload, File as FileIcon, Trash2 } from "lucide-react";
+import { Plus, Upload, File as FileIcon, Trash2, Wand2, Loader2, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,36 +13,144 @@ import { useToast } from "@/hooks/use-toast";
 import useLocalStorage from "@/hooks/use-local-storage";
 import { type Template } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { handleExtractTemplate } from "@/lib/actions";
+
+const fileToDataURI = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+};
 
 const initialTemplates: Template[] = [
     {
-      id: "template-1",
-      name: "Acordo de Cooperação Técnica",
-      description: "Modelo padrão para cooperação técnica sem transferência de recursos financeiros.",
-      content: `# Acordo de Cooperação Técnica
-  
-  ## CLÁUSULA PRIMEIRA - DO OBJETO
-  O presente Acordo de Cooperação tem por objeto o estabelecimento de mútua cooperação entre os partícipes, visando ao desenvolvimento de {{NOME_DO_PROJETO}}.
-  
-  ## CLÁUSULA SEGUNDA - DAS OBRIGAÇÕES
-  {{DESCREVER_OBRIGACOES}}
-  
-  ## CLÁUSULA TERCEIRA - DA VIGÊNCIA
-  O prazo de vigência deste instrumento será de {{PRAZO_EM_MESES}} meses, a contar da data de sua assinatura.`
+        id: "template-1",
+        name: "Acordo de Cooperação Técnica",
+        description: "Modelo padrão para cooperação técnica sem transferência de recursos financeiros.",
+        content: `# Acordo de Cooperação Técnica
+
+## CLÁUSULA PRIMEIRA - DO OBJETO
+O presente Acordo de Cooperação tem por objeto o estabelecimento de mútua cooperação entre os partícipes, visando ao desenvolvimento de {{NOME_DO_PROJETO}}.
+
+## CLÁUSULA SEGUNDA - DAS OBRIGAÇÕES
+{{DESCREVER_OBRIGACOES}}
+
+## CLÁUSULA TERCEIRA - DA VIGÊNCIA
+O prazo de vigência deste instrumento será de {{PRAZO_EM_MESES}} meses, a contar da data de sua assinatura.`
     },
     {
-      id: "template-2",
-      name: "Termo de Confidencialidade",
-      description: "Termo para garantir a confidencialidade das informações trocadas.",
-      content: `# Termo de Confidencialidade
-  
-  ## CLÁUSULA PRIMEIRA - INFORMAÇÕES CONFIDENCIAIS
-  Para os fins deste Acordo, "Informação Confidencial" significa toda informação, seja ela de natureza técnica, comercial, financeira, estratégica ou outra, revelada por uma Parte (a "Parte Reveladora") à outra (a "Parte Receptora").
-  
-  ## CLÁUSULA SEGUNDA - DEVER DE SIGILO
-  A Parte Receptora se compromete a manter em absoluto sigilo e a não revelar, divulgar, ou de qualquer forma dar conhecimento a terceiros das Informações Confidenciais da Parte Reveladora.`
+        id: "template-2",
+        name: "Termo de Confidencialidade",
+        description: "Termo para garantir a confidencialidade das informações trocadas.",
+        content: `# Termo de Confidencialidade
+
+## CLÁUSULA PRIMEIRA - INFORMAÇÕES CONFIDENCIAIS
+Para os fins deste Acordo, "Informação Confidencial" significa toda informação, seja ela de natureza técnica, comercial, financeira, estratégica ou outra, revelada por uma Parte (a "Parte Reveladora") à outra (a "Parte Receptora").
+
+## CLÁUSULA SEGUNDA - DEVER DE SIGILO
+A Parte Receptora se compromete a manter em absoluto sigilo e a não revelar, divulgar, ou de qualquer forma dar conhecimento a terceiros das Informações Confidenciais da Parte Reveladora.`
     }
 ];
+
+function TemplateExtractor({ onTemplateExtracted }: { onTemplateExtracted: (template: Template) => void }) {
+    const [file, setFile] = useState<File | null>(null);
+    const [isPending, startTransition] = useTransition();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { toast } = useToast();
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = event.target.files?.[0];
+        if (selectedFile) {
+            setFile(selectedFile);
+        }
+    };
+    
+    const handleExtract = () => {
+        if (!file) {
+            toast({
+                title: "Nenhum arquivo selecionado",
+                description: "Por favor, carregue um arquivo para extrair o modelo.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        startTransition(async () => {
+            try {
+                const fileUri = await fileToDataURI(file);
+                const formData = new FormData();
+                formData.append("document", fileUri);
+
+                const result = await handleExtractTemplate(formData);
+
+                if (result.success && result.data?.templateContent) {
+                    const newTemplate: Template = {
+                        id: `template-${Date.now()}`,
+                        name: `Modelo de ${file.name.replace(/\.[^/.]+$/, "")}`,
+                        description: `Extraído de ${file.name}`,
+                        content: result.data.templateContent,
+                    };
+                    onTemplateExtracted(newTemplate);
+                    toast({
+                        title: "Modelo Extraído!",
+                        description: "O modelo foi carregado no editor abaixo.",
+                    });
+                    setFile(null); // Clear file after extraction
+                } else {
+                    throw new Error(result.error || "Falha ao extrair o modelo do documento.");
+                }
+
+            } catch (error) {
+                console.error(error);
+                toast({
+                    variant: "destructive",
+                    title: "Erro na Extração",
+                    description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido.",
+                });
+            }
+        });
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Extrair Modelo de Documento com IA</CardTitle>
+                <CardDescription>
+                    Faça o upload de um contrato existente (PDF, DOCX) e a IA criará um modelo genérico para você.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col sm:flex-row items-center gap-4">
+                 <input
+                    type="file"
+                    className="hidden"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept=".pdf,.doc,.docx"
+                />
+                <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full sm:w-auto">
+                    {file ? <Check className="mr-2 h-4 w-4" /> : <Upload className="mr-2 h-4 w-4" />}
+                    {file ? (file.name.length > 20 ? `${file.name.slice(0,17)}...` : file.name) : "Carregar Documento"}
+                </Button>
+                <Button onClick={handleExtract} disabled={isPending || !file} className="w-full sm:w-auto">
+                    {isPending ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Extraindo...
+                        </>
+                    ) : (
+                        <>
+                            <Wand2 className="mr-2 h-4 w-4" />
+                            Extrair Modelo
+                        </>
+                    )}
+                </Button>
+            </CardContent>
+        </Card>
+    );
+}
+
 
 function TemplateEditor({
     template,
@@ -59,10 +167,10 @@ function TemplateEditor({
 
     return (
         <div className="space-y-8">
-             <Card>
+            <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <FileIcon className="h-5 w-5" /> Editar Modelo
+                        <FileIcon className="h-5 w-5" /> Editor de Modelo
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -92,14 +200,14 @@ function TemplateEditor({
                         />
                     </div>
                     <div className="space-y-2">
-                         <Label htmlFor="template-content">Conteúdo do Modelo (Markdown)</Label>
-                         <Textarea
-                             id="template-content"
-                             value={template.content}
-                             onChange={(e) => onTemplateChange("content", e.target.value)}
-                             className="min-h-[250px] font-mono"
-                             placeholder="Escreva o conteúdo do seu modelo em Markdown aqui..."
-                         />
+                        <Label htmlFor="template-content">Conteúdo do Modelo (Markdown)</Label>
+                        <Textarea
+                            id="template-content"
+                            value={template.content}
+                            onChange={(e) => onTemplateChange("content", e.target.value)}
+                            className="min-h-[250px] font-mono"
+                            placeholder="Escreva o conteúdo do seu modelo em Markdown aqui..."
+                        />
                     </div>
                 </CardContent>
             </Card>
@@ -117,22 +225,23 @@ function TemplateEditor({
 
 export default function ModelosPage() {
     const [templates, setTemplates] = useLocalStorage<Template[]>("templates", initialTemplates);
-    const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(templates[0]?.id ?? null);
+    const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
     const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
-
-    const selectedTemplate = useMemo(() => {
+    
+    // Derived state for the preview panel
+    const templateForPreview = useMemo(() => {
         if (editingTemplate) return editingTemplate;
         return templates.find((t) => t.id === selectedTemplateId) ?? null;
     }, [templates, selectedTemplateId, editingTemplate]);
 
-    const startEditing = (template: Template) => {
+    const startEditing = useCallback((template: Template) => {
         setEditingTemplate(JSON.parse(JSON.stringify(template))); // Deep copy
         setSelectedTemplateId(template.id);
-    };
+    }, []);
 
-    const handleNewTemplate = () => {
+    const handleNewTemplate = useCallback(() => {
         const newTemplate: Template = {
             id: `template-${Date.now()}`,
             name: "Novo Modelo sem Título",
@@ -140,11 +249,11 @@ export default function ModelosPage() {
             content: "# Novo Modelo\n\nComece a editar...",
         };
         startEditing(newTemplate);
-    };
+    }, [startEditing]);
 
-    const handleSelectTemplate = (id: string) => {
+    const handleSelectTemplate = useCallback((id: string) => {
         if (editingTemplate) {
-             toast({
+            toast({
                 title: "Salve ou cancele suas alterações",
                 description: "Você precisa salvar ou cancelar a edição atual antes de selecionar outro modelo.",
                 variant: "destructive"
@@ -152,13 +261,14 @@ export default function ModelosPage() {
             return;
         }
         setSelectedTemplateId(id);
-    };
+        setEditingTemplate(null); // Ensure we are not in editing mode
+    }, [editingTemplate, toast]);
 
-    const handleTemplateChange = (field: keyof Template, value: string) => {
+    const handleTemplateChange = useCallback((field: keyof Template, value: string) => {
         if (editingTemplate) {
-            setEditingTemplate({ ...editingTemplate, [field]: value });
+            setEditingTemplate(prev => prev ? { ...prev, [field]: value } : null);
         }
-    };
+    }, [editingTemplate]);
 
     const handleSaveTemplate = useCallback(() => {
         if (!editingTemplate) return;
@@ -175,30 +285,41 @@ export default function ModelosPage() {
             title: "Modelo Salvo!",
             description: `O modelo "${editingTemplate.name}" foi salvo com sucesso.`,
         });
-
-        setSelectedTemplateId(editingTemplate.id);
+        
+        const savedId = editingTemplate.id;
         setEditingTemplate(null);
+        setSelectedTemplateId(savedId);
+
     }, [editingTemplate, setTemplates, templates, toast]);
 
     const handleCancelEditing = useCallback(() => {
+        const wasNew = editingTemplate && !templates.some(t => t.id === editingTemplate.id);
         setEditingTemplate(null);
-        if (!templates.some(t => t.id === selectedTemplateId)) {
+        if (wasNew) {
             setSelectedTemplateId(templates[0]?.id ?? null);
         }
-    }, [templates, selectedTemplateId]);
+    }, [editingTemplate, templates]);
 
-    const handleDeleteTemplate = (e: React.MouseEvent, id: string) => {
+
+    const handleDeleteTemplate = useCallback((e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         if (window.confirm("Tem certeza que deseja deletar este modelo?")) {
-            setTemplates(prev => prev.filter(t => t.id !== id));
-            if (selectedTemplateId === id) {
-                setSelectedTemplateId(templates[0]?.id ?? null);
-            }
+            setTemplates(prev => {
+                const newTemplates = prev.filter(t => t.id !== id);
+                 if (selectedTemplateId === id) {
+                    setSelectedTemplateId(newTemplates[0]?.id ?? null);
+                }
+                if (editingTemplate?.id === id) {
+                    setEditingTemplate(null);
+                }
+                return newTemplates;
+            });
+           
             toast({ title: "Modelo deletado." });
         }
-    };
-    
-    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    }, [selectedTemplateId, editingTemplate, setTemplates, toast]);
+
+    const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
@@ -207,7 +328,7 @@ export default function ModelosPage() {
             const content = e.target?.result as string;
             const newTemplate: Template = {
                 id: `template-${Date.now()}`,
-                name: file.name.replace(/\.md$/, ""),
+                name: file.name.replace(/\.[^/.]+$/, ""),
                 description: "Importado de arquivo Markdown.",
                 content: content,
             };
@@ -215,36 +336,41 @@ export default function ModelosPage() {
             toast({ title: "Arquivo importado", description: "O modelo foi carregado no editor." });
         };
         reader.readAsText(file);
-        
-        // Reset file input
-        if(fileInputRef.current) {
+
+        if (fileInputRef.current) {
             fileInputRef.current.value = "";
         }
-    };
+    }, [startEditing, toast]);
+    
+    const handleTemplateExtracted = useCallback((newTemplate: Template) => {
+        startEditing(newTemplate);
+    }, [startEditing]);
+
+    const isInEditMode = !!editingTemplate;
 
     return (
         <div className="flex h-[calc(100vh-4rem)] bg-muted/20">
             {/* Sidebar */}
-            <aside className="w-1/4 min-w-[250px] max-w-[300px] border-r bg-background p-4">
-                <div className="flex flex-col h-full">
-                    <Button className="w-full mb-4" onClick={handleNewTemplate}>
-                        <Plus className="mr-2 h-4 w-4" /> Novo Modelo
-                    </Button>
-                    <h2 className="text-lg font-semibold mb-2 px-2">Modelos Salvos</h2>
-                    <ul className="space-y-1 overflow-y-auto flex-1">
+            <aside className="w-1/4 min-w-[250px] max-w-[300px] border-r bg-background p-4 flex flex-col">
+                <Button className="w-full mb-4" onClick={handleNewTemplate}>
+                    <Plus className="mr-2 h-4 w-4" /> Novo Modelo
+                </Button>
+                <h2 className="text-lg font-semibold mb-2 px-2">Modelos Salvos</h2>
+                <div className="overflow-y-auto flex-1">
+                    <ul className="space-y-1">
                         {templates.map((template) => (
                             <li key={template.id}>
                                 <button
                                     onClick={() => handleSelectTemplate(template.id)}
                                     className={cn(
                                         "w-full text-left p-2 rounded-md transition-colors text-sm flex justify-between items-center group",
-                                        selectedTemplateId === template.id && !editingTemplate
+                                        selectedTemplateId === template.id && !isInEditMode
                                             ? "bg-primary text-primary-foreground"
                                             : "hover:bg-muted"
                                     )}
                                 >
                                     <span className="truncate">{template.name}</span>
-                                     <Trash2 
+                                    <Trash2
                                         className="h-4 w-4 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                                         onClick={(e) => handleDeleteTemplate(e, template.id)}
                                     />
@@ -257,68 +383,74 @@ export default function ModelosPage() {
 
             {/* Main Content */}
             <main className="w-1/2 p-8 overflow-y-auto">
-                 {!editingTemplate ? (
-                    <div className="space-y-8">
-                         <Card>
-                             <CardHeader>
-                                 <CardTitle>Importar Modelo de Arquivo Markdown (.md)</CardTitle>
-                                 <CardDescription>
-                                     Faça o upload de um arquivo .md para configurar um novo modelo automaticamente. O sistema usará os cabeçalhos de nível 1 (# Título) como títulos das cláusulas.
-                                 </CardDescription>
-                             </CardHeader>
-                             <CardContent>
-                                  <input 
-                                     type="file" 
-                                     className="hidden" 
-                                     ref={fileInputRef} 
-                                     onChange={handleFileUpload}
-                                     accept=".md"
-                                 />
-                                 <Button onClick={() => fileInputRef.current?.click()}>
-                                     <Upload className="mr-2 h-4 w-4" />
-                                     Carregar Modelo
-                                 </Button>
-                             </CardContent>
-                         </Card>
+                <div className="space-y-8">
+                     {!isInEditMode ? (
+                        <>
+                            <TemplateExtractor onTemplateExtracted={handleTemplateExtracted} />
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Importar Modelo de Arquivo Markdown (.md)</CardTitle>
+                                    <CardDescription>
+                                        Faça o upload de um arquivo .md para adicionar um novo modelo à sua lista.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        ref={fileInputRef}
+                                        onChange={handleFileUpload}
+                                        accept=".md"
+                                    />
+                                    <Button onClick={() => fileInputRef.current?.click()}>
+                                        <Upload className="mr-2 h-4 w-4" />
+                                        Carregar Modelo (.md)
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        </>
+                    ) : (
+                         <TemplateEditor
+                            template={editingTemplate}
+                            onTemplateChange={handleTemplateChange}
+                            onSave={handleSaveTemplate}
+                            onCancel={handleCancelEditing}
+                        />
+                    )}
+                     
+                    {!isInEditMode && !selectedTemplateId && (
                          <Card className="flex items-center justify-center p-8 border-dashed">
                             <div className="text-center">
                                 <h3 className="text-xl font-semibold">Selecione um modelo</h3>
-                                <p className="text-muted-foreground">Escolha um modelo na barra lateral para visualizar ou clique em "Novo Modelo" para começar um do zero.</p>
+                                <p className="text-muted-foreground">Escolha um modelo na barra lateral para visualizar ou clique em "Novo Modelo" para começar.</p>
                             </div>
                         </Card>
-                    </div>
-                ) : (
-                    <TemplateEditor 
-                        template={editingTemplate} 
-                        onTemplateChange={handleTemplateChange}
-                        onSave={handleSaveTemplate}
-                        onCancel={handleCancelEditing}
-                    />
-                )}
+                    )}
+                </div>
             </main>
 
             {/* Preview */}
             <aside className="w-1/4 min-w-[300px] border-l bg-background p-6">
                 <div className="sticky top-0">
                     <h2 className="text-xl font-semibold mb-4">Visualização em Tempo Real</h2>
-                    {selectedTemplate ? (
+                    {templateForPreview ? (
                         <Card className="h-[calc(100vh-10rem)]">
                             <CardContent className="p-6 h-full overflow-y-auto">
                                 <ReactMarkdown
                                     className="prose prose-sm dark:prose-invert max-w-none"
                                     components={{
-                                        p: ({node, ...props}) => <p className="mb-4" {...props} />,
-                                        h1: ({node, ...props}) => <h1 className="text-xl font-bold mb-4" {...props} />,
-                                        h2: ({node, ...props}) => <h2 className="text-lg font-semibold mt-6 mb-2" {...props} />,
+                                        p: ({ node, ...props }) => <p className="mb-4" {...props} />,
+                                        h1: ({ node, ...props }) => <h1 className="text-xl font-bold mb-4" {...props} />,
+                                        h2: ({ node, ...props }) => <h2 className="text-lg font-semibold mt-6 mb-2" {...props} />,
                                     }}
                                 >
-                                    {selectedTemplate.content}
+                                    {templateForPreview.content}
                                 </ReactMarkdown>
                             </CardContent>
                         </Card>
                     ) : (
-                        <div className="text-center text-muted-foreground mt-16">
-                            <p>Selecione um modelo para visualizar.</p>
+                        <div className="flex items-center justify-center h-[calc(100vh-10rem)] text-center text-muted-foreground border rounded-lg border-dashed">
+                            <p>Selecione ou crie um modelo para visualizar.</p>
                         </div>
                     )}
                 </div>

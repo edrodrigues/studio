@@ -15,19 +15,14 @@ const steps = [
 function Step({
   icon: Icon,
   label,
-  href,
-  index,
-  activeIndex
+  isActive,
+  isCompleted
 }: {
   icon: React.ElementType;
   label: string;
-  href: string;
-  index: number;
-  activeIndex: number;
+  isActive: boolean;
+  isCompleted: boolean;
 }) {
-  const isActive = index === activeIndex;
-  const isCompleted = index < activeIndex;
-
   return (
     <div className="flex flex-col items-center gap-2">
       <div
@@ -62,19 +57,15 @@ export function StepIndicator() {
     setIsMounted(true);
   }, []);
 
-  let activeIndex = -1;
-  if (isMounted) {
-    activeIndex = steps.findIndex(
+  const activeIndex = isMounted ? steps.findIndex(
       (step) =>
         (step.href !== "/" && pathname.startsWith(step.href)) ||
         (step.href === "/" && pathname === "/")
-    );
-    if (pathname.startsWith("/preencher")) {
-      activeIndex = 3;
-    }
-  }
+    ) : -1;
   
-  const progressScale = isMounted && activeIndex > 0 ? activeIndex / (steps.length - 1) : 0;
+  const finalActiveIndex = isMounted ? (pathname.startsWith("/preencher") ? 3 : activeIndex) : -1;
+  
+  const progressScale = isMounted && finalActiveIndex > 0 ? finalActiveIndex / (steps.length - 1) : 0;
 
 
   return (
@@ -91,9 +82,8 @@ export function StepIndicator() {
               <Step
                 icon={step.icon}
                 label={step.label}
-                href={step.href}
-                index={index}
-                activeIndex={activeIndex}
+                isActive={index === finalActiveIndex}
+                isCompleted={index < finalActiveIndex}
               />
             </div>
           ))}

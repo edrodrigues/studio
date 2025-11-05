@@ -1,4 +1,3 @@
-
 "use client";
 
 import { usePathname } from "next/navigation";
@@ -16,14 +15,19 @@ const steps = [
 function Step({
   icon: Icon,
   label,
-  isActive,
-  isCompleted,
+  href,
+  index,
+  activeIndex
 }: {
   icon: React.ElementType;
   label: string;
-  isActive: boolean;
-  isCompleted: boolean;
+  href: string;
+  index: number;
+  activeIndex: number;
 }) {
+  const isActive = index === activeIndex;
+  const isCompleted = index < activeIndex;
+
   return (
     <div className="flex flex-col items-center gap-2">
       <div
@@ -58,45 +62,19 @@ export function StepIndicator() {
     setIsMounted(true);
   }, []);
 
-  if (!isMounted) {
-    return (
-      <div className="border-b bg-card">
-        <div className="container py-4">
-          <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-            <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2 bg-border" />
-            <div
-              className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] origin-left -translate-x-1/2 bg-primary transition-transform duration-500 ease-in-out"
-              style={{ transform: `scaleX(0)` }}
-            />
-            {steps.map((step) => (
-              <div key={step.href} className="relative z-10 flex w-20 justify-center">
-                <Step
-                  icon={step.icon}
-                  label={step.label}
-                  isActive={false}
-                  isCompleted={false}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+  let activeIndex = -1;
+  if (isMounted) {
+    activeIndex = steps.findIndex(
+      (step) =>
+        (step.href !== "/" && pathname.startsWith(step.href)) ||
+        (step.href === "/" && pathname === "/")
     );
+    if (pathname.startsWith("/preencher")) {
+      activeIndex = 3;
+    }
   }
-
-  // Find the index of the current active step
-  let activeIndex = steps.findIndex(
-    (step) =>
-      (step.href !== "/" && pathname.startsWith(step.href)) ||
-      (step.href === "/" && pathname === "/")
-  );
-
-  // Special case for dynamic preencher routes, which are part of the last step now
-  if (pathname.startsWith("/preencher")) {
-    activeIndex = 3;
-  }
-
-  const progressScale = activeIndex === -1 ? 0 : activeIndex / (steps.length - 1);
+  
+  const progressScale = isMounted && activeIndex > 0 ? activeIndex / (steps.length - 1) : 0;
 
 
   return (
@@ -113,8 +91,9 @@ export function StepIndicator() {
               <Step
                 icon={step.icon}
                 label={step.label}
-                isActive={index === activeIndex}
-                isCompleted={index < activeIndex}
+                href={step.href}
+                index={index}
+                activeIndex={activeIndex}
               />
             </div>
           ))}

@@ -61,12 +61,10 @@ export function FileUploader({ icon, title, description, onFileSelect, onFeedbac
             </>
           )}
         </Button>
-        {file && (
-            <Button onClick={onFeedbackClick} variant="outline" className="w-full">
-                <Bot className="mr-2 h-4 w-4" />
-                Feedback de IA
-            </Button>
-        )}
+        <Button onClick={onFeedbackClick} variant="outline" className="w-full" disabled={!file}>
+            <Bot className="mr-2 h-4 w-4" />
+            Feedback de IA
+        </Button>
       </CardContent>
     </Card>
   );

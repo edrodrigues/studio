@@ -3,7 +3,7 @@
 
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, FileUp, FileText, CheckCircle, DraftingCompass } from "lucide-react";
+import { Home, FileUp, CheckCircle, DraftingCompass } from "lucide-react";
 
 const steps = [
   { href: "/", label: "Comece Aqui", icon: Home },
@@ -24,7 +24,7 @@ function Step({
   isCompleted: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center gap-2">
       <div
         className={cn(
           "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors duration-300",
@@ -39,7 +39,7 @@ function Step({
       </div>
       <p
         className={cn(
-          "mt-2 text-center text-xs font-medium transition-colors duration-300 sm:text-sm",
+          "mt-1 text-center text-xs font-medium transition-colors duration-300 sm:text-sm",
           isActive || isCompleted ? "text-foreground" : "text-muted-foreground"
         )}
       >
@@ -69,13 +69,13 @@ export function StepIndicator() {
     <div className="border-b bg-card">
       <div className="container py-4">
         <div className="relative flex items-start justify-between">
-          <div className="absolute left-0 top-5 h-0.5 w-full bg-border" />
+          <div className="absolute left-0 right-0 top-5 mx-auto h-0.5 w-[calc(100%-80px)] max-w-4xl bg-border" />
           <div
-            className="absolute left-0 top-5 h-0.5 bg-primary transition-all duration-500 ease-in-out"
-            style={{ width: `calc(${Math.max(0, activeIndex) * (100 / (steps.length-1))}% - 2rem)` }}
+            className="absolute left-0 right-0 top-5 mx-auto h-0.5 w-[calc(100%-80px)] max-w-4xl origin-left bg-primary transition-transform duration-500 ease-in-out"
+            style={{ transform: `scaleX(${(Math.max(0, activeIndex) / (steps.length - 1))})` }}
           />
           {steps.map((step, index) => (
-            <div key={step.href} className="relative z-10 w-20">
+            <div key={step.href} className="relative z-10 flex w-20 justify-center">
               <Step
                 icon={step.icon}
                 label={step.label}

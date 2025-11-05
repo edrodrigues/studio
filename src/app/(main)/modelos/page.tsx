@@ -310,9 +310,9 @@ export default function ModelosPage() {
     const isInEditMode = !!editingTemplate;
 
     return (
-        <div className="flex h-[calc(100vh-4rem)] bg-muted/20">
+        <div className="flex h-[calc(100vh-4rem)] bg-transparent">
             {/* Sidebar */}
-            <aside className="w-1/4 min-w-[250px] max-w-[300px] border-r bg-background p-4 flex flex-col">
+            <aside className="w-1/4 min-w-[250px] max-w-[300px] border-r bg-background/80 p-4 flex flex-col glass">
                 <Button className="w-full mb-4" onClick={handleNewTemplate} disabled={!user}>
                     <Plus className="mr-2 h-4 w-4" /> Novo Modelo
                 </Button>
@@ -359,7 +359,7 @@ export default function ModelosPage() {
                     )}
                      
                     {!isInEditMode && !selectedTemplateId && !isLoading && (
-                         <Card className="flex items-center justify-center p-8 border-dashed">
+                         <Card className="flex items-center justify-center p-8 border-dashed bg-card/50">
                             <div className="text-center">
                                 <h3 className="text-xl font-semibold">Selecione um modelo</h3>
                                 <p className="text-muted-foreground">Escolha um modelo na barra lateral para visualizar ou clique em "Novo Modelo" para começar.</p>
@@ -370,11 +370,11 @@ export default function ModelosPage() {
             </main>
 
             {/* Preview */}
-            <aside className="w-1/4 min-w-[300px] border-l bg-background p-6">
+            <aside className="w-1/4 min-w-[300px] border-l bg-background/80 p-6 glass">
                 <div className="sticky top-0">
                     <h2 className="text-xl font-semibold mb-4">Visualização em Tempo Real</h2>
                     {templateForPreview ? (
-                        <Card className="h-[calc(100vh-10rem)]">
+                        <Card className="h-[calc(100vh-10rem)] bg-card/50">
                             <CardContent className="p-6 h-full overflow-y-auto">
                                 <ReactMarkdown
                                     className="prose prose-sm dark:prose-invert max-w-none"
@@ -389,7 +389,7 @@ export default function ModelosPage() {
                             </CardContent>
                         </Card>
                     ) : (
-                        <div className="flex items-center justify-center h-[calc(100vh-10rem)] text-center text-muted-foreground border rounded-lg border-dashed">
+                        <div className="flex items-center justify-center h-[calc(100vh-10rem)] text-center text-muted-foreground border rounded-lg border-dashed bg-card/50">
                             <p>Selecione ou crie um modelo para visualizar.</p>
                         </div>
                     )}

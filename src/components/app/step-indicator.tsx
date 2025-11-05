@@ -1,4 +1,3 @@
-
 "use client";
 
 import { usePathname } from "next/navigation";
@@ -16,16 +15,21 @@ const steps = [
 function Step({
   icon: Icon,
   label,
-  isActive,
-  isCompleted
+  href,
+  index,
+  activeIndex,
 }: {
   icon: React.ElementType;
   label: string;
-  isActive: boolean;
-  isCompleted: boolean;
+  href: string;
+  index: number;
+  activeIndex: number;
 }) {
+  const isActive = index === activeIndex;
+  const isCompleted = index < activeIndex;
+
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="relative z-10 flex w-20 flex-col items-center gap-2">
       <div
         className={cn(
           "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors duration-300",
@@ -33,7 +37,7 @@ function Step({
             ? "border-primary bg-primary text-primary-foreground"
             : isCompleted
             ? "border-primary bg-primary/10 text-primary"
-            : "border-border bg-card text-muted-foreground"
+            : "border-border bg-card/80 text-muted-foreground glass"
         )}
       >
         <Icon className="h-5 w-5" />
@@ -53,23 +57,29 @@ function Step({
 export function StepIndicator() {
   const pathname = usePathname();
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    const currentPathIndex = steps.findIndex(
-      (step) =>
-        (step.href !== "/" && pathname.startsWith(step.href)) ||
-        (step.href === "/" && pathname === "/")
-    );
-    const finalIndex = pathname.startsWith("/preencher") ? 3 : currentPathIndex;
-    setActiveIndex(finalIndex);
-  }, [pathname]);
+    setIsMounted(true);
+  }, []);
 
+  useEffect(() => {
+    if (isMounted) {
+      const currentPathIndex = steps.findIndex(
+        (step) =>
+          (step.href !== "/" && pathname.startsWith(step.href)) ||
+          (step.href === "/" && pathname === "/")
+      );
+      const finalIndex = pathname.startsWith("/preencher") ? 3 : currentPathIndex;
+      setActiveIndex(finalIndex);
+    }
+  }, [pathname, isMounted]);
 
   const progressScale = activeIndex > 0 ? activeIndex / (steps.length - 1) : 0;
   
-  if (activeIndex === -1) {
-    return (
-       <div className="border-b bg-card">
+  if (!isMounted) {
+     return (
+       <div className="border-b bg-card/80 glass">
         <div className="container py-4">
           <div className="relative mx-auto flex max-w-4xl items-start justify-between">
              <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2 bg-border" />
@@ -77,15 +87,15 @@ export function StepIndicator() {
               className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] origin-left -translate-x-1/2 bg-primary transition-transform duration-500 ease-in-out"
               style={{ transform: `scaleX(0)` }}
             />
-            {steps.map((step) => (
-              <div key={step.href} className="relative z-10 flex w-20 justify-center">
-                 <Step
+            {steps.map((step, index) => (
+               <Step
+                  key={step.href}
                   icon={step.icon}
                   label={step.label}
-                  isActive={false}
-                  isCompleted={false}
+                  href={step.href}
+                  index={index}
+                  activeIndex={-1}
                 />
-              </div>
             ))}
           </div>
         </div>
@@ -94,7 +104,7 @@ export function StepIndicator() {
   }
 
   return (
-    <div className="border-b bg-card">
+    <div className="border-b bg-card/80 glass">
       <div className="container py-4">
         <div className="relative mx-auto flex max-w-4xl items-start justify-between">
           <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2 bg-border" />
@@ -103,14 +113,14 @@ export function StepIndicator() {
             style={{ transform: `scaleX(${progressScale})` }}
           />
           {steps.map((step, index) => (
-            <div key={step.href} className="relative z-10 flex w-20 justify-center">
-              <Step
-                icon={step.icon}
-                label={step.label}
-                isActive={index === activeIndex}
-                isCompleted={index < activeIndex}
-              />
-            </div>
+            <Step
+              key={step.href}
+              icon={step.icon}
+              label={step.label}
+              href={step.href}
+              index={index}
+              activeIndex={activeIndex}
+            />
           ))}
         </div>
       </div>

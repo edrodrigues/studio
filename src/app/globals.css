@@ -4,47 +4,47 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
+    --background: 210 20% 98% / 0.1;
     --foreground: 215 28% 17%;
-    --card: 0 0% 100%;
+    --card: 210 20% 98% / 0.3;
     --card-foreground: 215 28% 17%;
-    --popover: 0 0% 100%;
+    --popover: 0 0% 100% / 0.5;
     --popover-foreground: 215 28% 17%;
     --primary: 165 100% 15%;
     --primary-foreground: 210 40% 98%;
     --secondary: 122 39% 55%;
     --secondary-foreground: 215 28% 17%;
-    --muted: 210 40% 96.1%;
+    --muted: 210 40% 96.1% / 0.3;
     --muted-foreground: 215 14% 47%;
-    --accent: 123 45% 34%;
+    --accent: 123 45% 34% / 0.5;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 72% 57%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 214.3 31.8% 91.4% / 0.2;
+    --input: 214.3 31.8% 91.4% / 0.3;
     --ring: 123 45% 34%;
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 222 47% 11%;
+    --background: 222 47% 11% / 0.1;
     --foreground: 210 40% 98%;
-    --card: 222 47% 11%;
+    --card: 222 47% 11% / 0.2;
     --card-foreground: 210 40% 98%;
-    --popover: 222 47% 11%;
+    --popover: 222 47% 11% / 0.5;
     --popover-foreground: 210 40% 98%;
     --primary: 165 100% 25%;
     --primary-foreground: 210 40% 98%;
     --secondary: 122 39% 45%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
+    --muted: 217.2 32.6% 17.5% / 0.3;
     --muted-foreground: 215 20.2% 65.1%;
-    --accent: 123 45% 44%;
+    --accent: 123 45% 44% / 0.5;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 217.2 32.6% 17.5% / 0.3;
+    --input: 217.2 32.6% 17.5% / 0.4;
     --ring: 123 45% 44%;
   }
 }
@@ -56,4 +56,10 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+@layer utilities {
+    .glass {
+        @apply backdrop-blur-lg border;
+    }
 }

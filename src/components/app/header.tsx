@@ -11,9 +11,24 @@ const navLinks = [
   { href: "/gerar-exportar", label: "Gerar e Exportar" },
 ];
 
-export function Header() {
-  const pathname = usePathname();
+function NavLink({ href, label }: { href: string; label: string }) {
+    const pathname = usePathname();
+    const isActive = pathname === href;
 
+    return (
+        <Link
+            href={href}
+            className={cn(
+                "transition-colors hover:text-secondary",
+                isActive ? "text-secondary font-semibold" : "text-muted-foreground"
+            )}
+        >
+            {label}
+        </Link>
+    );
+}
+
+export function Header() {
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-card">
       <div className="container flex h-16 items-center space-x-4 sm:justify-between sm:space-x-0">
@@ -28,15 +43,7 @@ export function Header() {
           <ul className="flex justify-center gap-4 lg:gap-6">
             {navLinks.map((link) => (
               <li key={link.href}>
-                <Link
-                  href={link.href}
-                  className={cn(
-                    "transition-colors hover:text-secondary",
-                    pathname === link.href ? "text-secondary font-semibold" : "text-muted-foreground"
-                  )}
-                >
-                  {link.label}
-                </Link>
+                <NavLink href={link.href} label={link.label} />
               </li>
             ))}
           </ul>

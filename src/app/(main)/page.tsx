@@ -9,7 +9,7 @@ export default function ComeceAquiPage() {
     <div className="container relative">
       <section className="mx-auto flex max-w-4xl flex-col items-center justify-center py-12 text-center md:py-20">
         <h1 className="text-4xl font-bold leading-tight tracking-tighter md:text-6xl lg:leading-[1.1]">
-          Assitente de Contratos IA
+          Assistente de Contratos V-Lab
         </h1>
         <p className="mt-6 max-w-2xl text-muted-foreground sm:text-xl">
           Sua ferramenta inteligente para criar, gerenciar e preencher minutas de contratos de cooperação de forma rápida e eficiente.

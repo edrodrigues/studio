@@ -36,7 +36,7 @@ export function Header() {
         <div className="flex items-center gap-6 md:gap-10">
           <Link href="/" className="flex items-center space-x-2">
             <Logo />
-            <span className="hidden font-bold sm:inline-block">Assistente de Contratos</span>
+            <span className="hidden font-bold sm:inline-block">Assistente de Contratos V-Lab</span>
           </Link>
         </div>
 

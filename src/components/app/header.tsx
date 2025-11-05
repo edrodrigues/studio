@@ -6,7 +6,7 @@ import { Logo } from "@/components/app/logo";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
-  { href: "/", label: "Comece Aqui" },
+  { href: "/", label: "Documentos Iniciais" },
   { href: "/modelos", label: "Gerenciar Modelos" },
   { href: "/gerar-exportar", label: "Gerar e Exportar" },
 ];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, memo } from "react";
 import { Plus, Trash2, FileText, Copy, Book } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,79 +33,7 @@ Use variáveis no formato {{NOME_DA_VARIAVEL}} para campos que serão preenchido
 - {{DATA_ASSINATURA}}
 `;
 
-function TemplateEditor({
-  template,
-  onSave,
-  onCancel,
-}: {
-  template: Template;
-  onSave: (template: Template) => void;
-  onCancel: () => void;
-}) {
-  const [editedTemplate, setEditedTemplate] = useState(template);
-
-  const handleSave = () => {
-    onSave(editedTemplate);
-  };
-
-  return (
-    <div className="flex h-full flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto p-1 pr-4">
-        <div>
-          <Label htmlFor="name">Nome do Modelo</Label>
-          <Input
-            id="name"
-            value={editedTemplate.name}
-            onChange={(e) => setEditedTemplate({ ...editedTemplate, name: e.target.value })}
-            className="text-lg font-semibold"
-          />
-        </div>
-        <div>
-          <Label htmlFor="description">Descrição</Label>
-          <Input
-            id="description"
-            value={editedTemplate.description}
-            onChange={(e) => setEditedTemplate({ ...editedTemplate, description: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label htmlFor="googleDocLink">Link do Google Doc (Opcional)</Label>
-          <Input
-            id="googleDocLink"
-            value={editedTemplate.googleDocLink || ""}
-            onChange={(e) => setEditedTemplate({ ...editedTemplate, googleDocLink: e.target.value })}
-          />
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <Label htmlFor="content">Conteúdo do Modelo (Markdown)</Label>
-            <Textarea
-              id="content"
-              value={editedTemplate.content}
-              onChange={(e) => setEditedTemplate({ ...editedTemplate, content: e.target.value })}
-              className="min-h-[400px] font-mono"
-            />
-            <p className="text-xs text-muted-foreground">Use variáveis como {{'{'}}{'{'}NOME_VARIAVEL{'}'}{'}'}}.</p>
-          </div>
-          <div>
-            <Label>Pré-visualização</Label>
-            <ScrollArea className="h-[425px] rounded-md border p-4">
-              <ReactMarkdown className="prose prose-sm max-w-none dark:prose-invert">
-                {editedTemplate.content}
-              </ReactMarkdown>
-            </ScrollArea>
-          </div>
-        </div>
-      </div>
-      <div className="mt-4 flex justify-end gap-2 border-t pt-4">
-        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-        <Button onClick={handleSave}>Salvar Modelo</Button>
-      </div>
-    </div>
-  );
-}
-
-function WelcomeScreen() {
+const WelcomeScreenMemoized = memo(function WelcomeScreen() {
     const { toast } = useToast();
 
     const copyPrompt = useCallback(() => {
@@ -146,6 +74,84 @@ function WelcomeScreen() {
             </Card>
         </div>
     );
+});
+WelcomeScreenMemoized.displayName = "WelcomeScreen";
+
+function TemplateEditor({
+  template,
+  onSave,
+  onCancel,
+}: {
+  template: Template;
+  onSave: (template: Template) => void;
+  onCancel: () => void;
+}) {
+  const [editedTemplate, setEditedTemplate] = useState(template);
+
+  const handleSave = () => {
+    onSave(editedTemplate);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { id, value } = e.target;
+    setEditedTemplate(prev => ({ ...prev, [id]: value }));
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex-1 space-y-4 overflow-y-auto p-1 pr-4">
+        <div>
+          <Label htmlFor="name">Nome do Modelo</Label>
+          <Input
+            id="name"
+            value={editedTemplate.name}
+            onChange={handleInputChange}
+            className="text-lg font-semibold"
+          />
+        </div>
+        <div>
+          <Label htmlFor="description">Descrição</Label>
+          <Input
+            id="description"
+            value={editedTemplate.description}
+            onChange={handleInputChange}
+          />
+        </div>
+        <div>
+          <Label htmlFor="googleDocLink">Link do Google Doc (Opcional)</Label>
+          <Input
+            id="googleDocLink"
+            value={editedTemplate.googleDocLink || ""}
+            onChange={handleInputChange}
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <Label htmlFor="content">Conteúdo do Modelo (Markdown)</Label>
+            <Textarea
+              id="content"
+              value={editedTemplate.content}
+              onChange={handleInputChange}
+              className="min-h-[400px] font-mono"
+            />
+            <p className="text-xs text-muted-foreground">Use variáveis como {{'{'}}{'{'}NOME_VARIAVEL{'}'}{'}'}}.</p>
+          </div>
+          <div>
+            <Label>Pré-visualização</Label>
+            <ScrollArea className="h-[425px] rounded-md border p-4">
+              <ReactMarkdown className="prose prose-sm max-w-none dark:prose-invert">
+                {editedTemplate.content}
+              </ReactMarkdown>
+            </ScrollArea>
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 flex justify-end gap-2 border-t pt-4">
+        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+        <Button onClick={handleSave}>Salvar Modelo</Button>
+      </div>
+    </div>
+  );
 }
 
 export default function ModelosPage() {
@@ -225,12 +231,13 @@ export default function ModelosPage() {
         <main className="overflow-hidden">
           {activeTemplate ? (
             <TemplateEditor
+              key={activeTemplate.id}
               template={activeTemplate}
               onSave={handleSaveTemplate}
               onCancel={() => setActiveTemplateId(null)}
             />
           ) : (
-            <WelcomeScreen />
+            <WelcomeScreenMemoized />
           )}
         </main>
       </div>

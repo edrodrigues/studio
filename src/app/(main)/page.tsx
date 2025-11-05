@@ -85,7 +85,7 @@ export default function ComeceAquiPage() {
     <div className="container relative">
       <section className="mx-auto flex max-w-3xl flex-col items-center justify-center py-12 text-center md:py-20">
         <h1 className="text-3xl font-bold leading-tight tracking-tighter md:text-5xl lg:leading-[1.1]">
-          Gere sua Minuta de Contrato com IA
+          Analise os documentos iniciais
         </h1>
         <p className="mt-4 max-w-xl text-muted-foreground sm:text-lg">
           Siga os 3 passos para que nossa inteligência artificial crie uma minuta de contrato de cooperação completa e estruturada para você.

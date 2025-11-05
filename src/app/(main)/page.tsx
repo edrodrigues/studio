@@ -1,136 +1,65 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { FileText, Clock, CircleDollarSign, Loader2 } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
-import { FileUploader } from "@/components/app/file-uploader";
-import { handleGenerateContract } from "@/lib/actions";
-import { useToast } from "@/hooks/use-toast";
-import useLocalStorage from "@/hooks/use-local-storage";
-import { type Contract } from "@/lib/types";
-
-const fileToDataURI = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
+import Link from "next/link";
+import { FileText, DraftingCompass, UploadCloud } from "lucide-react";
 
 export default function ComeceAquiPage() {
-  const [files, setFiles] = useState<{ [key: string]: File | null }>({
-    planOfWork: null,
-    termOfExecution: null,
-    budgetSpreadsheet: null,
-  });
-  const [isPending, startTransition] = useTransition();
-  const router = useRouter();
-  const { toast } = useToast();
-  const [, setContracts] = useLocalStorage<Contract[]>("contracts", []);
-
-  const handleFileSelect = (key: string) => (file: File | null) => {
-    setFiles((prev) => ({ ...prev, [key]: file }));
-  };
-
-  const canGenerate = Object.values(files).every((file) => file !== null);
-
-  const handleSubmit = async () => {
-    if (!canGenerate) return;
-
-    startTransition(async () => {
-      try {
-        const formData = new FormData();
-        const planOfWorkURI = await fileToDataURI(files.planOfWork!);
-        const termOfExecutionURI = await fileToDataURI(files.termOfExecution!);
-        const budgetSpreadsheetURI = await fileToDataURI(files.budgetSpreadsheet!);
-
-        formData.append("planOfWork", planOfWorkURI);
-        formData.append("termOfExecution", termOfExecutionURI);
-        formData.append("budgetSpreadsheet", budgetSpreadsheetURI);
-
-        const result = await handleGenerateContract(formData);
-
-        if (result.success && result.data?.contractDraft) {
-          const newContract: Contract = {
-            id: `contract-${Date.now()}`,
-            name: `Novo Contrato Gerado - ${new Date().toLocaleDateString()}`,
-            content: result.data.contractDraft,
-            createdAt: new Date().toISOString(),
-          };
-          
-          setContracts((prev) => [...prev, newContract]);
-          toast({
-            title: "Sucesso!",
-            description: "Minuta de contrato gerada. Redirecionando para o editor...",
-          });
-          router.push(`/preencher/${newContract.id}`);
-        } else {
-          throw new Error(result.error || "Falha ao obter o rascunho do contrato.");
-        }
-      } catch (error) {
-        console.error(error);
-        toast({
-          variant: "destructive",
-          title: "Erro na Geração",
-          description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido.",
-        });
-      }
-    });
-  };
-
   return (
     <div className="container relative">
-      <section className="mx-auto flex max-w-3xl flex-col items-center justify-center py-12 text-center md:py-20">
-        <h1 className="text-3xl font-bold leading-tight tracking-tighter md:text-5xl lg:leading-[1.1]">
-          Analise os documentos iniciais
+      <section className="mx-auto flex max-w-4xl flex-col items-center justify-center py-12 text-center md:py-20">
+        <h1 className="text-4xl font-bold leading-tight tracking-tighter md:text-6xl lg:leading-[1.1]">
+          Bem-vindo ao Assistente de Contratos V-Lab
         </h1>
-        <p className="mt-4 max-w-xl text-muted-foreground sm:text-lg">
-          Analise os documentos iniciais com a IA e depois clique em "Indexar Documentos" para que eles sejam usados de contexto para os demais documentos.
+        <p className="mt-6 max-w-2xl text-muted-foreground sm:text-xl">
+          Sua ferramenta inteligente para criar, gerenciar e preencher minutas de contratos de cooperação de forma rápida e eficiente.
         </p>
+        <div className="mt-8 flex flex-wrap justify-center gap-4">
+            <Button size="lg" asChild>
+                <Link href="/documentos-iniciais">Começar a Gerar um Contrato</Link>
+            </Button>
+            <Button size="lg" variant="outline" asChild>
+                <Link href="/modelos">Gerenciar Meus Modelos</Link>
+            </Button>
+        </div>
       </section>
 
-      <section className="mx-auto grid max-w-5xl grid-cols-1 gap-8 md:grid-cols-3">
-        <FileUploader
-          icon={<FileText size={24} />}
-          title="Plano de Trabalho"
-          description="Documento com o escopo e atividades."
-          onFileSelect={handleFileSelect("planOfWork")}
-          name="planOfWork"
-        />
-        <FileUploader
-          icon={<Clock size={24} />}
-          title="Termo de Execução"
-          description="Cronograma e prazos do projeto."
-          onFileSelect={handleFileSelect("termOfExecution")}
-          name="termOfExecution"
-        />
-        <FileUploader
-          icon={<CircleDollarSign size={24} />}
-          title="Planilha de Orçamento"
-          description="Valores e distribuição de recursos."
-          onFileSelect={handleFileSelect("budgetSpreadsheet")}
-          name="budgetSpreadsheet"
-        />
-      </section>
-
-      <section className="mt-12 flex justify-center py-8">
-        <Button
-          size="lg"
-          onClick={handleSubmit}
-          disabled={!canGenerate || isPending}
-        >
-          {isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Indexando...
-            </>
-          ) : (
-            "Indexar Documentos"
-          )}
-        </Button>
+      <section className="py-12 md:py-20">
+        <div className="mx-auto max-w-5xl">
+            <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold">Como Funciona</h2>
+                <p className="text-muted-foreground mt-2">Siga estes simples passos para otimizar seu fluxo de trabalho.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+                <div className="flex flex-col items-center text-center">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary mb-4">
+                        <UploadCloud size={32} />
+                    </div>
+                    <h3 className="text-xl font-semibold">1. Indexe Seus Documentos</h3>
+                    <p className="mt-2 text-muted-foreground">
+                        Vá para a aba "Documentos Iniciais", faça o upload do Plano de Trabalho, Termo de Execução e Orçamento para que a IA os use como base.
+                    </p>
+                </div>
+                <div className="flex flex-col items-center text-center">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary mb-4">
+                        <DraftingCompass size={32} />
+                    </div>
+                    <h3 className="text-xl font-semibold">2. Gerencie Seus Modelos</h3>
+                    <p className="mt-2 text-muted-foreground">
+                        Use modelos pré-existentes ou crie novos a partir de seus próprios documentos na aba "Gerenciar Modelos".
+                    </p>
+                </div>
+                <div className="flex flex-col items-center text-center">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary mb-4">
+                        <FileText size={32} />
+                    </div>
+                    <h3 className="text-xl font-semibold">3. Preencha e Exporte</h3>
+                    <p className="mt-2 text-muted-foreground">
+                        A IA irá gerar uma minuta. Use o editor guiado e o assistente Gemini para preencher os campos e depois exporte em Markdown ou .DOCX.
+                    </p>
+                </div>
+            </div>
+        </div>
       </section>
     </div>
   );

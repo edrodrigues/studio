@@ -6,14 +6,15 @@ import { Logo } from "@/components/app/logo";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
-  { href: "/", label: "Documentos Iniciais" },
+  { href: "/", label: "Comece Aqui" },
+  { href: "/documentos-iniciais", label: "Documentos Iniciais" },
   { href: "/modelos", label: "Gerenciar Modelos" },
   { href: "/gerar-exportar", label: "Gerar e Exportar" },
 ];
 
 function NavLink({ href, label }: { href: string; label: string }) {
     const pathname = usePathname();
-    const isActive = pathname === href;
+    const isActive = (href === "/" && pathname === "/") || (href !== "/" && pathname.startsWith(href));
 
     return (
         <Link
@@ -49,7 +50,7 @@ export function Header() {
           </ul>
         </nav>
         
-        <div className="flex items-center justify-end" style={{ flexBasis: '150px' }}>
+        <div className="flex items-center justify-end" style={{ flexBasis: '200px' }}>
           {/* Placeholder for potential user avatar or actions */}
         </div>
       </div>

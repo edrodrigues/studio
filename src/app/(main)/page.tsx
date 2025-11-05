@@ -88,28 +88,28 @@ export default function ComeceAquiPage() {
           Gere sua Minuta de Contrato com IA
         </h1>
         <p className="mt-4 max-w-xl text-muted-foreground sm:text-lg">
-          Faça o upload dos documentos de base para que nossa inteligência artificial crie uma minuta de contrato de cooperação completa e estruturada para você.
+          Siga os 3 passos para que nossa inteligência artificial crie uma minuta de contrato de cooperação completa e estruturada para você.
         </p>
       </section>
 
       <section className="mx-auto grid max-w-5xl grid-cols-1 gap-8 md:grid-cols-3">
         <FileUploader
           icon={<FileText size={24} />}
-          title="Plano de Trabalho"
+          title="Passo 1: Plano de Trabalho"
           description="Documento com o escopo e atividades."
           onFileSelect={handleFileSelect("planOfWork")}
           name="planOfWork"
         />
         <FileUploader
           icon={<Clock size={24} />}
-          title="Termo de Execução"
+          title="Passo 2: Termo de Execução"
           description="Cronograma e prazos do projeto."
           onFileSelect={handleFileSelect("termOfExecution")}
           name="termOfExecution"
         />
         <FileUploader
           icon={<CircleDollarSign size={24} />}
-          title="Planilha de Orçamento"
+          title="Passo 3: Planilha de Orçamento"
           description="Valores e distribuição de recursos."
           onFileSelect={handleFileSelect("budgetSpreadsheet")}
           name="budgetSpreadsheet"

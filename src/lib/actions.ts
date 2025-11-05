@@ -3,6 +3,7 @@
 import { generateContractFromDocuments } from "@/ai/flows/generate-contract-from-documents";
 import { getAssistanceFromGemini } from "@/ai/flows/get-assistance-from-gemini";
 import { extractTemplateFromDocument } from "@/ai/flows/extract-template-from-document";
+import { getDocumentFeedback } from "@/ai/flows/get-document-feedback";
 import { z } from "zod";
 
 const fileSchema = z.string().refine(s => s.startsWith('data:'), 'File must be a data URI');
@@ -74,5 +75,32 @@ export async function handleExtractTemplate(formData: FormData) {
     } catch (error) {
         console.error("Error extracting template:", error);
         return { success: false, error: "Falha ao extrair o modelo." };
+    }
+}
+
+const getFeedbackSchema = z.object({
+  systemPrompt: z.string(),
+  documents: z.array(z.object({
+    name: z.string(),
+    dataUri: fileSchema,
+  })),
+});
+
+
+export async function handleGetFeedback(input: {
+    systemPrompt: string;
+    documents: { name: string, dataUri: string }[];
+}) {
+    try {
+        const validatedData = getFeedbackSchema.safeParse(input);
+        if (!validatedData.success) {
+            console.error("Validation failed", validatedData.error.flatten());
+            return { success: false, error: "Dados de entrada inválidos para o feedback." };
+        }
+        const result = await getDocumentFeedback(validatedData.data);
+        return { success: true, data: result };
+    } catch (error) {
+        console.error("Error getting feedback:", error);
+        return { success: false, error: "Falha ao obter feedback da IA." };
     }
 }

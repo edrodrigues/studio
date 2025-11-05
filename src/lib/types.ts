@@ -13,3 +13,8 @@ export interface Contract {
   content: string; // Markdown content with filled values
   createdAt: string;
 }
+
+export interface UploadedFile {
+    id: string;
+    file: File;
+}

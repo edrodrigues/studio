@@ -3,7 +3,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Clock, CircleDollarSign, Loader2 } from "lucide-react";
+import { FileText, Clock, CircleDollarSign, Loader2, Bot } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { FileUploader } from "@/components/app/file-uploader";
@@ -14,8 +14,10 @@ import { type Contract } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { FeedbackModal } from "@/components/app/feedback-modal";
+import { type UploadedFile } from "@/lib/types";
 
-const fileToDataURI = (file: File): Promise<string> => {
+export const fileToDataURI = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
@@ -33,6 +35,7 @@ export default function DocumentosIniciaisPage() {
   const [contractType, setContractType] = useState<string>('');
   const [processType, setProcessType] = useState<string>('');
   const [isPending, startTransition] = useTransition();
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const [, setContracts] = useLocalStorage<Contract[]>("contracts", []);
@@ -41,7 +44,14 @@ export default function DocumentosIniciaisPage() {
     setFiles((prev) => ({ ...prev, [key]: file }));
   };
 
+  const uploadedFiles: UploadedFile[] = Object.entries(files)
+    .filter(([, file]) => file !== null)
+    .map(([key, file]) => ({ id: key, file: file! }));
+
+
   const canGenerate = Object.values(files).every((file) => file !== null) && contractType && processType;
+  const canGetFeedback = uploadedFiles.length > 0;
+
 
   const handleSubmit = async () => {
     if (!canGenerate) return;
@@ -88,96 +98,112 @@ export default function DocumentosIniciaisPage() {
   };
 
   return (
-    <div className="container relative">
-      <section className="mx-auto flex max-w-3xl flex-col items-center justify-center py-12 text-center md:py-20">
-        <h1 className="text-3xl font-bold leading-tight tracking-tighter md:text-5xl lg:leading-[1.1]">
-          Analise os documentos iniciais
-        </h1>
-        <p className="mt-4 max-w-xl text-muted-foreground sm:text-lg">
-          Analise os documentos iniciais com a IA e depois clique em "Indexar Documentos" para que eles sejam usados de contexto para os demais documentos.
-        </p>
-      </section>
+    <>
+      <div className="container relative">
+        <section className="mx-auto flex max-w-3xl flex-col items-center justify-center py-12 text-center md:py-20">
+          <h1 className="text-3xl font-bold leading-tight tracking-tighter md:text-5xl lg:leading-[1.1]">
+            Analise os documentos iniciais
+          </h1>
+          <p className="mt-4 max-w-xl text-muted-foreground sm:text-lg">
+            Analise os documentos iniciais com a IA e depois clique em "Indexar Documentos" para que eles sejam usados de contexto para os demais documentos.
+          </p>
+        </section>
 
-      <section className="mx-auto max-w-5xl mb-8">
-        <Card>
-            <CardHeader>
-                <CardTitle>Definições Iniciais</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-3">
-                    <Label>Tipo de Contrato</Label>
-                    <RadioGroup value={contractType} onValueChange={setContractType} className="flex space-x-4">
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="TED" id="ted" />
-                            <Label htmlFor="ted">TED</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="ACT" id="act" />
-                            <Label htmlFor="act">ACT</Label>
-                        </div>
-                         <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="outro" id="outro-contrato" />
-                            <Label htmlFor="outro-contrato">Outro</Label>
-                        </div>
-                    </RadioGroup>
-                </div>
-                 <div className="space-y-3">
-                    <Label>Tipo de Processo</Label>
-                    <RadioGroup value={processType} onValueChange={setProcessType} className="flex space-x-4">
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="ufpe-parceiro" id="ufpe-parceiro" />
-                            <Label htmlFor="ufpe-parceiro">UFPE - Parceiro</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="fade-ufpe" id="fade-ufpe" />
-                            <Label htmlFor="fade-ufpe">Fade - UFPE</Label>
-                        </div>
-                    </RadioGroup>
-                </div>
-            </CardContent>
-        </Card>
-      </section>
+        <section className="mx-auto max-w-5xl mb-8">
+          <Card>
+              <CardHeader>
+                  <CardTitle>Definições Iniciais</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-3">
+                      <Label>Tipo de Contrato</Label>
+                      <RadioGroup value={contractType} onValueChange={setContractType} className="flex space-x-4">
+                          <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="TED" id="ted" />
+                              <Label htmlFor="ted">TED</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="ACT" id="act" />
+                              <Label htmlFor="act">ACT</Label>
+                          </div>
+                           <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="outro" id="outro-contrato" />
+                              <Label htmlFor="outro-contrato">Outro</Label>
+                          </div>
+                      </RadioGroup>
+                  </div>
+                   <div className="space-y-3">
+                      <Label>Tipo de Processo</Label>
+                      <RadioGroup value={processType} onValueChange={setProcessType} className="flex space-x-4">
+                          <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="ufpe-parceiro" id="ufpe-parceiro" />
+                              <Label htmlFor="ufpe-parceiro">UFPE - Parceiro</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="fade-ufpe" id="fade-ufpe" />
+                              <Label htmlFor="fade-ufpe">Fade - UFPE</Label>
+                          </div>
+                      </RadioGroup>
+                  </div>
+              </CardContent>
+          </Card>
+        </section>
 
-      <section className="mx-auto grid max-w-5xl grid-cols-1 gap-8 md:grid-cols-3">
-        <FileUploader
-          icon={<FileText size={24} />}
-          title="Plano de Trabalho"
-          description="Documento com o escopo e atividades."
-          onFileSelect={handleFileSelect("planOfWork")}
-          name="planOfWork"
-        />
-        <FileUploader
-          icon={<Clock size={24} />}
-          title="Termo de Execução"
-          description="Cronograma e prazos do projeto."
-          onFileSelect={handleFileSelect("termOfExecution")}
-          name="termOfExecution"
-        />
-        <FileUploader
-          icon={<CircleDollarSign size={24} />}
-          title="Planilha de Orçamento"
-          description="Valores e distribuição de recursos."
-          onFileSelect={handleFileSelect("budgetSpreadsheet")}
-          name="budgetSpreadsheet"
-        />
-      </section>
+        <section className="mx-auto grid max-w-5xl grid-cols-1 gap-8 md:grid-cols-3">
+          <FileUploader
+            icon={<FileText size={24} />}
+            title="Plano de Trabalho"
+            description="Documento com o escopo e atividades."
+            onFileSelect={handleFileSelect("planOfWork")}
+            name="planOfWork"
+          />
+          <FileUploader
+            icon={<Clock size={24} />}
+            title="Termo de Execução"
+            description="Cronograma e prazos do projeto."
+            onFileSelect={handleFileSelect("termOfExecution")}
+            name="termOfExecution"
+          />
+          <FileUploader
+            icon={<CircleDollarSign size={24} />}
+            title="Planilha de Orçamento"
+            description="Valores e distribuição de recursos."
+            onFileSelect={handleFileSelect("budgetSpreadsheet")}
+            name="budgetSpreadsheet"
+          />
+        </section>
 
-      <section className="mt-12 flex justify-center py-8">
-        <Button
-          size="lg"
-          onClick={handleSubmit}
-          disabled={!canGenerate || isPending}
-        >
-          {isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Indexando...
-            </>
-          ) : (
-            "Indexar Documentos"
-          )}
-        </Button>
-      </section>
-    </div>
+        <section className="mt-12 flex justify-center gap-4 py-8">
+          <Button
+            size="lg"
+            variant="outline"
+            onClick={() => setIsFeedbackModalOpen(true)}
+            disabled={!canGetFeedback || isPending}
+          >
+            <Bot className="mr-2 h-4 w-4" />
+            Feedback de IA
+          </Button>
+          <Button
+            size="lg"
+            onClick={handleSubmit}
+            disabled={!canGenerate || isPending}
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Indexando...
+              </>
+            ) : (
+              "Indexar Documentos"
+            )}
+          </Button>
+        </section>
+      </div>
+      <FeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+        files={uploadedFiles}
+      />
+    </>
   );
 }

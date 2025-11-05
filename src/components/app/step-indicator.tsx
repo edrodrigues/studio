@@ -23,11 +23,11 @@ function Step({
   index: number;
   activeIndex: number;
 }) {
-  const isActive = index === activeIndex;
   const isCompleted = index < activeIndex;
+  const isActive = index === activeIndex;
 
   return (
-    <div className="relative z-10 flex w-20 flex-col items-center gap-2">
+    <div className="relative z-10 flex flex-col items-center w-20 gap-2">
       <div
         className={cn(
           "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors duration-300",
@@ -60,10 +60,6 @@ export function StepIndicator() {
     setIsMounted(true);
   }, []);
 
-  if (!isMounted) {
-    return null;
-  }
-
   const activeIndex = steps.findIndex(
     (step) =>
       (step.href !== "/" && pathname.startsWith(step.href)) ||
@@ -71,18 +67,43 @@ export function StepIndicator() {
   );
   
   const finalIndex = pathname.startsWith("/preencher") ? 3 : activeIndex;
-  
-  const progressScale = finalIndex > 0 ? finalIndex / (steps.length - 1) : 0;
 
+  if (!isMounted) {
+    return (
+      <div className="border-b bg-background/80 glass">
+        <div className="container py-4">
+          <div className="relative mx-auto flex max-w-4xl items-start justify-between">
+            {steps.map((step, index) => (
+              <Step
+                key={step.href}
+                icon={step.icon}
+                label={step.label}
+                index={index}
+                activeIndex={-1} // Render with no active state on server
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
   return (
-    <div className="border-b bg-card/80 glass">
+    <div className="border-b bg-background/80 glass">
       <div className="container py-4">
         <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-          <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2 bg-border" />
-          <div
-            className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] origin-left -translate-x-1/2 bg-primary transition-transform duration-500 ease-in-out"
-            style={{ transform: `scaleX(${progressScale})` }}
-          />
+           {/* Lines */}
+          <div className="absolute top-5 left-0 right-0 h-0.5 flex justify-between mx-auto w-[calc(100%-80px)] max-w-4xl px-[calc((100%_/_3)_/_2_-_10px)]">
+            {Array.from({ length: steps.length - 1 }).map((_, index) => (
+              <div
+                key={`line-${index}`}
+                className="h-full w-full flex-1"
+              >
+                 <div className={cn("h-full w-full transition-colors duration-500", index < finalIndex ? 'bg-primary' : 'bg-border' )}></div>
+              </div>
+            ))}
+          </div>
+
           {steps.map((step, index) => (
             <Step
               key={step.href}

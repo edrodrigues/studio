@@ -63,13 +63,11 @@ export function StepIndicator() {
         (step.href === "/gerar-exportar" && pathname.startsWith("/preencher"))
       ) : -1;
   
-  // Render a placeholder on the server and during initial client render
   if (!isMounted) {
     return (
       <div className="border-b bg-background/80 glass">
         <div className="container py-4">
           <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-            {/* Background Lines */}
             <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2">
                 <div className="h-full w-full bg-border" />
             </div>
@@ -88,12 +86,10 @@ export function StepIndicator() {
     );
   }
 
-  // Render the actual component only on the client after mounting
   return (
     <div className="border-b bg-background/80 glass">
       <div className="container py-4">
         <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-          {/* Background Lines */}
           <div className="absolute left-1/2 top-5 flex h-0.5 w-[calc(100%-80px)] -translate-x-1/2">
             {Array.from({ length: steps.length - 1 }).map((_, index) => (
               <div key={`line-bg-${index}`} className="relative h-full flex-1 bg-border">

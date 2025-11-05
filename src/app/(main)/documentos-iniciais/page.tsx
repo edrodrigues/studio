@@ -45,10 +45,9 @@ export default function DocumentosIniciaisPage() {
     setFiles((prev) => ({ ...prev, [key]: file }));
   };
   
-  const handleFeedbackClick = (fileKey: string) => () => {
-    const file = files[fileKey];
+  const handleFeedbackClick = (file: File | null) => {
     if (file) {
-      setFeedbackFiles([{ id: fileKey, file }]);
+      setFeedbackFiles([{ id: file.name, file }]);
       setIsFeedbackModalOpen(true);
     }
   };
@@ -159,7 +158,7 @@ export default function DocumentosIniciaisPage() {
             title="Plano de Trabalho"
             description="Documento com o escopo e atividades."
             onFileSelect={handleFileSelect("planOfWork")}
-            onFeedbackClick={handleFeedbackClick("planOfWork")}
+            onFeedbackClick={() => handleFeedbackClick(files.planOfWork)}
             name="planOfWork"
           />
           <FileUploader
@@ -167,7 +166,7 @@ export default function DocumentosIniciaisPage() {
             title="Termo de Execução"
             description="Cronograma e prazos do projeto."
             onFileSelect={handleFileSelect("termOfExecution")}
-            onFeedbackClick={handleFeedbackClick("termOfExecution")}
+            onFeedbackClick={() => handleFeedbackClick(files.termOfExecution)}
             name="termOfExecution"
           />
           <FileUploader
@@ -175,7 +174,7 @@ export default function DocumentosIniciaisPage() {
             title="Planilha de Orçamento"
             description="Valores e distribuição de recursos."
             onFileSelect={handleFileSelect("budgetSpreadsheet")}
-            onFeedbackClick={handleFeedbackClick("budgetSpreadsheet")}
+            onFeedbackClick={() => handleFeedbackClick(files.budgetSpreadsheet)}
             name="budgetSpreadsheet"
           />
         </section>

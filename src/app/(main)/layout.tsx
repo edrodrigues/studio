@@ -1,4 +1,5 @@
 import { Header } from "@/components/app/header";
+import { Footer } from "@/components/app/footer";
 import { StepIndicator } from "@/components/app/step-indicator";
 
 export default function MainLayout({
@@ -11,6 +12,7 @@ export default function MainLayout({
       <Header />
       <StepIndicator />
       <main className="flex-1">{children}</main>
+      <Footer />
     </div>
   );
 }

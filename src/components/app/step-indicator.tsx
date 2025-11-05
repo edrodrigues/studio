@@ -56,25 +56,22 @@ function Step({
 export function StepIndicator() {
   const pathname = usePathname();
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
+    const currentPathIndex = steps.findIndex(
+      (step) =>
+        (step.href !== "/" && pathname.startsWith(step.href)) ||
+        (step.href === "/" && pathname === "/")
+    );
+    const finalIndex = pathname.startsWith("/preencher") ? 3 : currentPathIndex;
+    setActiveIndex(finalIndex);
+  }, [pathname]);
 
-  useEffect(() => {
-    if (isMounted) {
-      const currentPathIndex = steps.findIndex(
-        (step) =>
-          (step.href !== "/" && pathname.startsWith(step.href)) ||
-          (step.href === "/" && pathname === "/")
-      );
-      const finalIndex = pathname.startsWith("/preencher") ? 3 : currentPathIndex;
-      setActiveIndex(finalIndex);
-    }
-  }, [pathname, isMounted]);
+  if (activeIndex === -1) {
+    return null; // Don't render on the server or on initial client render
+  }
 
-  const progressScale = isMounted && activeIndex > 0 ? activeIndex / (steps.length - 1) : 0;
+  const progressScale = activeIndex > 0 ? activeIndex / (steps.length - 1) : 0;
   
   return (
     <div className="border-b bg-background/80 glass">

@@ -15,19 +15,16 @@ const steps = [
 function Step({
   icon: Icon,
   label,
-  index,
-  activeIndex,
+  isActive,
+  isCompleted,
 }: {
   icon: React.ElementType;
   label: string;
-  index: number;
-  activeIndex: number;
+  isActive: boolean;
+  isCompleted: boolean;
 }) {
-  const isCompleted = index < activeIndex;
-  const isActive = index === activeIndex;
-
   return (
-    <div className="relative z-10 flex flex-col items-center w-20 gap-2">
+    <div className="relative z-10 flex w-20 flex-col items-center gap-2">
       <div
         className={cn(
           "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors duration-300",
@@ -55,39 +52,39 @@ function Step({
 export function StepIndicator() {
   const pathname = usePathname();
   const [isMounted, setIsMounted] = useState(false);
-
+  
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  const activeIndex = steps.findIndex(
+  const activeIndex = isMounted ? steps.findIndex(
     (step) =>
       (step.href !== "/" && pathname.startsWith(step.href)) ||
       (step.href === "/" && pathname === "/")
-  );
+  ) : -1;
   
   const finalIndex = pathname.startsWith("/preencher") ? 3 : activeIndex;
 
   if (!isMounted) {
     return (
-      <div className="border-b bg-background/80 glass">
-        <div className="container py-4">
-          <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-            {steps.map((step, index) => (
-              <Step
-                key={step.href}
-                icon={step.icon}
-                label={step.label}
-                index={index}
-                activeIndex={-1} // Render with no active state on server
-              />
-            ))}
+        <div className="border-b bg-background/80 glass">
+          <div className="container py-4">
+            <div className="relative mx-auto flex max-w-4xl items-start justify-between">
+              {steps.map((step, index) => (
+                <Step
+                  key={step.href}
+                  icon={step.icon}
+                  label={step.label}
+                  isActive={false}
+                  isCompleted={false}
+                />
+              ))}
+            </div>
           </div>
         </div>
-      </div>
     );
   }
-  
+
   return (
     <div className="border-b bg-background/80 glass">
       <div className="container py-4">
@@ -109,8 +106,8 @@ export function StepIndicator() {
               key={step.href}
               icon={step.icon}
               label={step.label}
-              index={index}
-              activeIndex={finalIndex}
+              isActive={index === finalIndex}
+              isCompleted={index < finalIndex}
             />
           ))}
         </div>

@@ -88,7 +88,7 @@ export default function ComeceAquiPage() {
           Analise os documentos iniciais
         </h1>
         <p className="mt-4 max-w-xl text-muted-foreground sm:text-lg">
-          Siga os 3 passos para que nossa inteligência artificial crie uma minuta de contrato de cooperação completa e estruturada para você.
+          Analise os documentos iniciais com a IA e depois clique em "Indexar Documentos" para que eles sejam usados de contexto para os demais documentos.
         </p>
       </section>
 

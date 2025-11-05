@@ -95,21 +95,21 @@ export default function ComeceAquiPage() {
       <section className="mx-auto grid max-w-5xl grid-cols-1 gap-8 md:grid-cols-3">
         <FileUploader
           icon={<FileText size={24} />}
-          title="Passo 1: Plano de Trabalho"
+          title="Plano de Trabalho"
           description="Documento com o escopo e atividades."
           onFileSelect={handleFileSelect("planOfWork")}
           name="planOfWork"
         />
         <FileUploader
           icon={<Clock size={24} />}
-          title="Passo 2: Termo de Execução"
+          title="Termo de Execução"
           description="Cronograma e prazos do projeto."
           onFileSelect={handleFileSelect("termOfExecution")}
           name="termOfExecution"
         />
         <FileUploader
           icon={<CircleDollarSign size={24} />}
-          title="Passo 3: Planilha de Orçamento"
+          title="Planilha de Orçamento"
           description="Valores e distribuição de recursos."
           onFileSelect={handleFileSelect("budgetSpreadsheet")}
           name="budgetSpreadsheet"
@@ -125,10 +125,10 @@ export default function ComeceAquiPage() {
           {isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Gerando...
+              Indexando...
             </>
           ) : (
-            "Gerar Contrato"
+            "Indexar Documentos"
           )}
         </Button>
       </section>

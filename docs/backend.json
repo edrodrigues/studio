@@ -1,0 +1,241 @@
+{
+  "entities": {
+    "ContractModel": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ContractModel",
+      "type": "object",
+      "description": "Represents a contract model that can be used as a template.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the contract model."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the contract model."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the contract model."
+        },
+        "googleDocLink": {
+          "type": "string",
+          "description": "Link to the Google Doc of the contract model.",
+          "format": "uri"
+        },
+        "markdownContent": {
+          "type": "string",
+          "description": "Markdown content of the contract model."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "markdownContent"
+      ]
+    },
+    "FilledContract": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FilledContract",
+      "type": "object",
+      "description": "Represents a contract that has been filled with specific data.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the filled contract."
+        },
+        "contractModelId": {
+          "type": "string",
+          "description": "Reference to the ContractModel used to create this filled contract. (Relationship: ContractModel 1:N FilledContract)"
+        },
+        "clientName": {
+          "type": "string",
+          "description": "Name of the client for whom the contract was filled."
+        },
+        "filledData": {
+          "type": "string",
+          "description": "JSON string containing the filled data for the contract. Could be serialized content."
+        },
+        "markdownContent": {
+          "type": "string",
+          "description": "Markdown content of the filled contract (with variables replaced)."
+        }
+      },
+      "required": [
+        "id",
+        "contractModelId",
+        "clientName",
+        "filledData",
+        "markdownContent"
+      ]
+    },
+    "UploadedDocument": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UploadedDocument",
+      "type": "object",
+      "description": "Represents a document uploaded by the user for contract generation.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the uploaded document."
+        },
+        "filename": {
+          "type": "string",
+          "description": "Name of the uploaded file."
+        },
+        "contentType": {
+          "type": "string",
+          "description": "MIME type of the uploaded file."
+        },
+        "data": {
+          "type": "string",
+          "description": "Base64 encoded string of the uploaded file's content."
+        },
+        "uploadDate": {
+          "type": "string",
+          "description": "Date and time when the file was uploaded.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "filename",
+        "contentType",
+        "data",
+        "uploadDate"
+      ]
+    },
+    "ContractGenerationRequest": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ContractGenerationRequest",
+      "type": "object",
+      "description": "Represents a request to generate a contract from uploaded documents.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the contract generation request."
+        },
+        "planoDeTrabalhoId": {
+          "type": "string",
+          "description": "Reference to the Plano de Trabalho document. (Relationship: UploadedDocument 1:N ContractGenerationRequest)"
+        },
+        "termoDeExecucaoId": {
+          "type": "string",
+          "description": "Reference to the Termo de Execução document. (Relationship: UploadedDocument 1:N ContractGenerationRequest)"
+        },
+        "planilhaDeOrcamentoId": {
+          "type": "string",
+          "description": "Reference to the Planilha de Orçamento document. (Relationship: UploadedDocument 1:N ContractGenerationRequest)"
+        },
+        "generatedContractId": {
+          "type": "string",
+          "description": "Reference to the Generated Contract. (Relationship: ContractModel 1:N ContractGenerationRequest)"
+        },
+        "generationDate": {
+          "type": "string",
+          "description": "Date and time when the contract generation was requested.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "planoDeTrabalhoId",
+        "termoDeExecucaoId",
+        "planilhaDeOrcamentoId",
+        "generationDate"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}/contractModels/{contractModelId}",
+        "definition": {
+          "entityName": "ContractModel",
+          "schema": {
+            "$ref": "#/backend/entities/ContractModel"
+          },
+          "description": "Stores contract models owned by a specific user. Path-based ownership simplifies security rules based on the user's ID.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The ID of the user who owns the contract model."
+            },
+            {
+              "name": "contractModelId",
+              "description": "The unique ID of the contract model."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/filledContracts/{filledContractId}",
+        "definition": {
+          "entityName": "FilledContract",
+          "schema": {
+            "$ref": "#/backend/entities/FilledContract"
+          },
+          "description": "Stores filled contracts owned by a specific user. Path-based ownership simplifies security rules based on the user's ID.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The ID of the user who owns the filled contract."
+            },
+            {
+              "name": "filledContractId",
+              "description": "The unique ID of the filled contract."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/uploadedDocuments/{uploadedDocumentId}",
+        "definition": {
+          "entityName": "UploadedDocument",
+          "schema": {
+            "$ref": "#/backend/entities/UploadedDocument"
+          },
+          "description": "Stores uploaded documents owned by a specific user. Path-based ownership simplifies security rules based on the user's ID.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The ID of the user who uploaded the document."
+            },
+            {
+              "name": "uploadedDocumentId",
+              "description": "The unique ID of the uploaded document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/contractGenerationRequests/{contractGenerationRequestId}",
+        "definition": {
+          "entityName": "ContractGenerationRequest",
+          "schema": {
+            "$ref": "#/backend/entities/ContractGenerationRequest"
+          },
+          "description": "Stores contract generation requests owned by a specific user. Path-based ownership simplifies security rules based on the user's ID.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The ID of the user who initiated the contract generation request."
+            },
+            {
+              "name": "contractGenerationRequestId",
+              "description": "The unique ID of the contract generation request."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to be secure, scalable, and debuggable, adhering to the principles of Authorization Independence, Clarity of Intent, DBAC (Database-Based Access Control), QAPs (Rules are not Filters), and Invariants.  The primary goal is to minimize `get()` calls in security rules by denormalizing authorization data. This allows atomic operations and simplifies debugging.  Each collection enforces a homogeneous security posture, ensuring consistent rules. User-owned data is structured using hierarchical paths to simplify ownership-based security. This approach avoids complex rule logic and prioritizes structural clarity.\n\nAuthorization Independence:\n\n*   ContractGenerationRequests are placed under `/users/{userId}/contractGenerationRequests/{contractGenerationRequestId}`. This makes the user the owner of these documents and avoids needing to use `get()` in security rules.\n*   ContractModels are placed under `/users/{userId}/contractModels/{contractModelId}`. This makes the user the owner of these documents and avoids needing to use `get()` in security rules.\n*   FilledContracts are placed under `/users/{userId}/filledContracts/{filledContractId}`. This makes the user the owner of these documents and avoids needing to use `get()` in security rules.\n*   UploadedDocuments are placed under `/users/{userId}/uploadedDocuments/{uploadedDocumentId}`. This makes the user the owner of these documents and avoids needing to use `get()` in security rules.\n\nQAPs (Rules are not Filters):\n\n*   The structure ensures that listing operations are secure by associating the data directly with the user's ID. Rules can efficiently filter based on `request.auth.uid` without needing complex filtering logic. Each collection has a homogeneous security posture."
+  }
+}

@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useRef, useTransition } from "react";
 import ReactMarkdown from "react-markdown";
 import { Plus, Upload, File as FileIcon, Trash2, Wand2, Loader2, Check } from "lucide-react";
+import { collection, doc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import useLocalStorage from "@/hooks/use-local-storage";
 import { type Template } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { handleExtractTemplate } from "@/lib/actions";
+import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase";
+import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 const fileToDataURI = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -23,36 +25,6 @@ const fileToDataURI = (file: File): Promise<string> => {
         reader.readAsDataURL(file);
     });
 };
-
-const initialTemplates: Template[] = [
-    {
-        id: "template-1",
-        name: "Acordo de Cooperação Técnica",
-        description: "Modelo padrão para cooperação técnica sem transferência de recursos financeiros.",
-        content: `# Acordo de Cooperação Técnica
-
-## CLÁUSULA PRIMEIRA - DO OBJETO
-O presente Acordo de Cooperação tem por objeto o estabelecimento de mútua cooperação entre os partícipes, visando ao desenvolvimento de {{NOME_DO_PROJETO}}.
-
-## CLÁUSULA SEGUNDA - DAS OBRIGAÇÕES
-{{DESCREVER_OBRIGACOES}}
-
-## CLÁUSULA TERCEIRA - DA VIGÊNCIA
-O prazo de vigência deste instrumento será de {{PRAZO_EM_MESES}} meses, a contar da data de sua assinatura.`
-    },
-    {
-        id: "template-2",
-        name: "Termo de Confidencialidade",
-        description: "Termo para garantir a confidencialidade das informações trocadas.",
-        content: `# Termo de Confidencialidade
-
-## CLÁUSULA PRIMEIRA - INFORMAÇÕES CONFIDENCIAIS
-Para os fins deste Acordo, "Informação Confidencial" significa toda informação, seja ela de natureza técnica, comercial, financeira, estratégica ou outra, revelada por uma Parte (a "Parte Reveladora") à outra (a "Parte Receptora").
-
-## CLÁUSULA SEGUNDA - DEVER DE SIGILO
-A Parte Receptora se compromete a manter em absoluto sigilo e a não revelar, divulgar, ou de qualquer forma dar conhecimento a terceiros das Informações Confidenciais da Parte Reveladora.`
-    }
-];
 
 function TemplateExtractor({ onTemplateExtracted }: { onTemplateExtracted: (template: Template) => void }) {
     const [file, setFile] = useState<File | null>(null);
@@ -159,7 +131,7 @@ function TemplateEditor({
     onCancel,
 }: {
     template: Template | null;
-    onTemplateChange: (field: keyof Template, value: string) => void;
+    onTemplateChange: (field: keyof Omit<Template, 'id'>, value: string) => void;
     onSave: () => void;
     onCancel: () => void;
 }) {
@@ -224,15 +196,29 @@ function TemplateEditor({
 }
 
 export default function ModelosPage() {
-    const [templates, setTemplates] = useLocalStorage<Template[]>("templates", initialTemplates);
+    const { user } = useUser();
+    const { firestore } = useFirebase();
+    
+    const templatesQuery = useMemoFirebase(() => {
+        if (!user || !firestore) return null;
+        return collection(firestore, 'users', user.uid, 'contractModels');
+    }, [user, firestore]);
+
+    const { data: templates, isLoading } = useCollection<Omit<Template, 'id'>>(templatesQuery);
+
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
     const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
     const { toast } = useToast();
+
+    useEffect(() => {
+        if (!isLoading && templates && templates.length > 0 && !selectedTemplateId) {
+            setSelectedTemplateId(templates[0].id);
+        }
+    }, [isLoading, templates, selectedTemplateId]);
     
-    // Derived state for the preview panel
     const templateForPreview = useMemo(() => {
         if (editingTemplate) return editingTemplate;
-        return templates.find((t) => t.id === selectedTemplateId) ?? null;
+        return templates?.find((t) => t.id === selectedTemplateId) ?? null;
     }, [templates, selectedTemplateId, editingTemplate]);
 
     const startEditing = useCallback((template: Template) => {
@@ -260,25 +246,22 @@ export default function ModelosPage() {
             return;
         }
         setSelectedTemplateId(id);
-        setEditingTemplate(null); // Ensure we are not in editing mode
+        setEditingTemplate(null);
     }, [editingTemplate, toast]);
 
-    const handleTemplateChange = useCallback((field: keyof Template, value: string) => {
+    const handleTemplateChange = useCallback((field: keyof Omit<Template, 'id'>, value: string) => {
         if (editingTemplate) {
             setEditingTemplate(prev => prev ? { ...prev, [field]: value } : null);
         }
     }, [editingTemplate]);
 
     const handleSaveTemplate = useCallback(() => {
-        if (!editingTemplate) return;
+        if (!editingTemplate || !user || !firestore) return;
 
-        const isNew = !templates.some(t => t.id === editingTemplate.id);
+        const { id, ...templateData } = editingTemplate;
+        const templateRef = doc(firestore, 'users', user.uid, 'contractModels', id);
 
-        setTemplates(prev =>
-            isNew
-                ? [...prev, editingTemplate]
-                : prev.map(t => (t.id === editingTemplate.id ? editingTemplate : t))
-        );
+        setDocumentNonBlocking(templateRef, templateData, { merge: true });
 
         toast({
             title: "Modelo Salvo!",
@@ -289,34 +272,36 @@ export default function ModelosPage() {
         setEditingTemplate(null);
         setSelectedTemplateId(savedId);
 
-    }, [editingTemplate, setTemplates, templates, toast]);
+    }, [editingTemplate, user, firestore, toast]);
 
     const handleCancelEditing = useCallback(() => {
-        const wasNew = editingTemplate && !templates.some(t => t.id === editingTemplate.id);
+        const wasNew = editingTemplate && !templates?.some(t => t.id === editingTemplate.id);
         setEditingTemplate(null);
         if (wasNew) {
-            setSelectedTemplateId(templates[0]?.id ?? null);
+            setSelectedTemplateId(templates?.[0]?.id ?? null);
         }
     }, [editingTemplate, templates]);
 
 
     const handleDeleteTemplate = useCallback((e: React.MouseEvent, id: string) => {
         e.stopPropagation();
+        if (!user || !firestore) return;
+
         if (window.confirm("Tem certeza que deseja deletar este modelo?")) {
-            setTemplates(prev => {
-                const newTemplates = prev.filter(t => t.id !== id);
-                 if (selectedTemplateId === id) {
-                    setSelectedTemplateId(newTemplates[0]?.id ?? null);
-                }
-                if (editingTemplate?.id === id) {
-                    setEditingTemplate(null);
-                }
-                return newTemplates;
-            });
+            const templateRef = doc(firestore, 'users', user.uid, 'contractModels', id);
+            deleteDocumentNonBlocking(templateRef);
            
             toast({ title: "Modelo deletado." });
+
+            if (selectedTemplateId === id) {
+                const remainingTemplates = templates?.filter(t => t.id !== id);
+                setSelectedTemplateId(remainingTemplates?.[0]?.id ?? null);
+            }
+            if (editingTemplate?.id === id) {
+                setEditingTemplate(null);
+            }
         }
-    }, [selectedTemplateId, editingTemplate, setTemplates, toast]);
+    }, [selectedTemplateId, editingTemplate, user, firestore, templates, toast]);
     
     const handleTemplateExtracted = useCallback((newTemplate: Template) => {
         startEditing(newTemplate);
@@ -328,32 +313,34 @@ export default function ModelosPage() {
         <div className="flex h-[calc(100vh-4rem)] bg-muted/20">
             {/* Sidebar */}
             <aside className="w-1/4 min-w-[250px] max-w-[300px] border-r bg-background p-4 flex flex-col">
-                <Button className="w-full mb-4" onClick={handleNewTemplate}>
+                <Button className="w-full mb-4" onClick={handleNewTemplate} disabled={!user}>
                     <Plus className="mr-2 h-4 w-4" /> Novo Modelo
                 </Button>
                 <h2 className="text-lg font-semibold mb-2 px-2">Modelos Salvos</h2>
                 <div className="overflow-y-auto flex-1">
-                    <ul className="space-y-1">
-                        {templates.map((template) => (
-                            <li key={template.id}>
-                                <button
-                                    onClick={() => handleSelectTemplate(template.id)}
-                                    className={cn(
-                                        "w-full text-left p-2 rounded-md transition-colors text-sm flex justify-between items-center group",
-                                        selectedTemplateId === template.id && !isInEditMode
-                                            ? "bg-primary text-primary-foreground"
-                                            : "hover:bg-muted"
-                                    )}
-                                >
-                                    <span className="truncate">{template.name}</span>
-                                    <Trash2
-                                        className="h-4 w-4 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                        onClick={(e) => handleDeleteTemplate(e, template.id)}
-                                    />
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
+                    {isLoading ? <p className="p-2 text-sm text-muted-foreground">Carregando...</p> : (
+                        <ul className="space-y-1">
+                            {templates?.map((template) => (
+                                <li key={template.id}>
+                                    <button
+                                        onClick={() => handleSelectTemplate(template.id)}
+                                        className={cn(
+                                            "w-full text-left p-2 rounded-md transition-colors text-sm flex justify-between items-center group",
+                                            selectedTemplateId === template.id && !isInEditMode
+                                                ? "bg-primary text-primary-foreground"
+                                                : "hover:bg-muted"
+                                        )}
+                                    >
+                                        <span className="truncate">{template.name}</span>
+                                        <Trash2
+                                            className="h-4 w-4 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onClick={(e) => handleDeleteTemplate(e, template.id)}
+                                        />
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </div>
             </aside>
 
@@ -371,7 +358,7 @@ export default function ModelosPage() {
                         />
                     )}
                      
-                    {!isInEditMode && !selectedTemplateId && (
+                    {!isInEditMode && !selectedTemplateId && !isLoading && (
                          <Card className="flex items-center justify-center p-8 border-dashed">
                             <div className="text-center">
                                 <h3 className="text-xl font-semibold">Selecione um modelo</h3>

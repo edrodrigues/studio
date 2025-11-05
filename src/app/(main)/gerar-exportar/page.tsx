@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { File, Eye } from "lucide-react";
+import { File, Eye, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import useLocalStorage from "@/hooks/use-local-storage";
 import { type Contract } from "@/lib/types";
 import { ContractPreviewModal } from "@/components/app/contract-preview-modal";
+import { useCollection, useFirebase, useUser, useMemoFirebase } from "@/firebase";
+import { collection } from "firebase/firestore";
+import { Skeleton } from "@/components/ui/skeleton";
+
 
 function ContractCard({ contract, onOpenModal }: { contract: Contract, onOpenModal: (contract: Contract) => void }) {
   const createdAtDate = useMemo(() => new Date(contract.createdAt).toLocaleDateString(), [contract.createdAt]);
@@ -37,11 +40,43 @@ function ContractCard({ contract, onOpenModal }: { contract: Contract, onOpenMod
   );
 }
 
+function LoadingSkeleton() {
+    return (
+        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {[...Array(3)].map((_, i) => (
+                 <Card key={i}>
+                    <CardHeader>
+                        <Skeleton className="h-8 w-8 rounded-full" />
+                        <Skeleton className="h-6 w-3/4 mt-4" />
+                        <Skeleton className="h-4 w-1/2" />
+                    </CardHeader>
+                    <CardContent>
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-full mt-2" />
+                        <Skeleton className="h-4 w-2/3 mt-2" />
+                    </CardContent>
+                    <CardFooter>
+                        <Skeleton className="h-10 w-full" />
+                    </CardFooter>
+                </Card>
+            ))}
+        </div>
+    )
+}
+
 
 export default function GerarExportarPage() {
-  const [contracts] = useLocalStorage<Contract[]>("contracts", []);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+  const { user, isUserLoading } = useUser();
+  const { firestore } = useFirebase();
 
+  const contractsQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return collection(firestore, 'users', user.uid, 'filledContracts');
+  }, [user, firestore]);
+
+  const { data: contracts, isLoading } = useCollection<Omit<Contract, 'id'>>(contractsQuery);
+  
   const handleOpenModal = (contract: Contract) => {
     setSelectedContract(contract);
   };
@@ -49,6 +84,8 @@ export default function GerarExportarPage() {
   const handleCloseModal = () => {
     setSelectedContract(null);
   };
+
+  const isLoadingData = isUserLoading || isLoading;
 
   return (
     <div className="container py-12">
@@ -61,7 +98,9 @@ export default function GerarExportarPage() {
         </p>
       </div>
 
-      {contracts.length > 0 ? (
+      {isLoadingData ? (
+        <LoadingSkeleton />
+      ) : contracts && contracts.length > 0 ? (
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {contracts.map((contract) => (
             <ContractCard key={contract.id} contract={contract} onOpenModal={handleOpenModal} />
@@ -70,7 +109,7 @@ export default function GerarExportarPage() {
       ) : (
         <div className="mt-16 text-center">
           <p className="text-lg text-muted-foreground">Nenhum contrato salvo encontrado.</p>
-          <p className="text-sm text-muted-foreground">Gere um novo contrato na aba "Comece Aqui".</p>
+          <p className="text-sm text-muted-foreground">Gere um novo contrato na aba "Documentos Iniciais".</p>
         </div>
       )}
 

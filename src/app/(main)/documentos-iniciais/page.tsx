@@ -4,18 +4,20 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Clock, CircleDollarSign, Loader2 } from "lucide-react";
+import { collection, addDoc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import { FileUploader } from "@/components/app/file-uploader";
 import { handleGenerateContract } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
-import useLocalStorage from "@/hooks/use-local-storage";
 import { type Contract } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { FeedbackModal } from "@/components/app/feedback-modal";
 import { type UploadedFile } from "@/lib/types";
+import { useFirebase, useUser } from "@/firebase";
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 export const fileToDataURI = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -39,7 +41,9 @@ export default function DocumentosIniciaisPage() {
   const [feedbackFiles, setFeedbackFiles] = useState<UploadedFile[]>([]);
   const router = useRouter();
   const { toast } = useToast();
-  const [, setContracts] = useLocalStorage<Contract[]>("contracts", []);
+  const { firestore } = useFirebase();
+  const { user } = useUser();
+
 
   const handleFileSelect = (key: string) => (file: File | null) => {
     setFiles((prev) => ({ ...prev, [key]: file }));
@@ -57,7 +61,7 @@ export default function DocumentosIniciaisPage() {
 
 
   const handleSubmit = async () => {
-    if (!canGenerate) return;
+    if (!canGenerate || !user || !firestore) return;
 
     startTransition(async () => {
       try {
@@ -73,19 +77,21 @@ export default function DocumentosIniciaisPage() {
         const result = await handleGenerateContract(formData);
 
         if (result.success && result.data?.contractDraft) {
-          const newContract: Contract = {
-            id: `contract-${Date.now()}`,
+          
+          const newContract: Omit<Contract, 'id'> = {
             name: `Novo Contrato Gerado - ${new Date().toLocaleDateString()}`,
             content: result.data.contractDraft,
             createdAt: new Date().toISOString(),
           };
-          
-          setContracts((prev) => [...prev, newContract]);
+
+          const contractsCollection = collection(firestore, 'users', user.uid, 'filledContracts');
+          const docRef = await addDocumentNonBlocking(contractsCollection, newContract);
+
           toast({
             title: "Sucesso!",
             description: "Minuta de contrato gerada. Redirecionando para o editor...",
           });
-          router.push(`/preencher/${newContract.id}`);
+          router.push(`/preencher/${docRef.id}`);
         } else {
           throw new Error(result.error || "Falha ao obter o rascunho do contrato.");
         }
@@ -183,7 +189,7 @@ export default function DocumentosIniciaisPage() {
           <Button
             size="lg"
             onClick={handleSubmit}
-            disabled={!canGenerate || isPending}
+            disabled={!canGenerate || isPending || !user}
           >
             {isPending ? (
               <>

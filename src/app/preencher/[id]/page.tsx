@@ -4,12 +4,14 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { ContractAssistant } from "@/components/app/contract-assistant";
 import { ContractEditor } from "@/components/app/contract-editor";
-import useLocalStorage from "@/hooks/use-local-storage";
 import { type Contract } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase";
+import { doc, updateDoc } from "firebase/firestore";
+import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 function EditorLoadingSkeleton() {
     return (
@@ -36,34 +38,28 @@ function EditorLoadingSkeleton() {
 export default function PreencherContratoPage() {
   const params = useParams();
   const id = params.id as string;
+  const { user } = useUser();
+  const { firestore } = useFirebase();
 
-  const [contracts, setContracts] = useLocalStorage<Contract[]>("contracts", []);
-  const [contract, setContract] = useState<Contract | undefined>(undefined);
+  const contractRef = useMemoFirebase(() => {
+    if (!user || !firestore || !id) return null;
+    return doc(firestore, 'users', user.uid, 'filledContracts', id);
+  }, [user, firestore, id]);
+
+  const { data: contract, isLoading } = useDoc<Omit<Contract, 'id'>>(contractRef);
+  
   const [clauseContent, setClauseContent] = useState('');
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  useEffect(() => {
-    const foundContract = contracts.find((c) => c.id === id);
-    if (isClient) {
-      setContract(foundContract);
-    }
-  }, [id, contracts, isClient]);
-
+  
   const handleContentChange = useCallback((newContent: string) => {
-    setContracts((prevContracts) =>
-      prevContracts.map((c) => (c.id === id ? { ...c, content: newContent } : c))
-    );
-  }, [id, setContracts]);
+    if (!contractRef) return;
+    updateDocumentNonBlocking(contractRef, { content: newContent });
+  }, [contractRef]);
 
   const handleClauseChange = useCallback((newClauseContent: string) => {
     setClauseContent(newClauseContent);
   }, []);
 
-  if (!isClient || !contract) {
+  if (isLoading || !contract) {
     return (
         <div className="flex flex-col h-screen">
             <header className="p-4 border-b">

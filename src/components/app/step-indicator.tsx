@@ -54,31 +54,26 @@ function Step({
 
 export function StepIndicator() {
   const pathname = usePathname();
-  const [isClient, setIsClient] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
+    setIsMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (isClient) {
-      const currentPathIndex = steps.findIndex(
-        (step) =>
-          (step.href !== "/" && pathname.startsWith(step.href)) ||
-          (step.href === "/" && pathname === "/")
-      );
-      const finalIndex = pathname.startsWith("/preencher") ? 3 : currentPathIndex;
-      setActiveIndex(finalIndex);
-    }
-  }, [pathname, isClient]);
-
-  if (!isClient) {
-    return null; // Renderiza nada no servidor e na primeira renderização do cliente
+  if (!isMounted) {
+    return null;
   }
 
-  const progressScale = activeIndex > 0 ? activeIndex / (steps.length - 1) : 0;
+  const activeIndex = steps.findIndex(
+    (step) =>
+      (step.href !== "/" && pathname.startsWith(step.href)) ||
+      (step.href === "/" && pathname === "/")
+  );
   
+  const finalIndex = pathname.startsWith("/preencher") ? 3 : activeIndex;
+  
+  const progressScale = finalIndex > 0 ? finalIndex / (steps.length - 1) : 0;
+
   return (
     <div className="border-b bg-card/80 glass">
       <div className="container py-4">
@@ -94,7 +89,7 @@ export function StepIndicator() {
               icon={step.icon}
               label={step.label}
               index={index}
-              activeIndex={activeIndex}
+              activeIndex={finalIndex}
             />
           ))}
         </div>

@@ -37,7 +37,7 @@ export function ContractEditor({ initialContent, onContentChange, onClauseChange
     onClauseChange(currentClause.title + '\n' + currentClause.content);
   }, [currentClause, onClauseChange]);
 
-  const handleContentChange = (newClauseContent: string) => {
+  const handleClauseContentChange = (newClauseContent: string) => {
     setIsSaved(false);
     const updatedClauses = clauses.map((c, index) =>
       index === currentClauseIndex ? { ...c, content: newClauseContent } : c
@@ -80,7 +80,7 @@ export function ContractEditor({ initialContent, onContentChange, onClauseChange
       </div>
       <Textarea
         value={currentClause.content}
-        onChange={(e) => handleContentChange(e.target.value)}
+        onChange={(e) => handleClauseContentChange(e.target.value)}
         className="flex-1 resize-none"
         placeholder="Preencha o conteúdo da cláusula aqui..."
       />

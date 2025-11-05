@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { ContractAssistant } from "@/components/app/contract-assistant";
 import { ContractEditor } from "@/components/app/contract-editor";
 import useLocalStorage from "@/hooks/use-local-storage";
@@ -35,7 +35,6 @@ function EditorLoadingSkeleton() {
 
 export default function PreencherContratoPage() {
   const params = useParams();
-  const router = useRouter();
   const id = params.id as string;
 
   const [contracts, setContracts] = useLocalStorage<Contract[]>("contracts", []);
@@ -49,23 +48,20 @@ export default function PreencherContratoPage() {
 
   useEffect(() => {
     const foundContract = contracts.find((c) => c.id === id);
-    if (foundContract) {
+    if (isClient) {
       setContract(foundContract);
-    } else if(isClient) {
-      // Potentially redirect if contract is not found on the client
-      // router.replace('/gerar-exportar');
     }
-  }, [id, contracts, isClient, router]);
+  }, [id, contracts, isClient]);
 
   const handleContentChange = useCallback((newContent: string) => {
-    if (contract) {
-      const updatedContract = { ...contract, content: newContent };
-      setContract(updatedContract);
-      setContracts((prevContracts) =>
-        prevContracts.map((c) => (c.id === id ? updatedContract : c))
-      );
-    }
-  }, [contract, id, setContracts]);
+    setContracts((prevContracts) =>
+      prevContracts.map((c) => (c.id === id ? { ...c, content: newContent } : c))
+    );
+  }, [id, setContracts]);
+
+  const handleClauseChange = useCallback((newClauseContent: string) => {
+    setClauseContent(newClauseContent);
+  }, []);
 
   if (!isClient || !contract) {
     return (
@@ -100,7 +96,7 @@ export default function PreencherContratoPage() {
                 <ContractEditor
                     initialContent={contract.content}
                     onContentChange={handleContentChange}
-                    onClauseChange={setClauseContent}
+                    onClauseChange={handleClauseChange}
                 />
                 <ContractAssistant
                     contractContent={contract.content}

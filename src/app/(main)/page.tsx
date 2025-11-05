@@ -35,9 +35,9 @@ export default function ComeceAquiPage() {
                     <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary mb-4">
                         <UploadCloud size={32} />
                     </div>
-                    <h3 className="text-xl font-semibold">1. Indexe Seus Documentos</h3>
+                    <h3 className="text-xl font-semibold">1. Analise e Indexe</h3>
                     <p className="mt-2 text-muted-foreground">
-                        Vá para a aba "Documentos Iniciais", faça o upload do Plano de Trabalho, Termo de Execução e Orçamento para que a IA os use como base.
+                        Na aba "Documentos Iniciais", carregue seus arquivos, receba feedback da IA e indexe o conteúdo para gerar uma minuta de contrato.
                     </p>
                 </div>
                 <div className="flex flex-col items-center text-center">

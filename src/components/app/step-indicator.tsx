@@ -52,51 +52,44 @@ function Step({
 export function StepIndicator() {
   const pathname = usePathname();
   const [isMounted, setIsMounted] = useState(false);
-  
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  const activeIndex = isMounted ? steps.findIndex(
+  const activeIndex = steps.findIndex(
     (step) =>
       (step.href !== "/" && pathname.startsWith(step.href)) ||
       (step.href === "/" && pathname === "/")
-  ) : -1;
+  );
   
   const finalIndex = pathname.startsWith("/preencher") ? 3 : activeIndex;
 
   if (!isMounted) {
-    return (
-        <div className="border-b bg-background/80 glass">
-          <div className="container py-4">
-            <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-              {steps.map((step, index) => (
-                <Step
-                  key={step.href}
-                  icon={step.icon}
-                  label={step.label}
-                  isActive={false}
-                  isCompleted={false}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-    );
+    return null;
   }
 
   return (
     <div className="border-b bg-background/80 glass">
       <div className="container py-4">
         <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-           {/* Lines */}
+           {/* Background Lines */}
           <div className="absolute top-5 left-0 right-0 h-0.5 flex justify-between mx-auto w-[calc(100%-80px)] max-w-4xl px-[calc((100%_/_3)_/_2_-_10px)]">
             {Array.from({ length: steps.length - 1 }).map((_, index) => (
               <div
-                key={`line-${index}`}
+                key={`line-bg-${index}`}
+                className="h-full w-full flex-1 bg-border"
+              ></div>
+            ))}
+          </div>
+           {/* Progress Lines */}
+          <div className="absolute top-5 left-0 right-0 h-0.5 flex justify-between mx-auto w-[calc(100%-80px)] max-w-4xl px-[calc((100%_/_3)_/_2_-_10px)]">
+            {Array.from({ length: steps.length - 1 }).map((_, index) => (
+              <div
+                key={`line-fg-${index}`}
                 className="h-full w-full flex-1"
               >
-                 <div className={cn("h-full w-full transition-colors duration-500", index < finalIndex ? 'bg-primary' : 'bg-border' )}></div>
+                 <div className={cn("h-full w-full transition-colors duration-500", index < finalIndex ? 'bg-primary' : 'bg-transparent' )}></div>
               </div>
             ))}
           </div>

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { usePathname } from "next/navigation";
@@ -55,26 +54,33 @@ function Step({
 
 export function StepIndicator() {
   const pathname = usePathname();
+  const [isClient, setIsClient] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
 
   useEffect(() => {
-    const currentPathIndex = steps.findIndex(
-      (step) =>
-        (step.href !== "/" && pathname.startsWith(step.href)) ||
-        (step.href === "/" && pathname === "/")
-    );
-    const finalIndex = pathname.startsWith("/preencher") ? 3 : currentPathIndex;
-    setActiveIndex(finalIndex);
-  }, [pathname]);
+    setIsClient(true);
+  }, []);
 
-  if (activeIndex === -1) {
-    return null; // Don't render on the server or on initial client render
+  useEffect(() => {
+    if (isClient) {
+      const currentPathIndex = steps.findIndex(
+        (step) =>
+          (step.href !== "/" && pathname.startsWith(step.href)) ||
+          (step.href === "/" && pathname === "/")
+      );
+      const finalIndex = pathname.startsWith("/preencher") ? 3 : currentPathIndex;
+      setActiveIndex(finalIndex);
+    }
+  }, [pathname, isClient]);
+
+  if (!isClient) {
+    return null; // Renderiza nada no servidor e na primeira renderização do cliente
   }
 
   const progressScale = activeIndex > 0 ? activeIndex / (steps.length - 1) : 0;
   
   return (
-    <div className="border-b bg-background/80 glass">
+    <div className="border-b bg-card/80 glass">
       <div className="container py-4">
         <div className="relative mx-auto flex max-w-4xl items-start justify-between">
           <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2 bg-border" />

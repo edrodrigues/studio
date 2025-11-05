@@ -65,7 +65,7 @@ export function FileUploader({ icon, title, description, onFileSelect, onFeedbac
             <Bot className="mr-2 h-4 w-4" />
             Feedback de IA
         </Button>
-        <Button variant="outline" className="w-full">
+        <Button variant="outline" className="w-full" disabled={!file}>
             <Database className="mr-2 h-4 w-4" />
             Documento indexado em JSON
         </Button>

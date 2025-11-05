@@ -57,39 +57,52 @@ export function StepIndicator() {
     setIsMounted(true);
   }, []);
 
-  const activeIndex = steps.findIndex(
-    (step) =>
-      (step.href !== "/" && pathname.startsWith(step.href)) ||
-      (step.href === "/" && pathname === "/")
-  );
+  const activeIndex = isMounted ? steps.findIndex((step) =>
+        (step.href !== "/" && pathname.startsWith(step.href)) ||
+        (step.href === "/" && pathname === "/") ||
+        (step.href === "/gerar-exportar" && pathname.startsWith("/preencher"))
+      ) : -1;
   
-  const finalIndex = pathname.startsWith("/preencher") ? 3 : activeIndex;
-
+  // Render a placeholder on the server and during initial client render
   if (!isMounted) {
-    return null;
+    return (
+      <div className="border-b bg-background/80 glass">
+        <div className="container py-4">
+          <div className="relative mx-auto flex max-w-4xl items-start justify-between">
+            {/* Background Lines */}
+            <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2">
+                <div className="h-full w-full bg-border" />
+            </div>
+            {steps.map((step) => (
+              <Step
+                key={step.href}
+                icon={step.icon}
+                label={step.label}
+                isActive={false}
+                isCompleted={false}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
+  // Render the actual component only on the client after mounting
   return (
     <div className="border-b bg-background/80 glass">
       <div className="container py-4">
         <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-           {/* Background Lines */}
-          <div className="absolute top-5 left-0 right-0 h-0.5 flex justify-between mx-auto w-[calc(100%-80px)] max-w-4xl px-[calc((100%_/_3)_/_2_-_10px)]">
+          {/* Background Lines */}
+          <div className="absolute left-1/2 top-5 flex h-0.5 w-[calc(100%-80px)] -translate-x-1/2">
             {Array.from({ length: steps.length - 1 }).map((_, index) => (
-              <div
-                key={`line-bg-${index}`}
-                className="h-full w-full flex-1 bg-border"
-              ></div>
-            ))}
-          </div>
-           {/* Progress Lines */}
-          <div className="absolute top-5 left-0 right-0 h-0.5 flex justify-between mx-auto w-[calc(100%-80px)] max-w-4xl px-[calc((100%_/_3)_/_2_-_10px)]">
-            {Array.from({ length: steps.length - 1 }).map((_, index) => (
-              <div
-                key={`line-fg-${index}`}
-                className="h-full w-full flex-1"
-              >
-                 <div className={cn("h-full w-full transition-colors duration-500", index < finalIndex ? 'bg-primary' : 'bg-transparent' )}></div>
+              <div key={`line-bg-${index}`} className="relative h-full flex-1 bg-border">
+                <div
+                    className={cn(
+                        "absolute h-full w-full origin-left bg-primary transition-transform duration-500",
+                        index < activeIndex ? "scale-x-100" : "scale-x-0"
+                    )}
+                />
               </div>
             ))}
           </div>
@@ -99,8 +112,8 @@ export function StepIndicator() {
               key={step.href}
               icon={step.icon}
               label={step.label}
-              isActive={index === finalIndex}
-              isCompleted={index < finalIndex}
+              isActive={index === activeIndex}
+              isCompleted={index < activeIndex}
             />
           ))}
         </div>

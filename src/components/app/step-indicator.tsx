@@ -1,13 +1,14 @@
+
 "use client";
 
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, FileUp, FileText, CheckCircle } from "lucide-react";
+import { Home, FileUp, FileText, CheckCircle, DraftingCompass } from "lucide-react";
 
 const steps = [
   { href: "/", label: "Comece Aqui", icon: Home },
   { href: "/documentos-iniciais", label: "Documentos Iniciais", icon: FileUp },
-  { href: "/preencher", label: "Preencher Contrato", icon: FileText },
+  { href: "/modelos", label: "Modelos", icon: DraftingCompass },
   { href: "/gerar-exportar", label: "Revisar e Exportar", icon: CheckCircle },
 ];
 
@@ -58,11 +59,9 @@ export function StepIndicator() {
       (step.href === "/" && pathname === "/")
   );
 
-  // If no specific step is matched (e.g., /modelos), we don't show it as active
-  if (activeIndex === -1 && pathname.startsWith("/preencher")) {
-    activeIndex = 2; // Special case for dynamic preencher routes
-  } else if (!steps.some(s => pathname.startsWith(s.href))) {
-      return null; // Don't render the indicator on pages like /modelos
+  // Special case for dynamic preencher routes, which are part of the last step now
+  if (pathname.startsWith("/preencher")) {
+    activeIndex = 3; 
   }
 
 

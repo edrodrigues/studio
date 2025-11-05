@@ -49,9 +49,10 @@ export default function PreencherContratoPage() {
     if (foundContract) {
       setContract(foundContract);
     } else if(isClient) {
-      // router.replace('/gerar-exportar'); // avoid redirecting on initial server render
+      // Potentially redirect if contract is not found on the client
+      // router.replace('/gerar-exportar'); 
     }
-  }, [id, contracts, router, isClient]);
+  }, [id, contracts, isClient]);
 
   const handleContentChange = useCallback((newContent: string) => {
     if (contract) {

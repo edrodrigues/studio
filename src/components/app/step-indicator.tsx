@@ -64,15 +64,14 @@ export function StepIndicator() {
     setActiveIndex(finalIndex);
   }, [pathname]);
 
+
   const progressScale = activeIndex > 0 ? activeIndex / (steps.length - 1) : 0;
   
-  // Render nothing or a skeleton on the server and initial client render
   if (activeIndex === -1) {
     return (
        <div className="border-b bg-card">
         <div className="container py-4">
           <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-            {/* Render just the container and placeholders to match structure */}
              <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2 bg-border" />
              <div
               className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] origin-left -translate-x-1/2 bg-primary transition-transform duration-500 ease-in-out"

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { usePathname } from "next/navigation";
@@ -15,13 +16,11 @@ const steps = [
 function Step({
   icon: Icon,
   label,
-  href,
   index,
   activeIndex,
 }: {
   icon: React.ElementType;
   label: string;
-  href: string;
   index: number;
   activeIndex: number;
 }) {
@@ -36,8 +35,8 @@ function Step({
           isActive
             ? "border-primary bg-primary text-primary-foreground"
             : isCompleted
-            ? "border-primary bg-primary/10 text-primary"
-            : "border-border bg-card/80 text-muted-foreground glass"
+            ? "border-primary bg-primary/20 text-primary"
+            : "border-border bg-card text-muted-foreground"
         )}
       >
         <Icon className="h-5 w-5" />
@@ -75,36 +74,10 @@ export function StepIndicator() {
     }
   }, [pathname, isMounted]);
 
-  const progressScale = activeIndex > 0 ? activeIndex / (steps.length - 1) : 0;
+  const progressScale = isMounted && activeIndex > 0 ? activeIndex / (steps.length - 1) : 0;
   
-  if (!isMounted) {
-     return (
-       <div className="border-b bg-card/80 glass">
-        <div className="container py-4">
-          <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-             <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2 bg-border" />
-             <div
-              className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] origin-left -translate-x-1/2 bg-primary transition-transform duration-500 ease-in-out"
-              style={{ transform: `scaleX(0)` }}
-            />
-            {steps.map((step, index) => (
-               <Step
-                  key={step.href}
-                  icon={step.icon}
-                  label={step.label}
-                  href={step.href}
-                  index={index}
-                  activeIndex={-1}
-                />
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="border-b bg-card/80 glass">
+    <div className="border-b bg-background/80 glass">
       <div className="container py-4">
         <div className="relative mx-auto flex max-w-4xl items-start justify-between">
           <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2 bg-border" />
@@ -117,7 +90,6 @@ export function StepIndicator() {
               key={step.href}
               icon={step.icon}
               label={step.label}
-              href={step.href}
               index={index}
               activeIndex={activeIndex}
             />

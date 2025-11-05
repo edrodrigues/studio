@@ -58,6 +58,33 @@ export function StepIndicator() {
     setIsMounted(true);
   }, []);
 
+  // Return a placeholder or null during server-side rendering or before hydration.
+  if (!isMounted) {
+    return (
+        <div className="border-b bg-card">
+            <div className="container py-4">
+                <div className="relative flex items-start justify-between">
+                    <div className="absolute left-0 right-0 top-5 mx-auto h-0.5 w-[calc(100%-80px)] max-w-4xl bg-border" />
+                    <div
+                        className="absolute left-0 right-0 top-5 mx-auto h-0.5 w-[calc(100%-80px)] max-w-4xl origin-left bg-primary transition-transform duration-500 ease-in-out"
+                        style={{ transform: `scaleX(0)` }}
+                    />
+                    {steps.map((step, index) => (
+                        <div key={step.href} className="relative z-10 flex w-20 justify-center">
+                            <Step
+                                icon={step.icon}
+                                label={step.label}
+                                isActive={false}
+                                isCompleted={false}
+                            />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+  }
+
   // Find the index of the current active step
   let activeIndex = steps.findIndex(
     (step) =>
@@ -70,8 +97,7 @@ export function StepIndicator() {
     activeIndex = 3; 
   }
   
-  const progressScale = isMounted ? (Math.max(0, activeIndex) / (steps.length - 1)) : 0;
-
+  const progressScale = Math.max(0, activeIndex) / (steps.length - 1);
 
   return (
     <div className="border-b bg-card">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Plus, Trash2, FileText, Copy, Book } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -108,10 +108,10 @@ function TemplateEditor({
 function WelcomeScreen() {
     const { toast } = useToast();
 
-    const copyPrompt = () => {
+    const copyPrompt = useCallback(() => {
         navigator.clipboard.writeText(PROMPT_EXAMPLE);
         toast({ title: "Prompt copiado para a área de transferência!" });
-    };
+    }, [toast]);
 
     return (
         <div className="flex h-full items-center justify-center">

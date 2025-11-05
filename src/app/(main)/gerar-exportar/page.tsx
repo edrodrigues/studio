@@ -1,12 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { File, Eye } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import useLocalStorage from "@/hooks/use-local-storage";
 import { type Contract } from "@/lib/types";
 import { ContractPreviewModal } from "@/components/app/contract-preview-modal";
+
+function ContractCard({ contract, onOpenModal }: { contract: Contract, onOpenModal: (contract: Contract) => void }) {
+  const createdAtDate = useMemo(() => new Date(contract.createdAt).toLocaleDateString(), [contract.createdAt]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between">
+          <File className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <CardTitle className="pt-4">{contract.name}</CardTitle>
+        <CardDescription>
+          Criado em: {createdAtDate}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground line-clamp-3">
+          {contract.content.substring(0, 100)}...
+        </p>
+      </CardContent>
+      <CardFooter>
+        <Button className="w-full" onClick={() => onOpenModal(contract)}>
+          <Eye className="mr-2 h-4 w-4" />
+          Visualizar e Exportar
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+
 
 export default function GerarExportarPage() {
   const [contracts] = useLocalStorage<Contract[]>("contracts", []);
@@ -34,28 +64,7 @@ export default function GerarExportarPage() {
       {contracts.length > 0 ? (
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {contracts.map((contract) => (
-            <Card key={contract.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <File className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <CardTitle className="pt-4">{contract.name}</CardTitle>
-                <CardDescription>
-                  Criado em: {new Date(contract.createdAt).toLocaleDateString()}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground line-clamp-3">
-                  {contract.content.substring(0, 100)}...
-                </p>
-              </CardContent>
-              <CardFooter>
-                <Button className="w-full" onClick={() => handleOpenModal(contract)}>
-                  <Eye className="mr-2 h-4 w-4" />
-                  Visualizar e Exportar
-                </Button>
-              </CardFooter>
-            </Card>
+            <ContractCard key={contract.id} contract={contract} onOpenModal={handleOpenModal} />
           ))}
         </div>
       ) : (

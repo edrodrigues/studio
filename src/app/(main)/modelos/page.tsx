@@ -227,7 +227,6 @@ export default function ModelosPage() {
     const [templates, setTemplates] = useLocalStorage<Template[]>("templates", initialTemplates);
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
     const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
     
     // Derived state for the preview panel
@@ -318,29 +317,6 @@ export default function ModelosPage() {
             toast({ title: "Modelo deletado." });
         }
     }, [selectedTemplateId, editingTemplate, setTemplates, toast]);
-
-    const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const content = e.target?.result as string;
-            const newTemplate: Template = {
-                id: `template-${Date.now()}`,
-                name: file.name.replace(/\.[^/.]+$/, ""),
-                description: "Importado de arquivo Markdown.",
-                content: content,
-            };
-            startEditing(newTemplate);
-            toast({ title: "Arquivo importado", description: "O modelo foi carregado no editor." });
-        };
-        reader.readAsText(file);
-
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
-    }, [startEditing, toast]);
     
     const handleTemplateExtracted = useCallback((newTemplate: Template) => {
         startEditing(newTemplate);
@@ -385,30 +361,7 @@ export default function ModelosPage() {
             <main className="w-1/2 p-8 overflow-y-auto">
                 <div className="space-y-8">
                      {!isInEditMode ? (
-                        <>
-                            <TemplateExtractor onTemplateExtracted={handleTemplateExtracted} />
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Importar Modelo de Arquivo Markdown (.md)</CardTitle>
-                                    <CardDescription>
-                                        Faça o upload de um arquivo .md para adicionar um novo modelo à sua lista.
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <input
-                                        type="file"
-                                        className="hidden"
-                                        ref={fileInputRef}
-                                        onChange={handleFileUpload}
-                                        accept=".md"
-                                    />
-                                    <Button onClick={() => fileInputRef.current?.click()}>
-                                        <Upload className="mr-2 h-4 w-4" />
-                                        Carregar Modelo (.md)
-                                    </Button>
-                                </CardContent>
-                            </Card>
-                        </>
+                        <TemplateExtractor onTemplateExtracted={handleTemplateExtracted} />
                     ) : (
                          <TemplateEditor
                             template={editingTemplate}

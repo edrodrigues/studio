@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 const navLinks = [
   { href: "/", label: "Comece Aqui" },
+  { href: "/modelos", label: "Gerenciar Modelos" },
   { href: "/gerar-exportar", label: "Gerar e Exportar" },
 ];
 

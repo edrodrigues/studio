@@ -175,12 +175,12 @@ export default function ModelosPage() {
     setActiveTemplateId(newTemplate.id);
   };
 
-  const handleSaveTemplate = (updatedTemplate: Template) => {
+  const handleSaveTemplate = useCallback((updatedTemplate: Template) => {
     setTemplates(
-      templates.map((t) => (t.id === updatedTemplate.id ? updatedTemplate : t))
+      prevTemplates => prevTemplates.map((t) => (t.id === updatedTemplate.id ? updatedTemplate : t))
     );
     setActiveTemplateId(null);
-  };
+  }, [setTemplates]);
 
   const handleDeleteTemplate = (id: string) => {
     setTemplates(templates.filter((t) => t.id !== id));
@@ -202,6 +202,10 @@ export default function ModelosPage() {
         };
         reader.readAsText(file);
     };
+
+    const handleCancel = useCallback(() => {
+        setActiveTemplateId(null);
+    }, []);
 
   const activeTemplate = templates.find((t) => t.id === activeTemplateId) || null;
 
@@ -257,7 +261,7 @@ export default function ModelosPage() {
             key={activeTemplate.id}
             template={activeTemplate}
             onSave={handleSaveTemplate}
-            onCancel={() => setActiveTemplateId(null)}
+            onCancel={handleCancel}
             onImport={handleImportFromFile}
           />
         ) : (
@@ -267,6 +271,3 @@ export default function ModelosPage() {
     </div>
   );
 }
-
-
-    

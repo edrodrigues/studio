@@ -323,10 +323,13 @@ export default function ModelosPage() {
                         <ul className="space-y-1">
                             {templates?.map((template) => (
                                 <li key={template.id}>
-                                    <button
+                                    <div
+                                        role="button"
+                                        tabIndex={0}
                                         onClick={() => handleSelectTemplate(template.id)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSelectTemplate(template.id)}
                                         className={cn(
-                                            "w-full text-left p-2 rounded-md transition-colors text-sm flex justify-between items-center group",
+                                            "w-full text-left p-2 rounded-md transition-colors text-sm flex justify-between items-center group cursor-pointer",
                                             selectedTemplateId === template.id && !isInEditMode
                                                 ? "bg-primary text-primary-foreground"
                                                 : "hover:bg-muted"
@@ -345,7 +348,7 @@ export default function ModelosPage() {
                                                 aria-hidden="true"
                                             />
                                         </Button>
-                                    </button>
+                                    </div>
                                 </li>
                             ))}
                         </ul>
@@ -409,3 +412,5 @@ export default function ModelosPage() {
         </div>
     );
 }
+
+    

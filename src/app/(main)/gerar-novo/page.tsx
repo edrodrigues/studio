@@ -160,7 +160,7 @@ export default function GerarNovoContratoPage() {
         try {
             let filledContent = selectedTemplate.markdownContent;
             
-            const placeholders = filledContent.match(/{{[A-Z0-9_]+}}/g) || [];
+            const placeholders = filledContent.match(/{{([A-Z0-9_]+)}}/g) || [];
             
             placeholders.forEach(placeholder => {
                 const key = placeholder.replace(/{{|}}/g, '');
@@ -251,3 +251,5 @@ export default function GerarNovoContratoPage() {
     </div>
   );
 }
+
+    

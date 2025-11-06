@@ -212,28 +212,39 @@ export default function ModelosPage() {
     const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
     const { toast } = useToast();
 
+    // Effect to select the first template by default
     useEffect(() => {
         if (!isLoading && templates && templates.length > 0 && !selectedTemplateId && !editingTemplate) {
-            const firstTemplate = templates[0];
-            if (firstTemplate) {
-                startEditing(firstTemplate);
-            }
+            setSelectedTemplateId(templates[0].id);
         }
     }, [isLoading, templates, selectedTemplateId, editingTemplate]);
+
+    // Effect to load the selected template into the editor
+    useEffect(() => {
+        if (selectedTemplateId && templates) {
+            const templateToEdit = templates.find(t => t.id === selectedTemplateId);
+            if (templateToEdit) {
+                setEditingTemplate(JSON.parse(JSON.stringify(templateToEdit))); // Deep copy
+            }
+        }
+    }, [selectedTemplateId, templates]);
     
     const templateForPreview = useMemo(() => {
+        // Preview should always show the content from the editor if it's open
         if (editingTemplate) return editingTemplate;
+        // Otherwise, show the selected (and saved) template from the list
         return templates?.find((t) => t.id === selectedTemplateId) ?? null;
     }, [templates, selectedTemplateId, editingTemplate]);
 
     const startEditing = useCallback((template: Template) => {
-        setEditingTemplate(JSON.parse(JSON.stringify(template))); // Deep copy
         setSelectedTemplateId(template.id);
+        setEditingTemplate(JSON.parse(JSON.stringify(template)));
     }, []);
 
     const handleNewTemplate = useCallback(() => {
+        const newId = `template-${Date.now()}`;
         const newTemplate: Template = {
-            id: `template-${Date.now()}`,
+            id: newId,
             name: "Novo Modelo sem Título",
             description: "",
             markdownContent: "# Novo Modelo\n\nComece a editar...",
@@ -243,13 +254,12 @@ export default function ModelosPage() {
     }, [startEditing]);
 
     const handleSelectTemplate = useCallback((id: string) => {
-        if (editingTemplate?.id === id) return;
-
-        const templateToEdit = templates?.find(t => t.id === id);
-        if (templateToEdit) {
-            startEditing(templateToEdit);
+        if (editingTemplate && !window.confirm("Você tem alterações não salvas. Deseja descartá-las?")) {
+            return;
         }
-    }, [editingTemplate, templates, startEditing]);
+        setEditingTemplate(null);
+        setSelectedTemplateId(id);
+    }, [editingTemplate]);
 
     const handleTemplateChange = useCallback((field: keyof Omit<Template, 'id'>, value: string) => {
         if (editingTemplate) {
@@ -261,7 +271,8 @@ export default function ModelosPage() {
         if (!editingTemplate || !user || !firestore) return;
 
         const { id, ...templateData } = editingTemplate;
-        // Construct the object to save with all required fields.
+        
+        // Ensure all fields are present for saving
         const templateToSave = {
             name: templateData.name,
             description: templateData.description,
@@ -271,7 +282,6 @@ export default function ModelosPage() {
 
         const templateRef = doc(firestore, 'users', user.uid, 'contractModels', id);
 
-        // Use the non-blocking update.
         setDocumentNonBlocking(templateRef, templateToSave, { merge: true });
 
         toast({
@@ -279,22 +289,14 @@ export default function ModelosPage() {
             description: `O modelo "${editingTemplate.name}" foi salvo com sucesso.`,
         });
         
-        // After saving, reset editing mode and keep selection
-        const savedId = editingTemplate.id;
+        // Exit editing mode
         setEditingTemplate(null);
-        setSelectedTemplateId(savedId);
 
     }, [editingTemplate, user, firestore, toast]);
 
     const handleCancelEditing = useCallback(() => {
-        const wasNew = editingTemplate && !templates?.some(t => t.id === editingTemplate.id);
         setEditingTemplate(null);
-        if (wasNew && templates && templates.length > 0) {
-            setSelectedTemplateId(templates[0].id);
-        } else if (!wasNew && editingTemplate) {
-            setSelectedTemplateId(editingTemplate.id);
-        }
-    }, [editingTemplate, templates]);
+    }, []);
 
 
     const handleDeleteTemplate = useCallback((e: React.MouseEvent, id: string) => {
@@ -321,7 +323,7 @@ export default function ModelosPage() {
         startEditing(newTemplate);
     }, [startEditing]);
 
-    const isInEditMode = !!editingTemplate;
+    const isEditing = !!editingTemplate;
 
     return (
         <div className="flex h-[calc(100vh-4rem)] bg-transparent">
@@ -343,7 +345,7 @@ export default function ModelosPage() {
                                         onKeyDown={(e) => e.key === 'Enter' && handleSelectTemplate(template.id)}
                                         className={cn(
                                             "w-full text-left p-2 rounded-md transition-colors text-sm flex justify-between items-center group cursor-pointer",
-                                            (editingTemplate?.id === template.id || (!editingTemplate && selectedTemplateId === template.id))
+                                            selectedTemplateId === template.id && !isEditing
                                                 ? "bg-primary text-primary-foreground"
                                                 : "hover:bg-muted"
                                         )}
@@ -373,7 +375,7 @@ export default function ModelosPage() {
             <main className="w-1/2 p-8 overflow-y-auto">
                 <div className="space-y-8">
                      <TemplateExtractor onTemplateExtracted={handleTemplateExtracted} />
-                    {editingTemplate ? (
+                    {isEditing ? (
                         <TemplateEditor
                             template={editingTemplate}
                             onTemplateChange={handleTemplateChange}
@@ -383,7 +385,7 @@ export default function ModelosPage() {
                     ) : (
                         <Card className="flex items-center justify-center p-8 border-dashed bg-card/50 min-h-[400px]">
                             <div className="text-center">
-                                <h3 className="text-xl font-semibold">Selecione ou crie um modelo</h3>
+                                <h3 className="text-xl font-semibold">Selecione um modelo para editar</h3>
                                 <p className="text-muted-foreground mt-2">Escolha um modelo na barra lateral para visualizar e editar, ou clique em "Novo Modelo" para começar do zero.</p>
                             </div>
                         </Card>
@@ -420,3 +422,5 @@ export default function ModelosPage() {
         </div>
     );
 }
+
+    

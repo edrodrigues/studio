@@ -56,7 +56,7 @@ export default function ComeceAquiPage() {
                     </div>
                     <h3 className="text-xl font-semibold">3. Preencha e Exporte</h3>
                     <p className="mt-2 text-muted-foreground">
-                        A IA irá gerar uma minuta. Use o editor guiado e o assistente Gemini para preencher os campos e depois exporte em Markdown ou .DOCX.
+                        A IA irá gerar documentos baseados nos modelos e nas entidades extraidas nos documentos iniciais. Depois exporte-os em Markdown ou .DOCX.
                     </p>
                 </div>
             </div>

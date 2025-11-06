@@ -3,7 +3,7 @@
  * @fileOverview Provides detailed feedback on uploaded documents using a customizable system prompt.
  *
  * - getDocumentFeedback - A function that handles the feedback generation process.
- * - GetDocumentFeedbackInput - The input type for the getDocumentFeedback function.
+ * - GetDocumentFeedbackInput - The input type for the getDocumentfeedback function.
  * - GetDocumentFeedbackOutput - The return type for the getDocumentFeedback function.
  */
 
@@ -33,13 +33,12 @@ export async function getDocumentFeedback(input: GetDocumentFeedbackInput): Prom
   return getDocumentFeedbackFlow(input);
 }
 
-
 const getDocumentFeedbackPrompt = ai.definePrompt({
   name: 'getDocumentFeedbackPrompt',
   input: {schema: GetDocumentFeedbackInputSchema},
   output: {schema: GetDocumentFeedbackOutputSchema},
-  system: '{{systemPrompt}}',
-  prompt: `
+  prompt: `{{systemPrompt}}
+
 Analise os seguintes documentos e forneça um feedback detalhado com base no prompt do sistema.
 
 {{#each documents}}

@@ -56,8 +56,10 @@ export default function DocumentosIniciaisPage() {
     }
   };
 
-
-  const canGenerate = Object.values(files).every((file) => file !== null) && contractType && processType;
+  const allFilesUploaded = Object.values(files).every((file) => file !== null);
+  const isTedSelected = contractType === 'ted';
+  const processTypeValid = isTedSelected ? !!processType : true;
+  const canGenerate = allFilesUploaded && !!contractType && processTypeValid;
 
 
   const handleSubmit = async () => {
@@ -145,19 +147,21 @@ export default function DocumentosIniciaisPage() {
                           </div>
                       </RadioGroup>
                   </div>
-                   <div className="space-y-3">
-                      <Label>Tipo de Processo</Label>
-                      <RadioGroup value={processType} onValueChange={setProcessType} className="flex space-x-4">
-                          <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="ufpe-parceiro" id="ufpe-parceiro" />
-                              <Label htmlFor="ufpe-parceiro">UFPE - Parceiro</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="fade-ufpe" id="fade-ufpe" />
-                              <Label htmlFor="fade-ufpe">Fade - UFPE</Label>
-                          </div>
-                      </RadioGroup>
-                  </div>
+                  {contractType === 'ted' && (
+                    <div className="space-y-3">
+                        <Label>Tipo de Processo</Label>
+                        <RadioGroup value={processType} onValueChange={setProcessType} className="flex space-x-4">
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="ufpe-parceiro" id="ufpe-parceiro" />
+                                <Label htmlFor="ufpe-parceiro">UFPE - Parceiro</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="fade-ufpe" id="fade-ufpe" />
+                                <Label htmlFor="fade-ufpe">Fade - UFPE</Label>
+                            </div>
+                        </RadioGroup>
+                    </div>
+                  )}
               </CardContent>
           </Card>
         </section>

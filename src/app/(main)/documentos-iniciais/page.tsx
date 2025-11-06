@@ -126,18 +126,22 @@ export default function DocumentosIniciaisPage() {
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-3">
                       <Label>Tipo de Contrato</Label>
-                      <RadioGroup value={contractType} onValueChange={setContractType} className="flex space-x-4">
+                      <RadioGroup value={contractType} onValueChange={setContractType} className="flex flex-wrap gap-4">
                           <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="TED" id="ted" />
-                              <Label htmlFor="ted">TED</Label>
+                              <RadioGroupItem value="convenios" id="convenios" />
+                              <Label htmlFor="convenios">Convênios</Label>
                           </div>
                           <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="ACT" id="act" />
-                              <Label htmlFor="act">ACT</Label>
+                              <RadioGroupItem value="acordos" id="acordos" />
+                              <Label htmlFor="acordos">Acordos</Label>
                           </div>
                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="outro" id="outro-contrato" />
-                              <Label htmlFor="outro-contrato">Outro</Label>
+                              <RadioGroupItem value="contratos" id="contratos" />
+                              <Label htmlFor="contratos">Contratos</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="ted" id="ted" />
+                              <Label htmlFor="ted">TED</Label>
                           </div>
                       </RadioGroup>
                   </div>

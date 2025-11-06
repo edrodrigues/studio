@@ -154,16 +154,24 @@ export default function GerarNovoContratoPage() {
     }
 
     const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
-    if (!selectedTemplate) return;
+    
+    if (!selectedTemplate || !selectedTemplate.markdownContent) {
+        toast({
+            variant: "destructive",
+            title: "Erro no Modelo",
+            description: "O modelo selecionado está vazio ou não pôde ser carregado. Tente salvar o modelo novamente.",
+        });
+        return;
+    }
 
     startGeneration(async () => {
         try {
             let filledContent = selectedTemplate.markdownContent;
             
-            const placeholders = filledContent.match(/{{([A-Z0-9_]+)}}/g) || [];
+            const placeholders = filledContent.match(/{{(.*?)}}/g) || [];
             
             placeholders.forEach(placeholder => {
-                const key = placeholder.replace(/{{|}}/g, '');
+                const key = placeholder.replace(/{{|}}/g, '').trim();
                 if (storedEntities && Object.prototype.hasOwnProperty.call(storedEntities, key)) {
                     filledContent = filledContent.replace(new RegExp(placeholder, 'g'), String(storedEntities[key]));
                 } else {
@@ -251,3 +259,5 @@ export default function GerarNovoContratoPage() {
     </div>
   );
 }
+
+    

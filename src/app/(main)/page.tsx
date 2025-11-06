@@ -54,7 +54,7 @@ export default function ComeceAquiPage() {
                     <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary mb-4">
                         <FileText size={32} />
                     </div>
-                    <h3 className="text-xl font-semibold">3. Preencha e Exporte</h3>
+                    <h3 className="text-xl font-semibold">3. Gere e Exporte</h3>
                     <p className="mt-2 text-muted-foreground">
                         A IA irá gerar documentos baseados nos modelos e nas entidades extraidas nos documentos iniciais. Depois exporte-os em Markdown ou .DOCX.
                     </p>

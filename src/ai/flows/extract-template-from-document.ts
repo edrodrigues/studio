@@ -11,10 +11,10 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ExtractTemplateFromDocumentInputSchema = z.object({
-  document: z
+  documentContent: z
     .string()
     .describe(
-      "The document to extract a template from, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "The base64-encoded content of the document to extract a template from."
     ),
 });
 
@@ -46,8 +46,8 @@ Sua tarefa é identificar as partes que são variáveis (como nomes, datas, valo
 
 O output deve ser APENAS o texto do modelo em Markdown, usando cabeçalhos de nível 1 (# TÍTULO DA CLÁUSULA) para cada cláusula. Não adicione nenhuma explicação extra.
 
-Exemplo de Contrato:
-{{media url=document}}`,
+Conteúdo do Contrato (decodificado de base64):
+{{documentContent}}`,
 });
 
 const extractTemplateFlow = ai.defineFlow(

@@ -57,24 +57,35 @@ export async function handleGetAssistance(input: {
 }
 
 const extractTemplateSchema = z.object({
-    document: fileSchema,
+    documentContent: z.string(),
 });
 
 export async function handleExtractTemplate(formData: FormData) {
     try {
-        const rawData = Object.fromEntries(formData.entries());
-        const validatedData = extractTemplateSchema.safeParse(rawData);
+        const dataUri = formData.get("document") as string;
+
+        if (!dataUri || !dataUri.startsWith('data:')) {
+            return { success: false, error: "URI de documento inválido ou ausente." };
+        }
+        
+        // Remove the data URI header, leaving only the base64 content
+        const base64Content = dataUri.substring(dataUri.indexOf(',') + 1);
+
+        const validatedData = extractTemplateSchema.safeParse({
+             documentContent: base64Content
+        });
 
         if (!validatedData.success) {
             console.error("Validation failed", validatedData.error.flatten());
-            return { success: false, error: "Dados de arquivo inválidos." };
+            return { success: false, error: "Conteúdo do documento inválido." };
         }
 
         const result = await extractTemplateFromDocument(validatedData.data);
         return { success: true, data: result };
     } catch (error) {
         console.error("Error extracting template:", error);
-        return { success: false, error: "Falha ao extrair o modelo." };
+        const errorMessage = error instanceof Error ? error.message : "Falha ao extrair o modelo.";
+        return { success: false, error: errorMessage };
     }
 }
 

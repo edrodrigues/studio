@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -16,6 +17,7 @@ import { exportToDocx } from "@/lib/export";
 import { saveAs } from "file-saver";
 import { FileDown, FileText } from "lucide-react";
 import { useEffect, useState } from "react";
+import rehypeRaw from "rehype-raw";
 
 interface ContractPreviewModalProps {
   contract: Contract | null;
@@ -23,22 +25,14 @@ interface ContractPreviewModalProps {
   onClose: () => void;
 }
 
-const highlightUnfilled = (text: string) => {
-    return text.replace(/{{(.*?)}}/g, (match, variable) => {
-        return `<span class="bg-yellow-200 text-yellow-800 font-mono px-1 rounded">${match}</span>`;
-    });
-};
-
 export function ContractPreviewModal({ contract, isOpen, onClose }: ContractPreviewModalProps) {
     const [processedContent, setProcessedContent] = useState('');
 
     useEffect(() => {
         if (contract?.content) {
-            // This is a bit of a hack to render HTML within ReactMarkdown.
-            // In a real app, a more robust solution like rehype-raw would be better.
-            const highlightedContent = contract.content.replace(/{{(.*?)}}/g, (match) => {
-                return `<span class="bg-yellow-200 text-yellow-800 font-mono px-1 rounded">${match}</span>`;
-              });
+            const highlightedContent = contract.content.replace(/{{(.*?)}}/g, (_match, variable) => {
+                return `<span class="bg-yellow-200 text-yellow-800 font-mono px-1 py-0.5 rounded text-xs">${`{{${variable}}}`}</span>`;
+            });
             setProcessedContent(highlightedContent);
         }
     }, [contract?.content]);
@@ -53,30 +47,25 @@ export function ContractPreviewModal({ contract, isOpen, onClose }: ContractPrev
     const handleExportDocx = () => {
         exportToDocx(contract.content, contract.name.replace(/\s/g, '_'));
     };
-
-    const renderers = {
-        span: (props: any) => {
-            if (props.dangerouslySetInnerHTML) {
-                return <span dangerouslySetInnerHTML={props.dangerouslySetInnerHTML} />;
-            }
-            return <span>{props.children}</span>;
-        }
-    };
-
+    
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-4xl h-[90vh]">
                 <DialogHeader>
                     <DialogTitle>Visualizar e Exportar: {contract.name}</DialogTitle>
                     <DialogDescription>
-                        Revise o contrato abaixo. Variáveis não preenchidas estão destacadas em amarelo.
+                        Revise o contrato abaixo. Variáveis não preenchidas estão destacadas.
                     </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="h-[calc(90vh-10rem)] rounded-md border">
-                    <div
-                        className="prose prose-sm max-w-none p-6 dark:prose-invert"
-                        dangerouslySetInnerHTML={{ __html: processedContent.replace(/\n/g, '<br />') }}
-                    />
+                    <div className="p-6">
+                        <ReactMarkdown
+                            rehypePlugins={[rehypeRaw]}
+                            className="prose prose-sm max-w-none dark:prose-invert"
+                        >
+                            {processedContent}
+                        </ReactMarkdown>
+                    </div>
                 </ScrollArea>
                 <DialogFooter>
                     <Button variant="outline" onClick={handleExportMD}>
@@ -92,3 +81,4 @@ export function ContractPreviewModal({ contract, isOpen, onClose }: ContractPrev
         </Dialog>
     );
 }
+

@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -9,12 +10,15 @@ const navLinks = [
   { href: "/", label: "Comece Aqui" },
   { href: "/documentos-iniciais", label: "Documentos Iniciais" },
   { href: "/modelos", label: "Gerenciar Modelos" },
-  { href: "/gerar-exportar", label: "Gerar e Exportar" },
+  { href: "/gerar-exportar", label: "Contratos Gerados" },
 ];
 
 function NavLink({ href, label }: { href: string; label: string }) {
     const pathname = usePathname();
-    const isActive = (href === "/" && pathname === "/") || (href !== "/" && pathname.startsWith(href));
+    const isActive = (href === "/" && pathname === "/") || 
+                     (href !== "/" && pathname.startsWith(href)) ||
+                     (href === "/gerar-exportar" && pathname.startsWith("/gerar-novo"));
+
 
     return (
         <Link

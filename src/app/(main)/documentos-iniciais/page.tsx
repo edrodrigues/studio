@@ -2,22 +2,18 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { FileText, Clock, CircleDollarSign, Loader2 } from "lucide-react";
-import { collection, addDoc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import { FileUploader } from "@/components/app/file-uploader";
-import { handleGenerateContract } from "@/lib/actions";
+import { handleExtractEntities } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
-import { type Contract } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { FeedbackModal } from "@/components/app/feedback-modal";
 import { type UploadedFile } from "@/lib/types";
-import { useFirebase, useUser } from "@/firebase";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { EntitiesPreviewModal } from "@/components/app/entities-preview-modal";
 
 export const fileToDataURI = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -39,11 +35,10 @@ export default function DocumentosIniciaisPage() {
   const [isPending, startTransition] = useTransition();
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackFiles, setFeedbackFiles] = useState<UploadedFile[]>([]);
-  const router = useRouter();
-  const { toast } = useToast();
-  const { firestore } = useFirebase();
-  const { user } = useUser();
+  const [isEntitiesModalOpen, setIsEntitiesModalOpen] = useState(false);
+  const [extractedEntities, setExtractedEntities] = useState<string>("");
 
+  const { toast } = useToast();
 
   const handleFileSelect = (key: string) => (file: File | null) => {
     setFiles((prev) => ({ ...prev, [key]: file }));
@@ -56,52 +51,48 @@ export default function DocumentosIniciaisPage() {
     }
   };
 
-  const allFilesUploaded = Object.values(files).every((file) => file !== null);
-  const isTedSelected = contractType === 'ted';
-  const processTypeValid = isTedSelected ? !!processType : true;
-  const canGenerate = allFilesUploaded && !!contractType && processTypeValid;
-
+  const hasAtLeastOneFile = Object.values(files).some((file) => file !== null);
 
   const handleSubmit = async () => {
-    if (!canGenerate || !user || !firestore) return;
+    if (!hasAtLeastOneFile) return;
 
     startTransition(async () => {
       try {
-        const formData = new FormData();
-        const planOfWorkURI = await fileToDataURI(files.planOfWork!);
-        const termOfExecutionURI = await fileToDataURI(files.termOfExecution!);
-        const budgetSpreadsheetURI = await fileToDataURI(files.budgetSpreadsheet!);
+        const uploadedFiles = await Promise.all(
+          Object.entries(files)
+            .filter(([, file]) => file)
+            .map(async ([key, file]) => ({
+              name: file!.name,
+              dataUri: await fileToDataURI(file!),
+            }))
+        );
 
-        formData.append("planOfWork", planOfWorkURI);
-        formData.append("termOfExecution", termOfExecutionURI);
-        formData.append("budgetSpreadsheet", budgetSpreadsheetURI);
+        if (uploadedFiles.length === 0) {
+          toast({
+            variant: "destructive",
+            title: "Nenhum arquivo",
+            description: "Carregue ao menos um documento para indexar.",
+          });
+          return;
+        }
 
-        const result = await handleGenerateContract(formData);
+        const result = await handleExtractEntities({ documents: uploadedFiles });
 
-        if (result.success && result.data?.contractDraft) {
-          
-          const newContract: Omit<Contract, 'id'> = {
-            name: `Novo Contrato Gerado - ${new Date().toLocaleDateString()}`,
-            content: result.data.contractDraft,
-            createdAt: new Date().toISOString(),
-          };
-
-          const contractsCollection = collection(firestore, 'users', user.uid, 'filledContracts');
-          const docRef = await addDocumentNonBlocking(contractsCollection, newContract);
-
+        if (result.success && result.data?.extractedJson) {
+          setExtractedEntities(result.data.extractedJson);
+          setIsEntitiesModalOpen(true);
           toast({
             title: "Sucesso!",
-            description: "Minuta de contrato gerada. Redirecionando para o editor...",
+            description: "As entidades foram extraídas dos documentos.",
           });
-          router.push(`/preencher/${docRef.id}`);
         } else {
-          throw new Error(result.error || "Falha ao obter o rascunho do contrato.");
+          throw new Error(result.error || "Falha ao extrair entidades.");
         }
       } catch (error) {
         console.error(error);
         toast({
           variant: "destructive",
-          title: "Erro na Geração",
+          title: "Erro na Extração",
           description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido.",
         });
       }
@@ -197,7 +188,7 @@ export default function DocumentosIniciaisPage() {
           <Button
             size="lg"
             onClick={handleSubmit}
-            disabled={!canGenerate || isPending || !user}
+            disabled={!hasAtLeastOneFile || isPending}
           >
             {isPending ? (
               <>
@@ -214,6 +205,11 @@ export default function DocumentosIniciaisPage() {
         isOpen={isFeedbackModalOpen}
         onClose={() => setIsFeedbackModalOpen(false)}
         files={feedbackFiles}
+      />
+      <EntitiesPreviewModal
+        isOpen={isEntitiesModalOpen}
+        onClose={() => setIsEntitiesModalOpen(false)}
+        jsonContent={extractedEntities}
       />
     </>
   );

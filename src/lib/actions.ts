@@ -1,9 +1,11 @@
+
 "use server";
 
 import { generateContractFromDocuments } from "@/ai/flows/generate-contract-from-documents";
 import { getAssistanceFromGemini } from "@/ai/flows/get-assistance-from-gemini";
 import { extractTemplateFromDocument } from "@/ai/flows/extract-template-from-document";
 import { getDocumentFeedback } from "@/ai/flows/get-document-feedback";
+import { extractEntitiesFromDocuments } from "@/ai/flows/extract-entities-from-documents";
 import { z } from "zod";
 
 const fileSchema = z.string().refine(s => s.startsWith('data:'), 'File must be a data URI');
@@ -123,5 +125,38 @@ export async function handleGetFeedback(input: {
     } catch (error) {
         console.error("Error getting feedback:", error);
         return { success: false, error: "Falha ao obter feedback da IA." };
+    }
+}
+
+const extractEntitiesSchema = z.object({
+  documents: z.array(z.object({
+    name: z.string(),
+    dataUri: fileSchema,
+  })),
+});
+
+export async function handleExtractEntities(input: {
+    documents: { name: string, dataUri: string }[];
+}) {
+    try {
+        const validatedData = extractEntitiesSchema.safeParse(input);
+        if (!validatedData.success) {
+            console.error("Validation failed", validatedData.error.flatten());
+            return { success: false, error: "Dados de entrada inválidos para a extração de entidades." };
+        }
+
+        const formattedDocuments = validatedData.data.documents.map(doc => 
+            `## Documento: ${doc.name}\n\n{{media url="${doc.dataUri}"}}`
+        ).join('\n\n---\n\n');
+
+        const result = await extractEntitiesFromDocuments({
+            documentsAsText: formattedDocuments,
+        });
+
+        return { success: true, data: result };
+    } catch (error) {
+        console.error("Error extracting entities:", error);
+        const errorMessage = error instanceof Error ? error.message : "Falha ao extrair entidades.";
+        return { success: false, error: errorMessage };
     }
 }

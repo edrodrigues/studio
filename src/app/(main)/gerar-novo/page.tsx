@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { collection } from "firebase/firestore";
 import { File, Loader2, Wand2, AlertTriangle, ArrowRight } from "lucide-react";
@@ -16,7 +16,23 @@ import { useToast } from "@/hooks/use-toast";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 
-function EntitiesCard({ entities }: { entities: Record<string, any> | null }) {
+function EntitiesCard({ entities, isLoading }: { entities: Record<string, any> | null, isLoading: boolean }) {
+    if (isLoading) {
+        return (
+            <Card>
+                <CardHeader>
+                    <Skeleton className="h-7 w-48" />
+                    <Skeleton className="h-4 w-full mt-2" />
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-6 w-5/6" />
+                </CardContent>
+            </Card>
+        );
+    }
+    
     if (!entities) {
         return (
             <Card className="bg-muted/30">
@@ -67,7 +83,7 @@ function TemplatesList({
 
     if (isLoading) {
         return <div className="space-y-2">
-            {[...Array(3)].map((_,i) => <Skeleton key={i} className="h-12 w-full" />)}
+            {[...Array(3)].map((_,i) => <Skeleton key={i} className="h-16 w-full" />)}
         </div>
     }
     
@@ -114,6 +130,11 @@ export default function GerarNovoContratoPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [isGenerating, startGeneration] = useTransition();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const templatesQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -139,16 +160,13 @@ export default function GerarNovoContratoPage() {
         try {
             let filledContent = selectedTemplate.markdownContent;
             
-            // Regex to find all placeholders like {{VAR_NAME}}
             const placeholders = filledContent.match(/{{[A-Z_]+}}/g) || [];
             
             placeholders.forEach(placeholder => {
                 const key = placeholder.replace(/{{|}}/g, '');
                 if (storedEntities && Object.prototype.hasOwnProperty.call(storedEntities, key)) {
-                    // Replace with value from entities
                     filledContent = filledContent.replace(new RegExp(placeholder, 'g'), String(storedEntities[key]));
                 } else {
-                    // Highlight the placeholder if key not found
                     const highlightedPlaceholder = `<span class="bg-yellow-200 text-yellow-800 font-mono px-1 py-0.5 rounded text-xs">${placeholder}</span>`;
                     filledContent = filledContent.replace(new RegExp(placeholder, 'g'), highlightedPlaceholder);
                 }
@@ -198,7 +216,7 @@ export default function GerarNovoContratoPage() {
       <div className="mt-12 mx-auto max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
         <div className="space-y-6">
             <h2 className="text-xl font-semibold">1. Entidades para Preenchimento</h2>
-            <EntitiesCard entities={storedEntities} />
+            <EntitiesCard entities={storedEntities} isLoading={!isClient} />
         </div>
 
         <div className="space-y-6">
@@ -216,7 +234,7 @@ export default function GerarNovoContratoPage() {
             <Button
                 size="lg"
                 onClick={handleGenerateContract}
-                disabled={!selectedTemplateId || !storedEntities || isGenerating}
+                disabled={!selectedTemplateId || !storedEntities || isGenerating || !isClient}
                 className="w-full max-w-md"
             >
                 {isGenerating ? (
@@ -237,4 +255,5 @@ export default function GerarNovoContratoPage() {
         </section>
     </div>
   );
-}
+
+    

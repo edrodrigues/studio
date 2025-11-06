@@ -206,7 +206,7 @@ export default function ModelosPage() {
         return collection(firestore, 'users', user.uid, 'contractModels');
     }, [user, firestore]);
 
-    const { data: templates, isLoading } = useCollection<Omit<Template, 'id'>>(templatesQuery);
+    const { data: templates, isLoading } = useCollection<Template>(templatesQuery);
 
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
     const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
@@ -409,3 +409,5 @@ export default function ModelosPage() {
         </div>
     );
 }
+
+    

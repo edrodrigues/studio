@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
@@ -13,6 +14,8 @@ interface ContractEditorProps {
 }
 
 const parseClauses = (content: string) => {
+  if (!content) return [{ title: "Contrato", content: "" }];
+
   const clauses = content.split(/(\n#{1,3}\s.*)/).filter(Boolean);
   const result: { title: string; content: string }[] = [];
 
@@ -26,7 +29,7 @@ const parseClauses = (content: string) => {
 };
 
 export function ContractEditor({ initialContent, onContentChange, onClauseChange }: ContractEditorProps) {
-  const [clauses, setClauses] = useState(() => parseClauses(initialContent));
+  const [clauses, setClauses] = useState(() => parseClauses(initialContent || ""));
   const [currentClauseIndex, setCurrentClauseIndex] = useState(0);
   const [isSaved, setIsSaved] = useState(true);
   const [isSaving, startSaving] = useTransition();
@@ -34,7 +37,16 @@ export function ContractEditor({ initialContent, onContentChange, onClauseChange
   const currentClause = clauses[currentClauseIndex];
 
   useEffect(() => {
-    onClauseChange(currentClause.title + '\n' + currentClause.content);
+    // When the initialContent from props changes (e.g., after async load), re-parse clauses.
+    setClauses(parseClauses(initialContent || ""));
+    setCurrentClauseIndex(0);
+  }, [initialContent]);
+
+
+  useEffect(() => {
+    if (currentClause) {
+        onClauseChange(currentClause.title + '\n' + currentClause.content);
+    }
   }, [currentClause, onClauseChange]);
 
   const handleClauseContentChange = (newClauseContent: string) => {
@@ -66,6 +78,10 @@ export function ContractEditor({ initialContent, onContentChange, onClauseChange
       setCurrentClauseIndex(currentClauseIndex - 1);
     }
   };
+  
+  if (!currentClause) {
+    return null; // Or a loading state
+  }
 
   return (
     <div className="flex h-full flex-col rounded-lg border bg-card p-4">

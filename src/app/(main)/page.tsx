@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,7 @@ export default function ComeceAquiPage() {
                     </div>
                     <h3 className="text-xl font-semibold">1. Analise e Indexe</h3>
                     <p className="mt-2 text-muted-foreground">
-                        Na aba "Documentos Iniciais", carregue seus arquivos, receba feedback da IA e indexe o conteúdo para gerar uma minuta de contrato.
+                        Na aba "Documentos Iniciais", carregue seus arquivos, receba feedback da IA e indexe o conteúdo para extrair as entidades importantes dos documentos principais.
                     </p>
                 </div>
                 <div className="flex flex-col items-center text-center">

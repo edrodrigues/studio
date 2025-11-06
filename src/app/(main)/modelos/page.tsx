@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useTransition, useEffect } from "react";
@@ -347,19 +348,16 @@ export default function ModelosPage() {
             {/* Main Content */}
             <main className="w-1/2 p-8 overflow-y-auto">
                 <div className="space-y-8">
-                     {!isInEditMode ? (
-                        <TemplateExtractor onTemplateExtracted={handleTemplateExtracted} />
-                    ) : (
-                         <TemplateEditor
+                     <TemplateExtractor onTemplateExtracted={handleTemplateExtracted} />
+                    {isInEditMode ? (
+                        <TemplateEditor
                             template={editingTemplate}
                             onTemplateChange={handleTemplateChange}
                             onSave={handleSaveTemplate}
                             onCancel={handleCancelEditing}
                         />
-                    )}
-                     
-                    {!isInEditMode && !selectedTemplateId && !isLoading && (
-                         <Card className="flex items-center justify-center p-8 border-dashed bg-card/50">
+                    ) : !selectedTemplateId && !isLoading && (
+                        <Card className="flex items-center justify-center p-8 border-dashed bg-card/50">
                             <div className="text-center">
                                 <h3 className="text-xl font-semibold">Selecione um modelo</h3>
                                 <p className="text-muted-foreground">Escolha um modelo na barra lateral para visualizar ou clique em "Novo Modelo" para começar.</p>
@@ -398,3 +396,5 @@ export default function ModelosPage() {
         </div>
     );
 }
+
+    

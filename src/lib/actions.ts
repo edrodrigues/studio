@@ -7,6 +7,7 @@ import { extractTemplateFromDocument } from "@/ai/flows/extract-template-from-do
 import { getDocumentFeedback } from "@/ai/flows/get-document-feedback";
 import { extractEntitiesFromDocuments } from "@/ai/flows/extract-entities-from-documents";
 import { z } from "zod";
+import mammoth from "mammoth";
 
 const fileSchema = z.string().refine(s => s.startsWith('data:'), 'File must be a data URI');
 
@@ -70,7 +71,6 @@ export async function handleExtractTemplate(formData: FormData) {
             return { success: false, error: "URI de documento inválido ou ausente." };
         }
         
-        // The Genkit flow expects the full content (base64 decoded).
         const base64Content = Buffer.from(dataUri.split(',')[1], 'base64').toString('utf-8');
 
         const validatedData = extractTemplateSchema.safeParse({
@@ -96,13 +96,14 @@ const getFeedbackSchema = z.object({
   documents: z.array(z.object({
     name: z.string(),
     dataUri: fileSchema,
+    isText: z.boolean(),
   })),
 });
 
 
 export async function handleGetFeedback(input: {
     systemPrompt: string;
-    documents: { name: string, dataUri: string }[];
+    documents: { name: string, dataUri: string, isText: boolean }[];
 }) {
     try {
         const validatedData = getFeedbackSchema.safeParse(input);
@@ -111,10 +112,18 @@ export async function handleGetFeedback(input: {
             return { success: false, error: "Dados de entrada inválidos para o feedback." };
         }
         
-        // Manually format the documents into a single string for the prompt
-        const formattedDocuments = validatedData.data.documents.map(doc => 
-            `### Documento: ${doc.name}\n{{media url="${doc.dataUri}"}}\n---`
-        ).join('\n');
+        let formattedDocuments = "";
+        for (const doc of validatedData.data.documents) {
+            let content;
+            if (doc.isText) {
+                const buffer = Buffer.from(doc.dataUri.split(',')[1], 'base64');
+                const { value } = await mammoth.extractRawText({ buffer });
+                content = `\n\n${value}\n\n`;
+            } else {
+                content = `{{media url="${doc.dataUri}"}}`;
+            }
+            formattedDocuments += `### Documento: ${doc.name}\n${content}\n---\n`;
+        }
 
         const result = await getDocumentFeedback({
             systemPrompt: validatedData.data.systemPrompt,
@@ -124,7 +133,8 @@ export async function handleGetFeedback(input: {
         return { success: true, data: result };
     } catch (error) {
         console.error("Error getting feedback:", error);
-        return { success: false, error: "Falha ao obter feedback da IA." };
+        const errorMessage = error instanceof Error ? error.message : "Falha ao obter feedback da IA.";
+        return { success: false, error: errorMessage };
     }
 }
 

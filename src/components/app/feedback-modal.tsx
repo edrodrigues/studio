@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useTransition } from "react";
@@ -60,6 +61,7 @@ export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
           files.map(async ({ file }) => ({
             name: file.name,
             dataUri: await fileToDataURI(file),
+            isText: file.name.endsWith('.docx'),
           }))
         );
 
@@ -133,8 +135,8 @@ export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
             {/* Right Column: Feedback Display */}
             <div className="flex flex-col gap-4">
                  <Label htmlFor="feedback-output" className="font-semibold">Resultado da Análise</Label>
-                <ScrollArea id="feedback-output" className="flex-1 rounded-md border bg-muted/50">
-                   <div className="p-4" role="status" aria-live="polite">
+                <ScrollArea id="feedback-output" className="flex-1 rounded-md border bg-muted/50" role="status">
+                   <div className="p-4" aria-live="polite">
                      {isPending && !feedback && (
                         <div className="flex items-center justify-center h-full text-muted-foreground">
                             <Loader2 className="h-8 w-8 animate-spin" />

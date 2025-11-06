@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Provides detailed feedback on uploaded documents using a customizable system prompt.
@@ -12,7 +13,7 @@ import {z} from 'genkit';
 
 const GetDocumentFeedbackInputSchema = z.object({
   systemPrompt: z.string().describe('The customizable system prompt to guide the AI feedback.'),
-  formattedDocuments: z.string().describe('A single string containing all documents formatted in Markdown, including their names and content as media parts.'),
+  formattedDocuments: z.string().describe('A single string containing all documents formatted in Markdown, including their names and content (either as text or media parts).'),
 });
 
 export type GetDocumentFeedbackInput = z.infer<typeof GetDocumentFeedbackInputSchema>;
@@ -36,6 +37,7 @@ const getDocumentFeedbackPrompt = ai.definePrompt({
 
 Analise os seguintes documentos e forneça um feedback detalhado com base no prompt do sistema.
 
+Conteúdo dos Documentos:
 {{{formattedDocuments}}}
 `,
 });
@@ -49,6 +51,9 @@ const getDocumentFeedbackFlow = ai.defineFlow(
   },
   async (input) => {
     const {output} = await getDocumentFeedbackPrompt(input);
-    return output!;
+    if (!output) {
+      throw new Error("AI failed to generate feedback.");
+    }
+    return output;
   }
 );

@@ -10,14 +10,9 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-const DocumentInputSchema = z.object({
-  name: z.string().describe('The name of the file.'),
-  dataUri: z.string().describe("The file content as a data URI. Expected format: 'data:<mimetype>;base64,<encoded_data>'."),
-});
-
 const GetDocumentFeedbackInputSchema = z.object({
   systemPrompt: z.string().describe('The customizable system prompt to guide the AI feedback.'),
-  documents: z.array(DocumentInputSchema).describe('An array of documents to be analyzed.'),
+  formattedDocuments: z.string().describe('A single string containing all documents formatted in Markdown, including their names and content as media parts.'),
 });
 
 export type GetDocumentFeedbackInput = z.infer<typeof GetDocumentFeedbackInputSchema>;
@@ -41,11 +36,7 @@ const getDocumentFeedbackPrompt = ai.definePrompt({
 
 Analise os seguintes documentos e forneça um feedback detalhado com base no prompt do sistema.
 
-{{#each documents}}
-### Documento: {{name}}
-{{media url=dataUri}}
----
-{{/each}}
+{{{formattedDocuments}}}
 `,
 });
 

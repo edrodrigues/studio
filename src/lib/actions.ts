@@ -68,8 +68,8 @@ export async function handleExtractTemplate(formData: FormData) {
             return { success: false, error: "URI de documento inválido ou ausente." };
         }
         
-        // Remove the data URI header, leaving only the base64 content
-        const base64Content = dataUri.substring(dataUri.indexOf(',') + 1);
+        // The Genkit flow expects the full content (base64 decoded).
+        const base64Content = Buffer.from(dataUri.split(',')[1], 'base64').toString('utf-8');
 
         const validatedData = extractTemplateSchema.safeParse({
              documentContent: base64Content
@@ -108,7 +108,17 @@ export async function handleGetFeedback(input: {
             console.error("Validation failed", validatedData.error.flatten());
             return { success: false, error: "Dados de entrada inválidos para o feedback." };
         }
-        const result = await getDocumentFeedback(validatedData.data);
+        
+        // Manually format the documents into a single string for the prompt
+        const formattedDocuments = validatedData.data.documents.map(doc => 
+            `### Documento: ${doc.name}\n{{media url="${doc.dataUri}"}}\n---`
+        ).join('\n');
+
+        const result = await getDocumentFeedback({
+            systemPrompt: validatedData.data.systemPrompt,
+            formattedDocuments: formattedDocuments,
+        });
+
         return { success: true, data: result };
     } catch (error) {
         console.error("Error getting feedback:", error);

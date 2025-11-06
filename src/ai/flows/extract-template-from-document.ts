@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Extracts a generic template from a document using AI.
@@ -47,7 +48,7 @@ Sua tarefa é identificar as partes que são variáveis (como nomes, datas, valo
 O output deve ser APENAS o texto do modelo em Markdown, usando cabeçalhos de nível 1 (# TÍTULO DA CLÁUSULA) para cada cláusula. Não adicione nenhuma explicação extra.
 
 Conteúdo do Contrato (decodificado de base64):
-{{documentContent}}`,
+{{{documentContent}}}`,
 });
 
 const extractTemplateFlow = ai.defineFlow(

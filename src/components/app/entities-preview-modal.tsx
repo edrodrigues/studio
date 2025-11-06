@@ -33,12 +33,14 @@ export function EntitiesPreviewModal({
     saveAs(blob, `entidades_extraidas_${new Date().toISOString()}.json`);
   };
 
-  let formattedJson = "";
+  let entities: Record<string, any> = {};
+  let errorMessage = "";
   try {
-    const parsed = JSON.parse(jsonContent);
-    formattedJson = JSON.stringify(parsed, null, 2);
+    if (jsonContent) {
+      entities = JSON.parse(jsonContent);
+    }
   } catch {
-    formattedJson = "JSON inválido ou vazio.";
+    errorMessage = "JSON inválido ou vazio.";
   }
 
   return (
@@ -51,10 +53,21 @@ export function EntitiesPreviewModal({
             revisar e exportar o resultado como um arquivo JSON.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-1 rounded-md border bg-muted/50">
-          <pre className="p-4 text-sm">
-            <code>{formattedJson}</code>
-          </pre>
+        <ScrollArea className="flex-1 rounded-md border bg-muted/50 p-4">
+          {errorMessage ? (
+            <p className="text-destructive">{errorMessage}</p>
+          ) : Object.keys(entities).length > 0 ? (
+            <div className="space-y-2">
+              {Object.entries(entities).map(([key, value]) => (
+                <div key={key} className="grid grid-cols-2 gap-4 text-sm">
+                  <strong className="font-mono text-muted-foreground truncate">{key}:</strong>
+                  <span className="font-mono">{String(value)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+             <p className="text-muted-foreground">Nenhuma entidade extraída.</p>
+          )}
         </ScrollArea>
         <DialogFooter className="mt-auto">
           <Button

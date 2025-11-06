@@ -3,7 +3,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { collection, doc } from "firebase/firestore";
+import { collection, doc, deleteDoc } from "firebase/firestore";
 import { FilePlus2, MoreHorizontal, Trash2, Pencil, Eye, Loader2 } from "lucide-react";
 import {
   Table,
@@ -24,7 +24,6 @@ import { type Contract } from "@/lib/types";
 import { useCollection, useFirebase, useUser, useMemoFirebase } from "@/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ContractPreviewModal } from "@/components/app/contract-preview-modal";
@@ -126,15 +125,25 @@ export default function GerarExportarPage() {
     router.push(`/preencher/${id}`);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!user || !firestore) return;
+
     if (window.confirm("Tem certeza de que deseja excluir este contrato?")) {
-        const contractRef = doc(firestore, 'users', user.uid, 'filledContracts', id);
-        deleteDocumentNonBlocking(contractRef);
+      const contractRef = doc(firestore, 'users', user.uid, 'filledContracts', id);
+      try {
+        await deleteDoc(contractRef);
         toast({
-            title: "Contrato excluído",
-            description: "O contrato foi excluído com sucesso.",
+          title: "Contrato excluído",
+          description: "O contrato foi removido com sucesso.",
         });
+      } catch (error) {
+        console.error("Erro ao excluir o contrato:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao excluir",
+          description: "Não foi possível remover o contrato. Tente novamente.",
+        });
+      }
     }
   };
   

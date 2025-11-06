@@ -212,10 +212,12 @@ export default function ModelosPage() {
     const { toast } = useToast();
 
     useEffect(() => {
-        if (!isLoading && templates && templates.length > 0 && !selectedTemplateId) {
-            setSelectedTemplateId(templates[0].id);
+        if (!isLoading && templates && templates.length > 0 && !selectedTemplateId && !editingTemplate) {
+            const firstTemplate = templates[0];
+            setSelectedTemplateId(firstTemplate.id);
+            setEditingTemplate(JSON.parse(JSON.stringify(firstTemplate))); // Load first template into editor
         }
-    }, [isLoading, templates, selectedTemplateId]);
+    }, [isLoading, templates, selectedTemplateId, editingTemplate]);
     
     const templateForPreview = useMemo(() => {
         if (editingTemplate) return editingTemplate;
@@ -238,17 +240,13 @@ export default function ModelosPage() {
     }, [startEditing]);
 
     const handleSelectTemplate = useCallback((id: string) => {
-        if (editingTemplate) {
-            toast({
-                title: "Salve ou cancele suas alterações",
-                description: "Você precisa salvar ou cancelar a edição atual antes de selecionar outro modelo.",
-                variant: "destructive"
-            });
-            return;
+        if (editingTemplate?.id === id) return; // Already editing this template
+
+        const templateToEdit = templates?.find(t => t.id === id);
+        if (templateToEdit) {
+            startEditing(templateToEdit);
         }
-        setSelectedTemplateId(id);
-        setEditingTemplate(null);
-    }, [editingTemplate, toast]);
+    }, [editingTemplate, templates, startEditing]);
 
     const handleTemplateChange = useCallback((field: keyof Omit<Template, 'id'>, value: string) => {
         if (editingTemplate) {
@@ -278,8 +276,10 @@ export default function ModelosPage() {
     const handleCancelEditing = useCallback(() => {
         const wasNew = editingTemplate && !templates?.some(t => t.id === editingTemplate.id);
         setEditingTemplate(null);
-        if (wasNew) {
-            setSelectedTemplateId(templates?.[0]?.id ?? null);
+        if (wasNew && templates && templates.length > 0) {
+            setSelectedTemplateId(templates[0].id);
+        } else if (!wasNew && editingTemplate) {
+            setSelectedTemplateId(editingTemplate.id);
         }
     }, [editingTemplate, templates]);
 
@@ -330,7 +330,7 @@ export default function ModelosPage() {
                                         onKeyDown={(e) => e.key === 'Enter' && handleSelectTemplate(template.id)}
                                         className={cn(
                                             "w-full text-left p-2 rounded-md transition-colors text-sm flex justify-between items-center group cursor-pointer",
-                                            selectedTemplateId === template.id && !isInEditMode
+                                            (editingTemplate?.id === template.id || (!editingTemplate && selectedTemplateId === template.id))
                                                 ? "bg-primary text-primary-foreground"
                                                 : "hover:bg-muted"
                                         )}
@@ -359,8 +359,8 @@ export default function ModelosPage() {
             {/* Main Content */}
             <main className="w-1/2 p-8 overflow-y-auto">
                 <div className="space-y-8">
-                     {isInEditMode && <TemplateExtractor onTemplateExtracted={handleTemplateExtracted} />}
-                    {isInEditMode ? (
+                     <TemplateExtractor onTemplateExtracted={handleTemplateExtracted} />
+                    {editingTemplate ? (
                         <TemplateEditor
                             template={editingTemplate}
                             onTemplateChange={handleTemplateChange}
@@ -368,17 +368,12 @@ export default function ModelosPage() {
                             onCancel={handleCancelEditing}
                         />
                     ) : (
-                         <>
-                            <TemplateExtractor onTemplateExtracted={handleTemplateExtracted} />
-                            {!selectedTemplateId && !isLoading && (
-                                <Card className="flex items-center justify-center p-8 border-dashed bg-card/50">
-                                    <div className="text-center">
-                                        <h3 className="text-xl font-semibold">Selecione um modelo</h3>
-                                        <p className="text-muted-foreground">Escolha um modelo na barra lateral para visualizar ou clique em "Novo Modelo" para começar.</p>
-                                    </div>
-                                </Card>
-                            )}
-                        </>
+                        <Card className="flex items-center justify-center p-8 border-dashed bg-card/50 min-h-[400px]">
+                            <div className="text-center">
+                                <h3 className="text-xl font-semibold">Selecione ou crie um modelo</h3>
+                                <p className="text-muted-foreground mt-2">Escolha um modelo na barra lateral para visualizar e editar, ou clique em "Novo Modelo" para começar do zero.</p>
+                            </div>
+                        </Card>
                     )}
                 </div>
             </main>
@@ -412,5 +407,3 @@ export default function ModelosPage() {
         </div>
     );
 }
-
-    

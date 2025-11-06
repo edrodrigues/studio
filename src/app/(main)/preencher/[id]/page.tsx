@@ -53,7 +53,7 @@ export default function PreencherContratoPage() {
   
   const handleContentChange = useCallback((newContent: string) => {
     if (!contractRef) return;
-    updateDocumentNonBlocking(contractRef, { content: newContent });
+    updateDocumentNonBlocking(contractRef, { markdownContent: newContent });
   }, [contractRef]);
 
   const handleClauseChange = useCallback((newClauseContent: string) => {
@@ -91,12 +91,12 @@ export default function PreencherContratoPage() {
         <main className="flex-1 overflow-hidden p-4">
             <div className="container grid h-full max-w-7xl grid-cols-1 gap-8 md:grid-cols-2">
                 <ContractEditor
-                    initialContent={contract.content}
+                    initialContent={contract.markdownContent}
                     onContentChange={handleContentChange}
                     onClauseChange={handleClauseChange}
                 />
                 <ContractAssistant
-                    contractContent={contract.content}
+                    contractContent={contract.markdownContent}
                     clauseContent={clauseContent}
                 />
             </div>

@@ -3,15 +3,17 @@ export interface Template {
   id: string;
   name: string;
   description: string;
-  content: string; // Markdown content
+  markdownContent: string;
   googleDocLink?: string;
 }
 
 export interface Contract {
   id: string;
-  templateId?: string; // Optional if generated directly
+  contractModelId?: string;
+  clientName: string;
+  filledData: string;
   name: string;
-  content: string; // Markdown content with filled values
+  markdownContent: string; 
   createdAt: string;
 }
 

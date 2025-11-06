@@ -75,7 +75,7 @@ function ContractsTable({
                     <TableRow key={contract.id}>
                         <TableCell className="font-medium">{contract.name}</TableCell>
                         <TableCell>
-                            {format(new Date(contract.createdAt), "dd 'de' MMMM 'de' yyyy, 'às' HH:mm", { locale: ptBR })}
+                            {contract.createdAt ? format(new Date(contract.createdAt), "dd 'de' MMMM 'de' yyyy, 'às' HH:mm", { locale: ptBR }) : 'Data indisponível'}
                         </TableCell>
                         <TableCell>
                             <DropdownMenu>
@@ -183,4 +183,3 @@ export default function GerarExportarPage() {
     </>
   );
 }
-

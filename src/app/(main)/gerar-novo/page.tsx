@@ -137,8 +137,8 @@ export default function GerarNovoContratoPage() {
 
     startGeneration(async () => {
         try {
-            let filledContent = selectedTemplate.content;
-            const entitiesToFill = storedEntities.extractedJson ? JSON.parse(storedEntities.extractedJson) : storedEntities;
+            let filledContent = selectedTemplate.markdownContent;
+            const entitiesToFill = storedEntities;
             
             for (const [key, value] of Object.entries(entitiesToFill)) {
                 const placeholder = new RegExp(`{{${key}}}`, "g");
@@ -146,9 +146,11 @@ export default function GerarNovoContratoPage() {
             }
             
             const newContract = {
-                templateId: selectedTemplate.id,
+                contractModelId: selectedTemplate.id,
+                clientName: entitiesToFill.NOME_DA_ENTIDADE_PARCEIRA || 'Cliente não especificado',
+                filledData: JSON.stringify(entitiesToFill),
                 name: `Contrato de ${selectedTemplate.name} - ${new Date().toLocaleDateString('pt-BR')}`,
-                content: filledContent,
+                markdownContent: filledContent,
                 createdAt: new Date().toISOString(),
             };
 
@@ -187,7 +189,7 @@ export default function GerarNovoContratoPage() {
       <div className="mt-12 mx-auto max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
         <div className="space-y-6">
             <h2 className="text-xl font-semibold">1. Entidades para Preenchimento</h2>
-            <EntitiesCard entities={storedEntities ? (storedEntities.extractedJson ? JSON.parse(storedEntities.extractedJson) : storedEntities) : null} />
+            <EntitiesCard entities={storedEntities} />
         </div>
 
         <div className="space-y-6">
@@ -227,4 +229,3 @@ export default function GerarNovoContratoPage() {
     </div>
   );
 }
-

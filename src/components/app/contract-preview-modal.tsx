@@ -29,23 +29,23 @@ export function ContractPreviewModal({ contract, isOpen, onClose }: ContractPrev
     const [processedContent, setProcessedContent] = useState('');
 
     useEffect(() => {
-        if (contract?.content) {
-            const highlightedContent = contract.content.replace(/{{(.*?)}}/g, (_match, variable) => {
+        if (contract?.markdownContent) {
+            const highlightedContent = contract.markdownContent.replace(/{{(.*?)}}/g, (_match, variable) => {
                 return `<span class="bg-yellow-200 text-yellow-800 font-mono px-1 py-0.5 rounded text-xs">${`{{${variable}}}`}</span>`;
             });
             setProcessedContent(highlightedContent);
         }
-    }, [contract?.content]);
+    }, [contract?.markdownContent]);
 
     if (!contract) return null;
 
     const handleExportMD = () => {
-        const blob = new Blob([contract.content], { type: "text/markdown;charset=utf-8" });
+        const blob = new Blob([contract.markdownContent], { type: "text/markdown;charset=utf-8" });
         saveAs(blob, `${contract.name.replace(/\s/g, '_')}.md`);
     };
 
     const handleExportDocx = () => {
-        exportToDocx(contract.content, contract.name.replace(/\s/g, '_'));
+        exportToDocx(contract.markdownContent, contract.name.replace(/\s/g, '_'));
     };
     
     return (
@@ -81,4 +81,3 @@ export function ContractPreviewModal({ contract, isOpen, onClose }: ContractPrev
         </Dialog>
     );
 }
-

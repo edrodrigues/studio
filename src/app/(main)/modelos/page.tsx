@@ -64,7 +64,7 @@ function TemplateExtractor({ onTemplateExtracted }: { onTemplateExtracted: (temp
                         id: `template-${Date.now()}`,
                         name: `Modelo de ${file.name.replace(/\.[^/.]+$/, "")}`,
                         description: `Extraído de ${file.name}`,
-                        content: result.data.templateContent,
+                        markdownContent: result.data.templateContent,
                     };
                     onTemplateExtracted(newTemplate);
                     toast({
@@ -177,8 +177,8 @@ function TemplateEditor({
                         <Label htmlFor="template-content">Conteúdo do Modelo (Markdown)</Label>
                         <Textarea
                             id="template-content"
-                            value={template.content}
-                            onChange={(e) => onTemplateChange("content", e.target.value)}
+                            value={template.markdownContent}
+                            onChange={(e) => onTemplateChange("markdownContent", e.target.value)}
                             className="min-h-[250px] font-mono"
                             placeholder="Escreva o conteúdo do seu modelo em Markdown aqui..."
                         />
@@ -215,7 +215,9 @@ export default function ModelosPage() {
     useEffect(() => {
         if (!isLoading && templates && templates.length > 0 && !selectedTemplateId && !editingTemplate) {
             const firstTemplate = templates[0];
-            setSelectedTemplateId(firstTemplate.id);
+            if (firstTemplate) {
+                startEditing(firstTemplate);
+            }
         }
     }, [isLoading, templates, selectedTemplateId, editingTemplate]);
     
@@ -234,13 +236,13 @@ export default function ModelosPage() {
             id: `template-${Date.now()}`,
             name: "Novo Modelo sem Título",
             description: "",
-            content: "# Novo Modelo\n\nComece a editar...",
+            markdownContent: "# Novo Modelo\n\nComece a editar...",
         };
         startEditing(newTemplate);
     }, [startEditing]);
 
     const handleSelectTemplate = useCallback((id: string) => {
-        if (editingTemplate?.id === id) return; // Already editing this template
+        if (editingTemplate?.id === id) return;
 
         const templateToEdit = templates?.find(t => t.id === id);
         if (templateToEdit) {
@@ -393,7 +395,7 @@ export default function ModelosPage() {
                                         h2: ({ node, ...props }) => <h2 className="text-lg font-semibold mt-6 mb-2" {...props} />,
                                     }}
                                 >
-                                    {templateForPreview.content}
+                                    {templateForPreview.markdownContent}
                                 </ReactMarkdown>
                             </CardContent>
                         </Card>

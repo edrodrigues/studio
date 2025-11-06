@@ -3,8 +3,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { collection, addDoc } from "firebase/firestore";
-import { FilePlus2, File, Loader2, Wand2, AlertTriangle, ArrowRight } from "lucide-react";
+import { collection } from "firebase/firestore";
+import { File, Loader2, Wand2, AlertTriangle, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { type Template } from "@/lib/types";
@@ -59,7 +59,7 @@ function TemplatesList({
     selectedTemplateId,
     onSelectTemplate
 } : {
-    templates: (Template[] & {id: string}) | null,
+    templates: (Template & {id: string})[] | null,
     isLoading: boolean,
     selectedTemplateId: string | null,
     onSelectTemplate: (id: string) => void
@@ -120,7 +120,7 @@ export default function GerarNovoContratoPage() {
     return collection(firestore, 'users', user.uid, 'contractModels');
   }, [user, firestore]);
 
-  const { data: templates, isLoading } = useCollection<Omit<Template, 'id'>>(templatesQuery);
+  const { data: templates, isLoading } = useCollection<Template>(templatesQuery);
 
   const handleGenerateContract = () => {
     if (!selectedTemplateId || !templates || !storedEntities || !user || !firestore) {
@@ -138,17 +138,26 @@ export default function GerarNovoContratoPage() {
     startGeneration(async () => {
         try {
             let filledContent = selectedTemplate.markdownContent;
-            const entitiesToFill = storedEntities;
             
-            for (const [key, value] of Object.entries(entitiesToFill)) {
-                const placeholder = new RegExp(`{{${key}}}`, "g");
-                filledContent = filledContent.replace(placeholder, String(value));
-            }
+            // Regex to find all placeholders like {{VAR_NAME}}
+            const placeholders = filledContent.match(/{{[A-Z_]+}}/g) || [];
+            
+            placeholders.forEach(placeholder => {
+                const key = placeholder.replace(/{{|}}/g, '');
+                if (storedEntities && Object.prototype.hasOwnProperty.call(storedEntities, key)) {
+                    // Replace with value from entities
+                    filledContent = filledContent.replace(new RegExp(placeholder, 'g'), String(storedEntities[key]));
+                } else {
+                    // Highlight the placeholder if key not found
+                    const highlightedPlaceholder = `<span class="bg-yellow-200 text-yellow-800 font-mono px-1 py-0.5 rounded text-xs">${placeholder}</span>`;
+                    filledContent = filledContent.replace(new RegExp(placeholder, 'g'), highlightedPlaceholder);
+                }
+            });
             
             const newContract = {
                 contractModelId: selectedTemplate.id,
-                clientName: entitiesToFill.NOME_DA_ENTIDADE_PARCEIRA || 'Cliente não especificado',
-                filledData: JSON.stringify(entitiesToFill),
+                clientName: storedEntities.NOME_DA_ENTIDADE_PARCEIRA || 'Cliente não especificado',
+                filledData: JSON.stringify(storedEntities),
                 name: `Contrato de ${selectedTemplate.name} - ${new Date().toLocaleDateString('pt-BR')}`,
                 markdownContent: filledContent,
                 createdAt: new Date().toISOString(),

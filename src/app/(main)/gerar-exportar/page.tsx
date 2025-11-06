@@ -1,10 +1,10 @@
 
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { collection, doc, deleteDoc } from "firebase/firestore";
-import { FilePlus2, MoreHorizontal, Trash2, Pencil, Eye, Loader2 } from "lucide-react";
+import { FilePlus2, MoreHorizontal, Trash2, Pencil, Eye } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -55,7 +55,7 @@ function ContractsTable({
             <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 border border-dashed rounded-lg">
                 <FilePlus2 className="h-8 w-8 mb-4" />
                 <p className="font-semibold">Nenhum contrato gerado ainda</p>
-                <p className="text-sm">Clique em "Gerar Novo Contrato" para começar.</p>
+                <p className="text-sm">Vá para a aba "Gerar Novo Contrato" para começar.</p>
             </div>
         )
     }
@@ -184,11 +184,13 @@ export default function GerarExportarPage() {
             />
         </div>
       </div>
-      <ContractPreviewModal
-        contract={selectedContract}
-        isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
-      />
+      {selectedContract && (
+        <ContractPreviewModal
+            contract={selectedContract}
+            isOpen={isPreviewOpen}
+            onClose={() => setIsPreviewOpen(false)}
+        />
+      )}
     </>
   );
 }

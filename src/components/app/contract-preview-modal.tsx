@@ -16,7 +16,6 @@ import { Contract } from "@/lib/types";
 import { exportToDocx } from "@/lib/export";
 import { saveAs } from "file-saver";
 import { FileDown, FileText } from "lucide-react";
-import { useEffect, useState } from "react";
 import rehypeRaw from "rehype-raw";
 
 interface ContractPreviewModalProps {
@@ -26,21 +25,12 @@ interface ContractPreviewModalProps {
 }
 
 export function ContractPreviewModal({ contract, isOpen, onClose }: ContractPreviewModalProps) {
-    const [processedContent, setProcessedContent] = useState('');
-
-    useEffect(() => {
-        if (contract?.markdownContent) {
-            const highlightedContent = contract.markdownContent.replace(/{{(.*?)}}/g, (_match, variable) => {
-                return `<span class="bg-yellow-200 text-yellow-800 font-mono px-1 py-0.5 rounded text-xs">${`{{${variable}}}`}</span>`;
-            });
-            setProcessedContent(highlightedContent);
-        }
-    }, [contract?.markdownContent]);
-
+    
     if (!contract) return null;
 
     const handleExportMD = () => {
-        const blob = new Blob([contract.markdownContent], { type: "text/markdown;charset=utf-8" });
+        const cleanedContent = contract.markdownContent.replace(/<span class="[^"]*">/g, '').replace(/<\/span>/g, '');
+        const blob = new Blob([cleanedContent], { type: "text/markdown;charset=utf-8" });
         saveAs(blob, `${contract.name.replace(/\s/g, '_')}.md`);
     };
 
@@ -63,7 +53,7 @@ export function ContractPreviewModal({ contract, isOpen, onClose }: ContractPrev
                             rehypePlugins={[rehypeRaw]}
                             className="prose prose-sm max-w-none dark:prose-invert"
                         >
-                            {processedContent}
+                            {contract.markdownContent}
                         </ReactMarkdown>
                     </div>
                 </ScrollArea>

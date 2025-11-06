@@ -48,12 +48,6 @@ O output deve ser APENAS o texto do modelo em Markdown, usando cabe√ßalhos de n√
 
 Exemplo de Contrato:
 {{media url=document}}`,
-  // Rename the output field to match the schema
-  response: {
-    output: {
-      field: 'templateContent',
-    }
-  }
 });
 
 const extractTemplateFlow = ai.defineFlow(

@@ -52,9 +52,9 @@ function TemplateExtractor({ onTemplateExtracted }: { onTemplateExtracted: (temp
 
         startTransition(async () => {
             try {
-                const fileUri = await fileToDataURI(file);
+                const dataUri = await fileToDataURI(file);
                 const formData = new FormData();
-                formData.append("document", fileUri);
+                formData.append("document", dataUri);
 
                 const result = await handleExtractTemplate(formData);
 
@@ -313,7 +313,7 @@ export default function ModelosPage() {
     return (
         <div className="flex h-[calc(100vh-4rem)] bg-transparent">
             {/* Sidebar */}
-            <aside className="w-1/4 min-w-[250px] max-w-[300px] border-r bg-background/80 p-4 flex flex-col glass">
+            <aside className="w-1/4 min-w-[250px] max-w-[300px] border-r bg-background/80 p-4 flex flex-col">
                 <Button className="w-full mb-4" onClick={handleNewTemplate} disabled={!user}>
                     <Plus className="mr-2 h-4 w-4" /> Novo Modelo
                 </Button>
@@ -333,10 +333,18 @@ export default function ModelosPage() {
                                         )}
                                     >
                                         <span className="truncate">{template.name}</span>
-                                        <Trash2
-                                            className="h-4 w-4 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                                             onClick={(e) => handleDeleteTemplate(e, template.id)}
-                                        />
+                                            aria-label={`Deletar modelo ${template.name}`}
+                                        >
+                                            <Trash2
+                                                className="h-4 w-4"
+                                                aria-hidden="true"
+                                            />
+                                        </Button>
                                     </button>
                                 </li>
                             ))}
@@ -348,7 +356,7 @@ export default function ModelosPage() {
             {/* Main Content */}
             <main className="w-1/2 p-8 overflow-y-auto">
                 <div className="space-y-8">
-                     <TemplateExtractor onTemplateExtracted={handleTemplateExtracted} />
+                     {isInEditMode && <TemplateExtractor onTemplateExtracted={handleTemplateExtracted} />}
                     {isInEditMode ? (
                         <TemplateEditor
                             template={editingTemplate}
@@ -356,19 +364,24 @@ export default function ModelosPage() {
                             onSave={handleSaveTemplate}
                             onCancel={handleCancelEditing}
                         />
-                    ) : !selectedTemplateId && !isLoading && (
-                        <Card className="flex items-center justify-center p-8 border-dashed bg-card/50">
-                            <div className="text-center">
-                                <h3 className="text-xl font-semibold">Selecione um modelo</h3>
-                                <p className="text-muted-foreground">Escolha um modelo na barra lateral para visualizar ou clique em "Novo Modelo" para começar.</p>
-                            </div>
-                        </Card>
+                    ) : (
+                         <>
+                            <TemplateExtractor onTemplateExtracted={handleTemplateExtracted} />
+                            {!selectedTemplateId && !isLoading && (
+                                <Card className="flex items-center justify-center p-8 border-dashed bg-card/50">
+                                    <div className="text-center">
+                                        <h3 className="text-xl font-semibold">Selecione um modelo</h3>
+                                        <p className="text-muted-foreground">Escolha um modelo na barra lateral para visualizar ou clique em "Novo Modelo" para começar.</p>
+                                    </div>
+                                </Card>
+                            )}
+                        </>
                     )}
                 </div>
             </main>
 
             {/* Preview */}
-            <aside className="w-1/4 min-w-[300px] border-l bg-background/80 p-6 glass">
+            <aside className="w-1/4 min-w-[300px] border-l bg-background/80 p-6">
                 <div className="sticky top-0">
                     <h2 className="text-xl font-semibold mb-4">Visualização em Tempo Real</h2>
                     {templateForPreview ? (
@@ -396,5 +409,3 @@ export default function ModelosPage() {
         </div>
     );
 }
-
-    

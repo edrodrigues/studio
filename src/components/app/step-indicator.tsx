@@ -49,28 +49,12 @@ function Step({
   );
 }
 
-export function StepIndicator() {
-  const pathname = usePathname();
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const activeIndex = isMounted ? steps.findIndex((step) =>
-        (step.href !== "/" && pathname.startsWith(step.href)) ||
-        (step.href === "/" && pathname === "/") ||
-        (step.href === "/gerar-exportar" && pathname.startsWith("/preencher"))
-      ) : -1;
-  
-  if (!isMounted) {
+function StepIndicatorSkeleton() {
     return (
-      <div className="border-b bg-background/80 glass">
+      <div className="border-b bg-background">
         <div className="container py-4">
           <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-            <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2">
-                <div className="h-full w-full bg-border" />
-            </div>
+            <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-80px)] -translate-x-1/2 bg-border" />
             {steps.map((step) => (
               <Step
                 key={step.href}
@@ -84,10 +68,29 @@ export function StepIndicator() {
         </div>
       </div>
     );
+}
+
+
+export function StepIndicator() {
+  const pathname = usePathname();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return <StepIndicatorSkeleton />;
   }
 
+  const activeIndex = steps.findIndex((step) =>
+        (step.href !== "/" && pathname.startsWith(step.href)) ||
+        (step.href === "/" && pathname === "/") ||
+        (step.href === "/gerar-exportar" && pathname.startsWith("/preencher"))
+      );
+
   return (
-    <div className="border-b bg-background/80 glass">
+    <div className="border-b bg-background">
       <div className="container py-4">
         <div className="relative mx-auto flex max-w-4xl items-start justify-between">
           <div className="absolute left-1/2 top-5 flex h-0.5 w-[calc(100%-80px)] -translate-x-1/2">

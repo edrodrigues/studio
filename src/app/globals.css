@@ -4,47 +4,47 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98% / 0.1;
-    --foreground: 215 28% 17%;
-    --card: 210 20% 98% / 0.3;
-    --card-foreground: 215 28% 17%;
-    --popover: 0 0% 100% / 0.5;
-    --popover-foreground: 215 28% 17%;
+    --background: 220 50% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
     --primary: 165 100% 15%;
     --primary-foreground: 210 40% 98%;
     --secondary: 122 39% 55%;
     --secondary-foreground: 215 28% 17%;
-    --muted: 210 40% 96.1% / 0.3;
-    --muted-foreground: 215 14% 47%;
-    --accent: 123 45% 34% / 0.5;
+    --muted: 220 50% 94%;
+    --muted-foreground: 222 47% 40%;
+    --accent: 123 45% 34%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 72% 57%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4% / 0.2;
-    --input: 214.3 31.8% 91.4% / 0.3;
+    --border: 220 50% 90%;
+    --input: 220 50% 90%;
     --ring: 123 45% 34%;
     --radius: 1.25rem;
   }
 
   .dark {
-    --background: 222 47% 11% / 0.1;
+    --background: 222 47% 11%;
     --foreground: 210 40% 98%;
-    --card: 222 47% 11% / 0.2;
+    --card: 222 47% 15%;
     --card-foreground: 210 40% 98%;
-    --popover: 222 47% 11% / 0.5;
+    --popover: 222 47% 11%;
     --popover-foreground: 210 40% 98%;
     --primary: 165 100% 25%;
     --primary-foreground: 210 40% 98%;
     --secondary: 122 39% 45%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5% / 0.3;
+    --muted: 217.2 32.6% 22.5%;
     --muted-foreground: 215 20.2% 65.1%;
-    --accent: 123 45% 44% / 0.5;
+    --accent: 123 45% 44%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5% / 0.3;
-    --input: 217.2 32.6% 17.5% / 0.4;
+    --border: 217.2 32.6% 27.5%;
+    --input: 217.2 32.6% 27.5%;
     --ring: 123 45% 44%;
   }
 }
@@ -60,6 +60,6 @@
 
 @layer utilities {
     .glass {
-        @apply backdrop-blur-lg border;
+      /* Replaced with solid colors for WCAG compliance */
     }
 }

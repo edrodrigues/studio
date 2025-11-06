@@ -71,7 +71,7 @@ export function ContractAssistant({ contractContent, clauseContent }: ContractAs
         <h2 className="text-lg font-semibold">Assistente Gemini</h2>
       </div>
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-        <div className="space-y-4">
+        <div role="log" aria-live="polite" className="space-y-4">
           {messages.map((message, index) => (
             <div
               key={index}
@@ -100,7 +100,7 @@ export function ContractAssistant({ contractContent, clauseContent }: ContractAs
             </div>
           ))}
           {isPending && (
-             <div className="flex items-start gap-3 justify-start">
+             <div className="flex items-start gap-3 justify-start" role="status">
                 <Avatar className="h-8 w-8">
                     <AvatarFallback>IA</AvatarFallback>
                 </Avatar>
@@ -118,8 +118,9 @@ export function ContractAssistant({ contractContent, clauseContent }: ContractAs
             onChange={(e) => setInput(e.target.value)}
             placeholder="Pergunte sobre a cláusula..."
             disabled={isPending}
+            aria-label="Pergunta para o assistente de IA"
           />
-          <Button type="submit" size="icon" disabled={isPending || !input.trim()}>
+          <Button type="submit" size="icon" disabled={isPending || !input.trim()} aria-label="Enviar pergunta">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4" />}
           </Button>
         </form>

@@ -237,6 +237,7 @@ export default function ModelosPage() {
             name: "Novo Modelo sem Título",
             description: "",
             markdownContent: "# Novo Modelo\n\nComece a editar...",
+            googleDocLink: "",
         };
         startEditing(newTemplate);
     }, [startEditing]);
@@ -260,6 +261,7 @@ export default function ModelosPage() {
         if (!editingTemplate || !user || !firestore) return;
 
         const { id, ...templateData } = editingTemplate;
+        // Construct the object to save with all required fields.
         const templateToSave = {
             name: templateData.name,
             description: templateData.description,
@@ -269,6 +271,7 @@ export default function ModelosPage() {
 
         const templateRef = doc(firestore, 'users', user.uid, 'contractModels', id);
 
+        // Use the non-blocking update.
         setDocumentNonBlocking(templateRef, templateToSave, { merge: true });
 
         toast({
@@ -276,6 +279,7 @@ export default function ModelosPage() {
             description: `O modelo "${editingTemplate.name}" foi salvo com sucesso.`,
         });
         
+        // After saving, reset editing mode and keep selection
         const savedId = editingTemplate.id;
         setEditingTemplate(null);
         setSelectedTemplateId(savedId);
@@ -416,5 +420,3 @@ export default function ModelosPage() {
         </div>
     );
 }
-
-    

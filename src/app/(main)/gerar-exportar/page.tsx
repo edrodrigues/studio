@@ -41,7 +41,7 @@ function EntitiesCard({ entities }: { entities: Record<string, any> | null }) {
                     Estas são as variáveis extraídas dos seus documentos iniciais que serão usadas para preencher o modelo.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="max-h-80 overflow-y-auto space-y-2 pr-6">
+            <CardContent className="max-h-96 overflow-y-auto space-y-2 pr-6">
                 {Object.entries(entities).map(([key, value]) => (
                      <div key={key} className="grid grid-cols-[1fr,2fr] gap-4 text-sm items-center">
                         <strong className="font-mono text-muted-foreground truncate text-right text-xs">{key}:</strong>

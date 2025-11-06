@@ -184,11 +184,6 @@ export default function GerarNovoContratoPage() {
             const filledContractsRef = collection(firestore, 'users', user.uid, 'filledContracts');
             const docRef = await addDocumentNonBlocking(filledContractsRef, newContract);
             
-            toast({
-                title: "Contrato Gerado com Sucesso!",
-                description: "Redirecionando para a página de preenchimento...",
-            });
-
             router.push(`/preencher/${docRef.id}`);
 
         } catch (error) {

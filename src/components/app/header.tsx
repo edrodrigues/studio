@@ -16,8 +16,7 @@ const navLinks = [
 function NavLink({ href, label }: { href: string; label: string }) {
     const pathname = usePathname();
     const isActive = (href === "/" && pathname === "/") || 
-                     (href !== "/" && pathname.startsWith(href)) ||
-                     (href === "/gerar-exportar" && pathname.startsWith("/gerar-novo"));
+                     (href !== "/" && pathname.startsWith(href));
 
 
     return (

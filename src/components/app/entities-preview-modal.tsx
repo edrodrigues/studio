@@ -25,42 +25,44 @@ export function EntitiesPreviewModal({
   onClose,
   jsonContent,
 }: EntitiesPreviewModalProps) {
+  let entities: Record<string, any> = {};
+  let errorMessage = "";
+  
+  try {
+    if (jsonContent) {
+      // The AI response is a stringified JSON object containing another stringified JSON.
+      // So we need to parse twice.
+      const outerParsed = JSON.parse(jsonContent);
+      entities = outerParsed;
+    }
+  } catch (e) {
+      try {
+        // Fallback for single-parsed JSON
+        if (jsonContent) entities = JSON.parse(jsonContent);
+      } catch (e2) {
+        errorMessage = "O JSON retornado pela IA é inválido ou está vazio.";
+        console.error("Error parsing entities JSON:", e2);
+        console.error("Original content:", jsonContent);
+      }
+  }
+
   const handleExportJson = () => {
     if (!jsonContent) return;
     try {
-        // Try parsing and then re-stringifying with formatting
-        const parsed = JSON.parse(jsonContent);
-        const formattedJson = JSON.stringify(parsed, null, 2);
+        const formattedJson = JSON.stringify(entities, null, 2);
         const blob = new Blob([formattedJson], {
             type: "application/json;charset=utf-8",
         });
         saveAs(blob, `entidades_extraidas_${new Date().toISOString()}.json`);
-    } catch {
-        // Fallback for invalid JSON
+    } catch (e) {
+        // Fallback if formatting fails for some reason
         const blob = new Blob([jsonContent], {
-            type: "application/json;charset=utf-8",
+            type: "text/plain;charset=utf-8",
         });
-        saveAs(blob, `entidades_extraidas_${new Date().toISOString()}.json`);
+        saveAs(blob, `entidades_extraidas_raw_${new Date().toISOString()}.txt`);
     }
   };
 
-  let entities: Record<string, any> = {};
-  let errorMessage = "";
-  try {
-    if (jsonContent) {
-      const parsedOuter = JSON.parse(jsonContent);
-      if (typeof parsedOuter === 'object' && parsedOuter !== null && 'extractedJson' in parsedOuter) {
-         // It's a nested object from the AI Flow
-         const nestedJson = JSON.parse(parsedOuter.extractedJson);
-         entities = nestedJson;
-      } else {
-        // It's already the object we need
-        entities = parsedOuter;
-      }
-    }
-  } catch (e) {
-    errorMessage = "O JSON retornado pela IA é inválido ou está vazio.";
-  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

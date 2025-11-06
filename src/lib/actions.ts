@@ -66,15 +66,25 @@ const extractTemplateSchema = z.object({
 export async function handleExtractTemplate(formData: FormData) {
     try {
         const dataUri = formData.get("document") as string;
+        const fileName = formData.get("fileName") as string;
 
         if (!dataUri || !dataUri.startsWith('data:')) {
             return { success: false, error: "URI de documento inválido ou ausente." };
         }
         
-        const base64Content = Buffer.from(dataUri.split(',')[1], 'base64').toString('utf-8');
+        let documentContent: string;
+        const buffer = Buffer.from(dataUri.split(',')[1], 'base64');
+        
+        if (fileName.endsWith('.docx')) {
+            const { value } = await mammoth.extractRawText({ buffer });
+            documentContent = value;
+        } else {
+             // For PDFs and other formats, pass the data URI to be handled by the model
+            documentContent = dataUri;
+        }
 
         const validatedData = extractTemplateSchema.safeParse({
-             documentContent: base64Content
+             documentContent: documentContent
         });
 
         if (!validatedData.success) {

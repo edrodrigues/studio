@@ -55,6 +55,7 @@ function TemplateExtractor({ onTemplateExtracted }: { onTemplateExtracted: (temp
                 const dataUri = await fileToDataURI(file);
                 const formData = new FormData();
                 formData.append("document", dataUri);
+                formData.append("fileName", file.name);
 
                 const result = await handleExtractTemplate(formData);
 
@@ -215,7 +216,6 @@ export default function ModelosPage() {
         if (!isLoading && templates && templates.length > 0 && !selectedTemplateId && !editingTemplate) {
             const firstTemplate = templates[0];
             setSelectedTemplateId(firstTemplate.id);
-            setEditingTemplate(JSON.parse(JSON.stringify(firstTemplate))); // Load first template into editor
         }
     }, [isLoading, templates, selectedTemplateId, editingTemplate]);
     

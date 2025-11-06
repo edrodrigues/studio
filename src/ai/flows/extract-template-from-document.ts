@@ -15,7 +15,7 @@ const ExtractTemplateFromDocumentInputSchema = z.object({
   documentContent: z
     .string()
     .describe(
-      "The base64-encoded content of the document to extract a template from."
+      "The text content of the document to extract a template from, or a data URI for file types like PDF."
     ),
 });
 
@@ -41,14 +41,14 @@ const extractTemplatePrompt = ai.definePrompt({
   name: 'extractTemplatePrompt',
   input: {schema: ExtractTemplateFromDocumentInputSchema},
   output: {schema: ExtractTemplateFromDocumentOutputSchema},
-  prompt: `Você é um especialista em criar modelos de documentos. Analise os exemplos de contratos preenchidos abaixo e crie um modelo genérico em formato Markdown.
+  prompt: `Você é um especialista em criar modelos de documentos. Analise o contrato preenchido abaixo e crie um modelo genérico em formato Markdown.
 
 Sua tarefa é identificar as partes que são variáveis (como nomes, datas, valores, descrições específicas) e substituí-las por placeholders no formato {{NOME_DA_VARIAVEL_EM_MAIUSCULAS}}.
 
 O output deve ser APENAS o texto do modelo em Markdown, usando cabeçalhos de nível 1 (# TÍTULO DA CLÁUSULA) para cada cláusula. Não adicione nenhuma explicação extra.
 
-Conteúdo do Contrato (decodificado de base64):
-{{{documentContent}}}`,
+Conteúdo do Contrato:
+{{{documentContent}}}`
 });
 
 const extractTemplateFlow = ai.defineFlow(

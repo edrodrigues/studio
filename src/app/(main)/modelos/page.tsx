@@ -260,9 +260,16 @@ export default function ModelosPage() {
         if (!editingTemplate || !user || !firestore) return;
 
         const { id, ...templateData } = editingTemplate;
+        const templateToSave = {
+            name: templateData.name,
+            description: templateData.description,
+            markdownContent: templateData.markdownContent,
+            googleDocLink: templateData.googleDocLink || "",
+        };
+
         const templateRef = doc(firestore, 'users', user.uid, 'contractModels', id);
 
-        setDocumentNonBlocking(templateRef, templateData, { merge: true });
+        setDocumentNonBlocking(templateRef, templateToSave, { merge: true });
 
         toast({
             title: "Modelo Salvo!",

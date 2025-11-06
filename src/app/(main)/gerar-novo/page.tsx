@@ -204,7 +204,7 @@ export default function GerarNovoContratoPage() {
           Gerar Novo Contrato
         </h1>
         <p className="mt-4 max-w-xl mx-auto text-muted-foreground sm:text-lg">
-          Selecione as entidades e um modelo para gerar uma nova minuta de contrato preenchida com IA.
+          Selecione um modelo e use as entidades extraídas para gerar uma nova minuta de contrato preenchida com IA.
         </p>
       </div>
       
@@ -251,5 +251,3 @@ export default function GerarNovoContratoPage() {
     </div>
   );
 }
-
-    

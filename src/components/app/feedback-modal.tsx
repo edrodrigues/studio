@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Loader2, Sparkles } from "lucide-react";
+import { Bot, Loader2, Sparkles, Copy, Check } from "lucide-react";
 import { handleGetFeedback } from "@/lib/actions";
 import { fileToDataURI } from "@/app/(main)/documentos-iniciais/page";
 import { type UploadedFile } from "@/lib/types";
@@ -42,6 +42,7 @@ export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [feedback, setFeedback] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [hasCopied, setHasCopied] = useState(false);
   const { toast } = useToast();
 
   const handleGenerateFeedback = async () => {
@@ -85,6 +86,15 @@ export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
             description: errorMessage,
         });
       }
+    });
+  };
+
+  const handleCopy = () => {
+    if (!feedback) return;
+    navigator.clipboard.writeText(feedback).then(() => {
+        setHasCopied(true);
+        setTimeout(() => setHasCopied(false), 2000); // Reset after 2 seconds
+        toast({ title: "Feedback copiado para a área de transferência!" });
     });
   };
 
@@ -133,8 +143,26 @@ export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
             </div>
             
             {/* Right Column: Feedback Display */}
-            <div className="flex flex-col gap-4">
-                 <Label htmlFor="feedback-output" className="font-semibold">Resultado da Análise</Label>
+            <div className="flex flex-col gap-4 min-h-0">
+                <div className="flex justify-between items-center">
+                    <Label htmlFor="feedback-output" className="font-semibold">Resultado da Análise</Label>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCopy}
+                        disabled={!feedback}
+                    >
+                        {hasCopied ? (
+                            <>
+                                <Check className="mr-2 h-4 w-4 text-green-500" /> Copiado!
+                            </>
+                        ) : (
+                            <>
+                                <Copy className="mr-2 h-4 w-4" /> Copiar
+                            </>
+                        )}
+                    </Button>
+                </div>
                 <ScrollArea id="feedback-output" className="flex-1 rounded-md border bg-muted/50" role="status">
                    <div className="p-4" aria-live="polite">
                      {isPending && !feedback && (
@@ -147,7 +175,7 @@ export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
                             {feedback}
                         </ReactMarkdown>
                      ) : !isPending && (
-                        <div className="flex items-center justify-center h-full text-center text-muted-foreground">
+                        <div className="flex items-center justify-center h-full text-center text-muted-foreground p-8">
                             <p>O feedback da IA aparecerá aqui.</p>
                         </div>
                      )}
@@ -156,7 +184,7 @@ export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
             </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="mt-4">
           <Button variant="outline" onClick={handleClose}>
             Fechar
           </Button>

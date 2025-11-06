@@ -14,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { FeedbackModal } from "@/components/app/feedback-modal";
 import { type UploadedFile } from "@/lib/types";
 import { EntitiesPreviewModal } from "@/components/app/entities-preview-modal";
+import useLocalStorage from "@/hooks/use-local-storage";
 
 export const fileToDataURI = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -37,6 +38,7 @@ export default function DocumentosIniciaisPage() {
   const [feedbackFiles, setFeedbackFiles] = useState<UploadedFile[]>([]);
   const [isEntitiesModalOpen, setIsEntitiesModalOpen] = useState(false);
   const [extractedEntities, setExtractedEntities] = useState<string>("");
+  const [, setStoredEntities] = useLocalStorage("extractedEntities", null);
 
   const { toast } = useToast();
 
@@ -79,11 +81,25 @@ export default function DocumentosIniciaisPage() {
         const result = await handleExtractEntities({ documents: uploadedFiles });
 
         if (result.success && result.data?.extractedJson) {
-          setExtractedEntities(result.data.extractedJson);
+          const entitiesJson = result.data.extractedJson;
+          setExtractedEntities(entitiesJson);
+          
+          try {
+            const parsedJson = JSON.parse(entitiesJson);
+            setStoredEntities(parsedJson);
+          } catch(e) {
+             console.error("Failed to parse and store entities:", e);
+             toast({
+                variant: "destructive",
+                title: "Erro ao Salvar Entidades",
+                description: "O JSON extraído é inválido e não pôde ser salvo.",
+            });
+          }
+
           setIsEntitiesModalOpen(true);
           toast({
             title: "Sucesso!",
-            description: "As entidades foram extraídas dos documentos.",
+            description: "As entidades foram extraídas e salvas para a próxima etapa.",
           });
         } else {
           throw new Error(result.error || "Falha ao extrair entidades.");

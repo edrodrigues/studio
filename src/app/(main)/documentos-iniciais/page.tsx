@@ -1,20 +1,19 @@
+'use client';
 
-"use client";
+import {useState, useTransition} from 'react';
+import {FileText, Clock, CircleDollarSign, Loader2} from 'lucide-react';
 
-import { useState, useTransition } from "react";
-import { FileText, Clock, CircleDollarSign, Loader2 } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { FileUploader } from "@/components/app/file-uploader";
-import { handleExtractEntities } from "@/lib/actions";
-import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { FeedbackModal } from "@/components/app/feedback-modal";
-import { type UploadedFile } from "@/lib/types";
-import { EntitiesPreviewModal } from "@/components/app/entities-preview-modal";
-import useLocalStorage from "@/hooks/use-local-storage";
+import {Button} from '@/components/ui/button';
+import {FileUploader} from '@/components/app/file-uploader';
+import {handleExtractEntities} from '@/lib/actions';
+import {useToast} from '@/hooks/use-toast';
+import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
+import {Label} from '@/components/ui/label';
+import {RadioGroup, RadioGroupItem} from '@/components/ui/radio-group';
+import {FeedbackModal} from '@/components/app/feedback-modal';
+import {type UploadedFile} from '@/lib/types';
+import {EntitiesPreviewModal} from '@/components/app/entities-preview-modal';
+import useLocalStorage from '@/hooks/use-local-storage';
 
 export const fileToDataURI = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -26,7 +25,7 @@ export const fileToDataURI = (file: File): Promise<string> => {
 };
 
 export default function DocumentosIniciaisPage() {
-  const [files, setFiles] = useState<{ [key: string]: File | null }>({
+  const [files, setFiles] = useState<{[key: string]: File | null}>({
     planOfWork: null,
     termOfExecution: null,
     budgetSpreadsheet: null,
@@ -37,23 +36,23 @@ export default function DocumentosIniciaisPage() {
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackFiles, setFeedbackFiles] = useState<UploadedFile[]>([]);
   const [isEntitiesModalOpen, setIsEntitiesModalOpen] = useState(false);
-  const [extractedEntities, setExtractedEntities] = useState<string>("");
-  const [, setStoredEntities] = useLocalStorage("extractedEntities", null);
+  const [extractedEntities, setExtractedEntities] = useState<string>('');
+  const [, setStoredEntities] = useLocalStorage('extractedEntities', null);
 
-  const { toast } = useToast();
+  const {toast} = useToast();
 
   const handleFileSelect = (key: string) => (file: File | null) => {
-    setFiles((prev) => ({ ...prev, [key]: file }));
+    setFiles(prev => ({...prev, [key]: file}));
   };
-  
+
   const handleFeedbackClick = (file: File | null) => {
     if (file) {
-      setFeedbackFiles([{ id: file.name, file }]);
+      setFeedbackFiles([{id: file.name, file}]);
       setIsFeedbackModalOpen(true);
     }
   };
 
-  const hasAtLeastOneFile = Object.values(files).some((file) => file !== null);
+  const hasAtLeastOneFile = Object.values(files).some(file => file !== null);
 
   const handleSubmit = async () => {
     if (!hasAtLeastOneFile) return;
@@ -71,45 +70,49 @@ export default function DocumentosIniciaisPage() {
 
         if (uploadedFiles.length === 0) {
           toast({
-            variant: "destructive",
-            title: "Nenhum arquivo",
-            description: "Carregue ao menos um documento para indexar.",
+            variant: 'destructive',
+            title: 'Nenhum arquivo',
+            description: 'Carregue ao menos um documento para indexar.',
           });
           return;
         }
 
-        const result = await handleExtractEntities({ documents: uploadedFiles });
+        const result = await handleExtractEntities({documents: uploadedFiles});
 
         if (result.success && result.data?.extractedJson) {
           const entitiesJson = result.data.extractedJson;
           setExtractedEntities(entitiesJson);
-          
+
           try {
             const parsedJson = JSON.parse(entitiesJson);
             setStoredEntities(parsedJson);
-          } catch(e) {
-             console.error("Failed to parse and store entities:", e);
-             toast({
-                variant: "destructive",
-                title: "Erro ao Salvar Entidades",
-                description: "O JSON extraído é inválido e não pôde ser salvo.",
+          } catch (e) {
+            console.error('Failed to parse and store entities:', e);
+            toast({
+              variant: 'destructive',
+              title: 'Erro ao Salvar Entidades',
+              description: 'O JSON extraído é inválido e não pôde ser salvo.',
             });
           }
 
           setIsEntitiesModalOpen(true);
           toast({
-            title: "Sucesso!",
-            description: "As entidades foram extraídas e salvas para a próxima etapa.",
+            title: 'Sucesso!',
+            description:
+              'As entidades foram extraídas e salvas para a próxima etapa.',
           });
         } else {
-          throw new Error(result.error || "Falha ao extrair entidades.");
+          throw new Error(result.error || 'Falha ao extrair entidades.');
         }
       } catch (error) {
         console.error(error);
         toast({
-          variant: "destructive",
-          title: "Erro na Extração",
-          description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido.",
+          variant: 'destructive',
+          title: 'Erro na Extração',
+          description:
+            error instanceof Error
+              ? error.message
+              : 'Ocorreu um erro desconhecido.',
         });
       }
     });
@@ -123,53 +126,66 @@ export default function DocumentosIniciaisPage() {
             Analise os documentos iniciais
           </h1>
           <p className="mt-4 max-w-xl text-muted-foreground sm:text-lg">
-            Analise os documentos iniciais com a IA e depois clique em "Indexar Documentos" para que eles sejam usados de contexto para os demais documentos.
+            Analise os documentos iniciais com a IA e depois clique em "Indexar
+            Documentos" para que eles sejam usados de contexto para os demais
+            documentos.
           </p>
         </section>
 
         <section className="mx-auto max-w-5xl mb-8">
           <Card>
-              <CardHeader>
-                  <CardTitle>Definições Iniciais</CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-3">
-                      <Label>Tipo de Contrato</Label>
-                      <RadioGroup value={contractType} onValueChange={setContractType} className="flex flex-wrap gap-4">
-                          <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="convenios" id="convenios" />
-                              <Label htmlFor="convenios">Convênios</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="acordos" id="acordos" />
-                              <Label htmlFor="acordos">Acordos</Label>
-                          </div>
-                           <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="contratos" id="contratos" />
-                              <Label htmlFor="contratos">Contratos</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="ted" id="ted" />
-                              <Label htmlFor="ted">TED</Label>
-                          </div>
-                      </RadioGroup>
+            <CardHeader>
+              <CardTitle>Definições Iniciais</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-3">
+                <Label>Tipo de Contrato</Label>
+                <RadioGroup
+                  value={contractType}
+                  onValueChange={setContractType}
+                  className="flex flex-wrap gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="convenios" id="convenios" />
+                    <Label htmlFor="convenios">Convênios</Label>
                   </div>
-                  {contractType === 'ted' && (
-                    <div className="space-y-3">
-                        <Label>Tipo de Processo</Label>
-                        <RadioGroup value={processType} onValueChange={setProcessType} className="flex space-x-4">
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="ufpe-parceiro" id="ufpe-parceiro" />
-                                <Label htmlFor="ufpe-parceiro">UFPE - Parceiro</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="fade-ufpe" id="fade-ufpe" />
-                                <Label htmlFor="fade-ufpe">Fade - UFPE</Label>
-                            </div>
-                        </RadioGroup>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="acordos" id="acordos" />
+                    <Label htmlFor="acordos">Acordos</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="contratos" id="contratos" />
+                    <Label htmlFor="contratos">Contratos</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="ted" id="ted" />
+                    <Label htmlFor="ted">TED</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+              {contractType === 'ted' && (
+                <div className="space-y-3">
+                  <Label>Tipo de Processo</Label>
+                  <RadioGroup
+                    value={processType}
+                    onValueChange={setProcessType}
+                    className="flex space-x-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem
+                        value="ufpe-parceiro"
+                        id="ufpe-parceiro"
+                      />
+                      <Label htmlFor="ufpe-parceiro">UFPE - Parceiro</Label>
                     </div>
-                  )}
-              </CardContent>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="fade-ufpe" id="fade-ufpe" />
+                      <Label htmlFor="fade-ufpe">Fade - UFPE</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              )}
+            </CardContent>
           </Card>
         </section>
 
@@ -178,7 +194,7 @@ export default function DocumentosIniciaisPage() {
             icon={<FileText size={24} />}
             title="Plano de Trabalho"
             description="Documento com o escopo e atividades."
-            onFileSelect={handleFileSelect("planOfWork")}
+            onFileSelect={handleFileSelect('planOfWork')}
             onFeedbackClick={() => handleFeedbackClick(files.planOfWork)}
             name="planOfWork"
           />
@@ -186,7 +202,7 @@ export default function DocumentosIniciaisPage() {
             icon={<Clock size={24} />}
             title="Termo de Execução"
             description="Cronograma e prazos do projeto."
-            onFileSelect={handleFileSelect("termOfExecution")}
+            onFileSelect={handleFileSelect('termOfExecution')}
             onFeedbackClick={() => handleFeedbackClick(files.termOfExecution)}
             name="termOfExecution"
           />
@@ -194,7 +210,7 @@ export default function DocumentosIniciaisPage() {
             icon={<CircleDollarSign size={24} />}
             title="Planilha de Orçamento"
             description="Valores e distribuição de recursos."
-            onFileSelect={handleFileSelect("budgetSpreadsheet")}
+            onFileSelect={handleFileSelect('budgetSpreadsheet')}
             onFeedbackClick={() => handleFeedbackClick(files.budgetSpreadsheet)}
             name="budgetSpreadsheet"
           />
@@ -212,7 +228,7 @@ export default function DocumentosIniciaisPage() {
                 Indexando...
               </>
             ) : (
-              "Indexar Documentos"
+              'Indexar Documentos'
             )}
           </Button>
         </section>

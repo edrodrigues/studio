@@ -1,26 +1,25 @@
-
 'use server';
-import { ai } from '@/ai/genkit';
+import {ai} from '@/ai/genkit';
 import {
   GenerateContentRequest,
   HarmCategory,
   HarmBlockThreshold,
   VertexAI,
 } from '@google-cloud/vertexai';
-import { z } from 'zod';
-import { v4 as uuidv4 } from 'uuid';
+import {z} from 'zod';
+import {v4 as uuidv4} from 'uuid';
 
 function extractProjectAndLocation() {
   const projectId = process.env.GCLOUD_PROJECT;
   if (!projectId) {
     throw new Error('GCLOUD_PROJECT environment variable is not set');
   }
-  return { projectId, location: 'us-central1' };
+  return {projectId, location: 'us-central1'};
 }
 
 async function getVertexAI() {
-  const { projectId, location } = extractProjectAndLocation();
-  const vertexAI = new VertexAI({ project: projectId, location });
+  const {projectId, location} = extractProjectAndLocation();
+  const vertexAI = new VertexAI({project: projectId, location});
   return vertexAI;
 }
 
@@ -39,7 +38,7 @@ function dataUriToGenAIFile(dataUri: string) {
 }
 
 async function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export const search = ai.defineTool(
@@ -55,7 +54,7 @@ export const search = ai.defineTool(
       schema: z.string(),
     },
   },
-  async (input) => {
+  async input => {
     return JSON.stringify(input);
   }
 );
@@ -73,25 +72,25 @@ export const fileSearch = ai.defineTool(
       schema: z.any(),
     },
   },
-  async (input) => {
+  async input => {
     return JSON.stringify(input);
   }
 );
 
-export async function uploadFiles(files: { name: string; dataUri: string }[]) {
+export async function uploadFiles(files: {name: string; dataUri: string}[]) {
   const vertexAI = await getVertexAI();
   const generativeModel = vertexAI.getGenerativeModel({
     model: 'gemini-1.5-flash-001',
   });
 
   const uploadedFiles = await Promise.all(
-    files.map(async ({ name, dataUri }) => {
+    files.map(async ({name, dataUri}) => {
       const uniqueId = uuidv4();
       const file = dataUriToGenAIFile(dataUri);
-      
+
       const result = await generativeModel.fileManager.uploadFile({
-          file: file,
-          displayName: `uploads/${uniqueId}/${name}`
+        file: file,
+        displayName: `uploads/${uniqueId}/${name}`,
       });
 
       return {
@@ -100,8 +99,8 @@ export async function uploadFiles(files: { name: string; dataUri: string }[]) {
       };
     })
   );
-  
-  const fileIds = uploadedFiles.map((f) => f.file.name);
+
+  const fileIds = uploadedFiles.map(f => f.file.name);
 
   // Poll for file processing to complete
   for (const fileId of fileIds) {
@@ -112,7 +111,9 @@ export async function uploadFiles(files: { name: string; dataUri: string }[]) {
     }
 
     if (file.state !== 'ACTIVE') {
-      throw new Error(`File ${file.name} failed to process. State: ${file.state}`);
+      throw new Error(
+        `File ${file.name} failed to process. State: ${file.state}`
+      );
     }
   }
 

@@ -62,7 +62,6 @@ export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
           files.map(async ({ file }) => ({
             name: file.name,
             dataUri: await fileToDataURI(file),
-            isText: file.name.endsWith('.docx'),
           }))
         );
 

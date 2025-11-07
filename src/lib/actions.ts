@@ -8,6 +8,7 @@ import { getDocumentFeedback } from "@/ai/flows/get-document-feedback";
 import { extractEntitiesFromDocuments } from "@/ai/flows/extract-entities-from-documents";
 import { z } from "zod";
 import mammoth from "mammoth";
+import { uploadFiles } from "@/ai/services/file-search";
 
 const fileSchema = z.string().refine(s => s.startsWith('data:'), 'File must be a data URI');
 
@@ -26,8 +27,14 @@ export async function handleGenerateContract(formData: FormData) {
       console.error("Validation failed", validatedData.error.flatten());
       return { success: false, error: "Dados de arquivo inválidos." };
     }
+    
+    const fileIds = await uploadFiles([
+      { name: "planOfWork", dataUri: validatedData.data.planOfWork },
+      { name: "termOfExecution", dataUri: validatedData.data.termOfExecution },
+      { name: "budgetSpreadsheet", dataUri: validatedData.data.budgetSpreadsheet },
+    ]);
 
-    const result = await generateContractFromDocuments(validatedData.data);
+    const result = await generateContractFromDocuments({fileIds});
     return { success: true, data: result };
   } catch (error) {
     console.error("Error generating contract:", error);
@@ -106,14 +113,13 @@ const getFeedbackSchema = z.object({
   documents: z.array(z.object({
     name: z.string(),
     dataUri: fileSchema,
-    isText: z.boolean(),
   })),
 });
 
 
 export async function handleGetFeedback(input: {
     systemPrompt: string;
-    documents: { name: string, dataUri: string, isText: boolean }[];
+    documents: { name: string, dataUri: string}[];
 }) {
     try {
         const validatedData = getFeedbackSchema.safeParse(input);
@@ -122,22 +128,11 @@ export async function handleGetFeedback(input: {
             return { success: false, error: "Dados de entrada inválidos para o feedback." };
         }
         
-        let formattedDocuments = "";
-        for (const doc of validatedData.data.documents) {
-            let content;
-            if (doc.isText) {
-                const buffer = Buffer.from(doc.dataUri.split(',')[1], 'base64');
-                const { value } = await mammoth.extractRawText({ buffer });
-                content = `\n\n${value}\n\n`;
-            } else {
-                content = `{{media url="${doc.dataUri}"}}`;
-            }
-            formattedDocuments += `### Documento: ${doc.name}\n${content}\n---\n`;
-        }
+        const fileIds = await uploadFiles(validatedData.data.documents);
 
         const result = await getDocumentFeedback({
             systemPrompt: validatedData.data.systemPrompt,
-            formattedDocuments: formattedDocuments,
+            fileIds,
         });
 
         return { success: true, data: result };
@@ -165,12 +160,10 @@ export async function handleExtractEntities(input: {
             return { success: false, error: "Dados de entrada inválidos para a extração de entidades." };
         }
 
-        const formattedDocuments = validatedData.data.documents.map(doc => 
-            `## Documento: ${doc.name}\n\n{{media url="${doc.dataUri}"}}`
-        ).join('\n\n---\n\n');
+        const fileIds = await uploadFiles(validatedData.data.documents);
 
         const result = await extractEntitiesFromDocuments({
-            documentsAsText: formattedDocuments,
+            fileIds,
         });
 
         return { success: true, data: result };

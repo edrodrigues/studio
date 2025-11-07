@@ -10,11 +10,10 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { fileSearch, search } from '../services/file-search';
 
 const ExtractEntitiesFromDocumentsInputSchema = z.object({
-  documentsAsText: z
-    .string()
-    .describe('A single string containing all documents formatted in Markdown.'),
+  fileIds: z.array(z.string()).describe('An array of file IDs to be searched.'),
 });
 
 export type ExtractEntitiesFromDocumentsInput = z.infer<
@@ -44,8 +43,9 @@ const extractEntitiesPrompt = ai.definePrompt({
     schema: ExtractEntitiesFromDocumentsOutputSchema,
     format: 'json',
   },
+  tools: [fileSearch, search],
   prompt: `Instrução:
-Analise o documento a seguir (em formato DOCX, PDF ou texto) e identifique todas as informações variáveis — ou seja, elementos que mudariam entre versões diferentes do mesmo tipo de documento.
+Analise o documento fornecido usando a ferramenta fileSearch e identifique todas as informações variáveis — ou seja, elementos que mudariam entre versões diferentes do mesmo tipo de documento.
 
 As variáveis incluem:
 
@@ -82,9 +82,6 @@ O resultado deve ser apenas o JSON, sem comentários ou explicações extras.
 Se algum campo não existir no documento, simplesmente omita-o.
 Use os nomes das chaves em MAIÚSCULAS e com underscores (_).
 Converta valores numéricos e monetários para strings, mantendo o formato original.
-
-Conteúdo dos Documentos:
-{{{documentsAsText}}}
 `,
 });
 

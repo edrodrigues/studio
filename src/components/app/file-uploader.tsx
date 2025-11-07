@@ -5,7 +5,7 @@ import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, UploadCloud, Bot, Database } from "lucide-react";
+import { Check, UploadCloud, Bot } from "lucide-react";
 
 interface FileUploaderProps {
   icon: ReactNode;
@@ -64,10 +64,6 @@ export function FileUploader({ icon, title, description, onFileSelect, onFeedbac
         <Button onClick={onFeedbackClick} variant="outline" className="w-full" disabled={!file}>
             <Bot className="mr-2 h-4 w-4" />
             Feedback de IA
-        </Button>
-        <Button variant="outline" className="w-full" disabled={!file}>
-            <Database className="mr-2 h-4 w-4" />
-            Documento indexado em JSON
         </Button>
       </CardContent>
     </Card>

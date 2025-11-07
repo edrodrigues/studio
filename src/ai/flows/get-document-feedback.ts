@@ -10,10 +10,11 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { fileSearch, search } from '../services/file-search';
 
 const GetDocumentFeedbackInputSchema = z.object({
   systemPrompt: z.string().describe('The customizable system prompt to guide the AI feedback.'),
-  formattedDocuments: z.string().describe('A single string containing all documents formatted in Markdown, including their names and content (either as text or media parts).'),
+  fileIds: z.array(z.string()).describe('An array of file IDs to be searched.'),
 });
 
 export type GetDocumentFeedbackInput = z.infer<typeof GetDocumentFeedbackInputSchema>;
@@ -33,12 +34,10 @@ const getDocumentFeedbackPrompt = ai.definePrompt({
   name: 'getDocumentFeedbackPrompt',
   input: {schema: GetDocumentFeedbackInputSchema},
   output: {schema: GetDocumentFeedbackOutputSchema},
+  tools: [fileSearch, search],
   prompt: `{{systemPrompt}}
 
-Analise os seguintes documentos e forneça um feedback detalhado com base no prompt do sistema.
-
-Conteúdo dos Documentos:
-{{{formattedDocuments}}}
+Analise os documentos disponíveis através da ferramenta fileSearch e forneça um feedback detalhado com base no prompt do sistema.
 `,
 });
 

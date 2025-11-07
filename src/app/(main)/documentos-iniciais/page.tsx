@@ -81,19 +81,9 @@ export default function DocumentosIniciaisPage() {
 
         if (result.success && result.data?.extractedJson) {
           const entitiesJson = result.data.extractedJson;
-          setExtractedEntities(entitiesJson);
-
-          try {
-            const parsedJson = JSON.parse(entitiesJson);
-            setStoredEntities(parsedJson);
-          } catch (e) {
-            console.error('Failed to parse and store entities:', e);
-            toast({
-              variant: 'destructive',
-              title: 'Erro ao Salvar Entidades',
-              description: 'O JSON extraído é inválido e não pôde ser salvo.',
-            });
-          }
+          
+          setExtractedEntities(JSON.stringify(entitiesJson, null, 2));
+          setStoredEntities(entitiesJson);
 
           setIsEntitiesModalOpen(true);
           toast({

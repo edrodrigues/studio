@@ -144,7 +144,7 @@ export default function GerarNovoContratoPage() {
   const { data: templates, isLoading } = useCollection<Template>(templatesQuery);
 
   const handleGenerateContract = () => {
-    if (!selectedTemplateId || !templates || !storedEntities || !user || !firestore) {
+    if (!selectedTemplateId || !templates || !user || !firestore) {
         toast({
             variant: "destructive",
             title: "Requisitos não atendidos",
@@ -180,11 +180,13 @@ export default function GerarNovoContratoPage() {
                 }
             });
             
+            const clientName = storedEntities?.NOME_DA_ENTIDADE_PARCEIRA || 'Cliente não especificado';
+
             const newContract = {
                 contractModelId: selectedTemplate.id,
-                clientName: storedEntities.NOME_DA_ENTIDADE_PARCEIRA || 'Cliente não especificado',
+                clientName: clientName,
                 filledData: JSON.stringify(storedEntities),
-                name: `Contrato de ${selectedTemplate.name} - ${new Date().toLocaleDateString('pt-BR')}`,
+                name: `Contrato de ${selectedTemplate.name} - ${clientName} - ${new Date().toLocaleDateString('pt-BR')}`,
                 markdownContent: filledContent,
                 createdAt: new Date().toISOString(),
             };

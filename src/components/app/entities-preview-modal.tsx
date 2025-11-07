@@ -30,20 +30,12 @@ export function EntitiesPreviewModal({
   
   try {
     if (jsonContent) {
-      // The AI response is a stringified JSON object containing another stringified JSON.
-      // So we need to parse twice.
-      const outerParsed = JSON.parse(jsonContent);
-      entities = outerParsed;
+      entities = JSON.parse(jsonContent);
     }
   } catch (e) {
-      try {
-        // Fallback for single-parsed JSON
-        if (jsonContent) entities = JSON.parse(jsonContent);
-      } catch (e2) {
-        errorMessage = "O JSON retornado pela IA é inválido ou está vazio.";
-        console.error("Error parsing entities JSON:", e2);
-        console.error("Original content:", jsonContent);
-      }
+      errorMessage = "O JSON retornado pela IA é inválido ou está vazio.";
+      console.error("Error parsing entities JSON:", e);
+      console.error("Original content:", jsonContent);
   }
 
   const handleExportJson = () => {

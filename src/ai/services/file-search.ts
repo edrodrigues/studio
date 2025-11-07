@@ -80,25 +80,28 @@ export const fileSearch = ai.defineTool(
 
 export async function uploadFiles(files: { name: string; dataUri: string }[]) {
   const vertexAI = await getVertexAI();
-  const generativeModel = vertexAI.getGenerativeModel({
-    model: 'gemini-1.5-flash-001',
-  });
 
   const uploadedFiles = await Promise.all(
     files.map(async ({ name, dataUri }) => {
       const uniqueId = uuidv4();
-      const result = await generativeModel.uploadFile(
-        `uploads/${uniqueId}/${name}`,
-        dataUriToGenAIFile(dataUri)
-      );
+      const file = dataUriToGenAIFile(dataUri);
+      
+      const result = await vertexAI.uploadFile({
+          file: file,
+          displayName: `uploads/${uniqueId}/${name}`
+      });
+
       return {
         file: result.file,
         name,
       };
     })
   );
-
+  
   const fileIds = uploadedFiles.map((f) => f.file.name);
+  const generativeModel = vertexAI.getGenerativeModel({
+    model: 'gemini-1.5-flash-001',
+  });
 
   // Poll for file processing to complete
   for (const fileId of fileIds) {

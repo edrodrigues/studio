@@ -1,5 +1,6 @@
 
 "use server";
+import 'dotenv/config';
 
 import { generateContractFromDocuments } from "@/ai/flows/generate-contract-from-documents";
 import { getAssistanceFromGemini } from "@/ai/flows/get-assistance-from-gemini";

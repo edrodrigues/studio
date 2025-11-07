@@ -80,13 +80,16 @@ export const fileSearch = ai.defineTool(
 
 export async function uploadFiles(files: { name: string; dataUri: string }[]) {
   const vertexAI = await getVertexAI();
+  const generativeModel = vertexAI.getGenerativeModel({
+    model: 'gemini-1.5-flash-001',
+  });
 
   const uploadedFiles = await Promise.all(
     files.map(async ({ name, dataUri }) => {
       const uniqueId = uuidv4();
       const file = dataUriToGenAIFile(dataUri);
       
-      const result = await vertexAI.uploadFile({
+      const result = await generativeModel.fileManager.uploadFile({
           file: file,
           displayName: `uploads/${uniqueId}/${name}`
       });
@@ -99,16 +102,13 @@ export async function uploadFiles(files: { name: string; dataUri: string }[]) {
   );
   
   const fileIds = uploadedFiles.map((f) => f.file.name);
-  const generativeModel = vertexAI.getGenerativeModel({
-    model: 'gemini-1.5-flash-001',
-  });
 
   // Poll for file processing to complete
   for (const fileId of fileIds) {
-    let file = await generativeModel.getFile(fileId);
+    let file = await generativeModel.fileManager.getFile(fileId);
     while (file.state === 'PROCESSING') {
       await sleep(10000); // Wait for 10 seconds before checking again
-      file = await generativeModel.getFile(fileId);
+      file = await generativeModel.fileManager.getFile(fileId);
     }
 
     if (file.state !== 'ACTIVE') {

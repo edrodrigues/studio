@@ -81,10 +81,9 @@ export const fileSearch = ai.defineTool(
 export async function uploadFiles(files: {name: string; dataUri: string}[]) {
   const vertexAI = await getVertexAI();
 
-  const generativeModel = vertexAI.getGenerativeModel({
+  const fileManager = vertexAI.getGenerativeModel({
     model: 'gemini-1.5-flash-001',
-  });
-  const fileManager = generativeModel.fileManager;
+  }).fileManager;
 
   const uploadedFiles = await Promise.all(
     files.map(async ({name, dataUri}) => {

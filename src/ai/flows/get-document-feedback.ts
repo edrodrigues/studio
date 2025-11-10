@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Provides detailed feedback on uploaded documents using a customizable system prompt.
@@ -8,7 +9,6 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const GetDocumentFeedbackInputSchema = z.object({
@@ -46,7 +46,7 @@ const getDocumentFeedbackPrompt = ai.definePrompt({
   name: 'getDocumentFeedbackPrompt',
   input: {schema: GetDocumentFeedbackInputSchema},
   output: {schema: GetDocumentFeedbackOutputSchema},
-  tools: [googleAI.fileSearch()],
+  tools: ['fileSearch'],
   prompt: `{{systemPrompt}}
 
 Analise os documentos disponíveis usando a ferramenta de busca de arquivos e forneça um feedback detalhado com base no prompt do sistema.

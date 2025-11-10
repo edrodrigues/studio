@@ -1,3 +1,4 @@
+
 // src/ai/flows/generate-contract-from-documents.ts
 'use server';
 /**
@@ -9,7 +10,6 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const GenerateContractFromDocumentsInputSchema = z.object({
@@ -44,7 +44,7 @@ const generateContractPrompt = ai.definePrompt({
   name: 'generateContractPrompt',
   input: {schema: GenerateContractFromDocumentsInputSchema},
   output: {schema: GenerateContractFromDocumentsOutputSchema},
-  tools: [googleAI.fileSearch()],
+  tools: ['fileSearch'],
   prompt: `Você é um especialista em direito administrativo e contratos de cooperação.
 Com base nos documentos disponíveis (Plano de Trabalho, Termo de Execução, Planilha de Orçamento), que devem ser consultados usando a ferramenta de busca de arquivos, gere uma minuta de contrato completa em Markdown, estruturada e pronta para ser preenchida. Utilize os dados dos documentos para preencher os campos relevantes do contrato.
 

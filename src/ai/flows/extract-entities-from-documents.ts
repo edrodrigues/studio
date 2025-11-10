@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Extracts entities from a collection of documents using AI.
@@ -8,7 +9,6 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const ExtractEntitiesFromDocumentsInputSchema = z.object({
@@ -46,7 +46,7 @@ const extractEntitiesPrompt = ai.definePrompt({
     format: 'json',
     schema: ExtractEntitiesFromDocumentsOutputSchema,
   },
-  tools: [googleAI.fileSearch()],
+  tools: ['fileSearch'],
   prompt: `Instrução:
 Analise os documentos fornecidos usando a ferramenta de busca de arquivos e identifique todas as informações variáveis — ou seja, elementos que mudariam entre versões diferentes do mesmo tipo de documento.
 

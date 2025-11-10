@@ -33,7 +33,7 @@ function EntitiesCard({ entities, isLoading }: { entities: Record<string, any> |
         );
     }
     
-    if (!entities) {
+    if (!entities || Object.keys(entities).length === 0) {
         return (
             <Card className="bg-muted/30">
                 <CardHeader>
@@ -239,7 +239,7 @@ export default function GerarNovoContratoPage() {
             <Button
                 size="lg"
                 onClick={handleGenerateContract}
-                disabled={!selectedTemplateId || !storedEntities || isGenerating || !isClient}
+                disabled={!selectedTemplateId || !storedEntities || Object.keys(storedEntities).length === 0 || isGenerating || !isClient}
                 className="w-full max-w-md"
             >
                 {isGenerating ? (
@@ -261,5 +261,3 @@ export default function GerarNovoContratoPage() {
     </div>
   );
 }
-
-    

@@ -7,42 +7,38 @@ import {extractTemplateFromDocument} from '@/ai/flows/extract-template-from-docu
 import {getDocumentFeedback} from '@/ai/flows/get-document-feedback';
 import {extractEntitiesFromDocuments} from '@/ai/flows/extract-entities-from-documents';
 import {z} from 'zod';
-import mammoth from 'mammoth';
-import {uploadFiles} from '@/ai/services/file-search';
 
 const fileSchema = z.string().refine(s => s.startsWith('data:'), {
   message: 'File must be a data URI',
 });
 
-const generateContractSchema = z.object({
-  planOfWork: fileSchema,
-  termOfExecution: fileSchema,
-  budgetSpreadsheet: fileSchema,
+const fileObjectSchema = z.object({
+  name: z.string(),
+  dataUri: fileSchema,
 });
 
-export async function handleGenerateContract(formData: FormData) {
+const generateContractSchema = z.object({
+  documents: z.array(fileObjectSchema),
+});
+
+export async function handleGenerateContract(input: {
+  documents: {name: string; dataUri: string}[];
+}) {
   try {
-    const rawData = Object.fromEntries(formData.entries());
-    const validatedData = generateContractSchema.safeParse(rawData);
+    const validatedData = generateContractSchema.safeParse(input);
 
     if (!validatedData.success) {
       console.error('Validation failed', validatedData.error.flatten());
       return {success: false, error: 'Dados de arquivo inválidos.'};
     }
 
-    const fileIds = await uploadFiles([
-      {name: 'planOfWork', dataUri: validatedData.data.planOfWork},
-      {
-        name: 'termOfExecution',
-        dataUri: validatedData.data.termOfExecution,
-      },
-      {
-        name: 'budgetSpreadsheet',
-        dataUri: validatedData.data.budgetSpreadsheet,
-      },
-    ]);
+    const documentsForFlow = validatedData.data.documents.map(doc => ({
+      url: doc.dataUri,
+    }));
 
-    const result = await generateContractFromDocuments({fileIds});
+    const result = await generateContractFromDocuments({
+      documents: documentsForFlow,
+    });
     return {success: true, data: result};
   } catch (error) {
     console.error('Error generating contract:', error);
@@ -81,7 +77,7 @@ const extractTemplateSchema = z.object({
 export async function handleExtractTemplate(formData: FormData) {
   try {
     const dataUri = formData.get('document') as string;
-    const fileName = formData.get('fileName') as string;
+    const fileName = formData.get('fileName') as string; // We just need the name for the template
 
     if (!dataUri || !dataUri.startsWith('data:')) {
       return {
@@ -90,16 +86,8 @@ export async function handleExtractTemplate(formData: FormData) {
       };
     }
 
-    let documentContent: string;
-    const buffer = Buffer.from(dataUri.split(',')[1], 'base64');
-
-    if (fileName.endsWith('.docx')) {
-      const {value} = await mammoth.extractRawText({buffer});
-      documentContent = value;
-    } else {
-      // For PDFs and other formats, pass the data URI to be handled by the model
-      documentContent = dataUri;
-    }
+    // The AI model will handle the content extraction from the data URI
+    const documentContent = dataUri;
 
     const validatedData = extractTemplateSchema.safeParse({
       documentContent: documentContent,
@@ -122,12 +110,7 @@ export async function handleExtractTemplate(formData: FormData) {
 
 const getFeedbackSchema = z.object({
   systemPrompt: z.string(),
-  documents: z.array(
-    z.object({
-      name: z.string(),
-      dataUri: fileSchema,
-    })
-  ),
+  documents: z.array(fileObjectSchema),
 });
 
 export async function handleGetFeedback(input: {
@@ -144,15 +127,18 @@ export async function handleGetFeedback(input: {
       };
     }
 
-    const fileIds = await uploadFiles(validatedData.data.documents);
+    const documentsForFlow = validatedData.data.documents.map(doc => ({
+      url: doc.dataUri,
+    }));
 
     const result = await getDocumentFeedback({
       systemPrompt: validatedData.data.systemPrompt,
-      fileIds,
+      documents: documentsForFlow,
     });
 
     return {success: true, data: result};
-  } catch (error) {
+  } catch (error)
+ {
     console.error('Error getting feedback:', error);
     const errorMessage =
       error instanceof Error
@@ -163,12 +149,7 @@ export async function handleGetFeedback(input: {
 }
 
 const extractEntitiesSchema = z.object({
-  documents: z.array(
-    z.object({
-      name: z.string(),
-      dataUri: fileSchema,
-    })
-  ),
+  documents: z.array(fileObjectSchema),
 });
 
 export async function handleExtractEntities(input: {
@@ -184,10 +165,12 @@ export async function handleExtractEntities(input: {
       };
     }
 
-    const fileIds = await uploadFiles(validatedData.data.documents);
+    const documentsForFlow = validatedData.data.documents.map(doc => ({
+      url: doc.dataUri,
+    }));
 
     const result = await extractEntitiesFromDocuments({
-      fileIds,
+      documents: documentsForFlow,
     });
 
     return {success: true, data: result};

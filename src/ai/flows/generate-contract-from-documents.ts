@@ -1,4 +1,3 @@
-
 // src/ai/flows/generate-contract-from-documents.ts
 'use server';
 /**
@@ -10,11 +9,15 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
-import { fileSearch, search } from '../services/file-search';
 
 const GenerateContractFromDocumentsInputSchema = z.object({
-  fileIds: z.array(z.string()).describe('An array of file IDs to be searched.'),
+  documents: z.array(
+    z.object({
+      url: z.string().describe('The data URI of the document.'),
+    })
+  ),
 });
 
 export type GenerateContractFromDocumentsInput = z.infer<
@@ -41,9 +44,14 @@ const generateContractPrompt = ai.definePrompt({
   name: 'generateContractPrompt',
   input: {schema: GenerateContractFromDocumentsInputSchema},
   output: {schema: GenerateContractFromDocumentsOutputSchema},
-  tools: [fileSearch, search],
+  tools: [googleAI.fileSearch()],
   prompt: `Você é um especialista em direito administrativo e contratos de cooperação.
-Com base nos documentos disponíveis através da ferramenta fileSearch (Plano de Trabalho, Termo de Execução, Planilha de Orçamento), gere uma minuta de contrato completa em Markdown, estruturada e pronta para ser preenchida. Utilize os dados dos documentos para preencher os campos relevantes do contrato.
+Com base nos documentos disponíveis (Plano de Trabalho, Termo de Execução, Planilha de Orçamento), gere uma minuta de contrato completa em Markdown, estruturada e pronta para ser preenchida. Utilize os dados dos documentos para preencher os campos relevantes do contrato.
+
+Os documentos para análise são:
+{{#each documents}}
+- {{media url=this.url}}
+{{/each}}
 `,
 });
 
@@ -55,6 +63,9 @@ const generateContractFromDocumentsFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await generateContractPrompt(input);
-    return output!;
+    if (!output) {
+      throw new Error('AI failed to generate a contract draft.');
+    }
+    return output;
   }
 );

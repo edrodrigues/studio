@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Extracts entities from a collection of documents using AI.
@@ -9,11 +8,15 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
-import { fileSearch, search } from '../services/file-search';
 
 const ExtractEntitiesFromDocumentsInputSchema = z.object({
-  fileIds: z.array(z.string()).describe('An array of file IDs to be searched.'),
+  documents: z.array(
+    z.object({
+      url: z.string().describe('The data URI of the document.'),
+    })
+  ),
 });
 
 export type ExtractEntitiesFromDocumentsInput = z.infer<
@@ -42,9 +45,14 @@ const extractEntitiesPrompt = ai.definePrompt({
   output: {
     format: 'json',
   },
-  tools: [fileSearch, search],
+  tools: [googleAI.fileSearch()],
   prompt: `Instrução:
-Analise o documento fornecido usando a ferramenta fileSearch e identifique todas as informações variáveis — ou seja, elementos que mudariam entre versões diferentes do mesmo tipo de documento.
+Analise os documentos fornecidos e identifique todas as informações variáveis — ou seja, elementos que mudariam entre versões diferentes do mesmo tipo de documento.
+
+Os documentos para análise são:
+{{#each documents}}
+- {{media url=this.url}}
+{{/each}}
 
 As variáveis incluem:
 

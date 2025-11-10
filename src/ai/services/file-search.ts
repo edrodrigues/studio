@@ -82,7 +82,7 @@ export async function uploadFiles(files: {name: string; dataUri: string}[]) {
   const vertexAI = await getVertexAI();
 
   const generativeModel = vertexAI.getGenerativeModel({
-    model: 'gemini-1.5-flash-001',
+    model: 'gemini-pro-vision',
   });
   const fileManager = generativeModel.fileManager;
 

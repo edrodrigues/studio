@@ -81,13 +81,12 @@ export const fileSearch = ai.defineTool(
 export async function uploadFiles(files: {name: string; dataUri: string}[]) {
   const vertexAI = await getVertexAI();
 
-  const generativeModel = vertexAI.getGenerativeModel({
-    model: 'gemini-pro-vision',
-  });
-  const fileManager = generativeModel.fileManager;
+  // Access fileManager from the VertexAI instance
+  const fileManager = vertexAI.fileManager;
 
   if (!fileManager) {
-    throw new Error('FileManager is not available on this model.');
+    // This check is now more robust.
+    throw new Error('FileManager is not available on the VertexAI client.');
   }
 
   const uploadedFiles = await Promise.all(
@@ -95,6 +94,7 @@ export async function uploadFiles(files: {name: string; dataUri: string}[]) {
       const uniqueId = uuidv4();
       const file = dataUriToGenAIFile(dataUri);
 
+      // Use the fileManager from the VertexAI client
       const result = await fileManager.uploadFile({
         file: file,
         displayName: `uploads/${uniqueId}/${name}`,

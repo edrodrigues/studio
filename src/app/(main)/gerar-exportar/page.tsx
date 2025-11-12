@@ -199,6 +199,11 @@ export default function GerarExportarPage() {
     const selectedContracts = contracts.filter(c => selectedForComparison.includes(c.id));
 
     selectedContracts.forEach(contract => {
+        if (!contract.markdownContent) {
+            console.warn(`Contrato '${contract.name}' (ID: ${contract.id}) ignorado por não ter conteúdo.`);
+            return; // Pula para a próxima iteração
+        }
+        
         // Export Markdown
         const cleanedContent = contract.markdownContent.replace(/<span class="[^"]*">/g, '').replace(/<\/span>/g, '');
         const mdBlob = new Blob([cleanedContent], { type: "text/markdown;charset=utf-8" });
@@ -275,5 +280,3 @@ export default function GerarExportarPage() {
     </>
   );
 }
-
-    

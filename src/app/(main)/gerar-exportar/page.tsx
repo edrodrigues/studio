@@ -176,7 +176,7 @@ export default function GerarExportarPage() {
         
         <div className="border rounded-lg">
             <ContractsTable 
-                contracts={contracts}
+                contracts={contracts as (Contract & { id: string; })[] | null}
                 isLoading={isLoading}
                 onEdit={handleEdit}
                 onDelete={handleDelete}

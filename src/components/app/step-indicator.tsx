@@ -3,13 +3,13 @@
 
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, FileUp, CheckCircle, DraftingCompass } from "lucide-react";
+import { Home, FileUp, FilePlus, DraftingCompass, CheckCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const steps = [
   { href: "/", label: "Comece Aqui", icon: Home },
   { href: "/documentos-iniciais", label: "Documentos Iniciais", icon: FileUp },
-  { href: "/modelos", label: "Modelos", icon: DraftingCompass },
+  { href: "/gerar-novo", label: "Gerar Novo Contrato", icon: FilePlus },
   { href: "/gerar-exportar", label: "Contratos Gerados", icon: CheckCircle },
 ];
 
@@ -84,23 +84,15 @@ export function StepIndicator() {
     return <StepIndicatorSkeleton />;
   }
   
-  const modifiedSteps = steps.map(step => {
-      if (step.href === "/gerar-exportar") {
-          return { ...step, label: "Contratos Gerados"}
-      }
-      return step;
-  });
-
-  const activeIndex = modifiedSteps.findIndex((step) =>
-        (step.href !== "/" && pathname.startsWith(step.href)) ||
-        (step.href === "/" && pathname === "/") ||
-        (pathname.startsWith("/preencher")) || // Treat preencher as part of the last step
-        (pathname.startsWith("/gerar-novo")) // Treat gerar-novo as part of the last step
-      );
+  // A rota /modelos é uma rota "paralela" e não parte do fluxo principal.
+  // Vamos ignorá-la para a determinação do passo ativo.
+  if (pathname.startsWith('/modelos')) {
+    return null;
+  }
       
    const getActiveIndex = () => {
+      // Tratar a página de edição de contrato (/preencher) como parte da última etapa
       if(pathname.startsWith("/preencher")) return steps.length -1;
-      if(pathname.startsWith("/gerar-novo")) return steps.length -1;
 
       const currentIndex = steps.findIndex((step) =>
           (step.href !== "/" && pathname.startsWith(step.href)) ||
@@ -116,7 +108,7 @@ export function StepIndicator() {
       <div className="container py-4">
         <div className="relative mx-auto flex max-w-4xl items-start justify-between">
           <div className="absolute left-1/2 top-5 flex h-0.5 w-[calc(100%-96px)] -translate-x-1/2">
-            {Array.from({ length: modifiedSteps.length - 1 }).map((_, index) => (
+            {Array.from({ length: steps.length - 1 }).map((_, index) => (
               <div key={`line-bg-${index}`} className="relative h-full flex-1 bg-border">
                 <div
                     className={cn(
@@ -128,7 +120,7 @@ export function StepIndicator() {
             ))}
           </div>
 
-          {modifiedSteps.map((step, index) => (
+          {steps.map((step, index) => (
             <Step
               key={step.href}
               icon={step.icon}
@@ -142,4 +134,3 @@ export function StepIndicator() {
     </div>
   );
 }
-

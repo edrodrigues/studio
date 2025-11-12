@@ -3,7 +3,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { collection } from "firebase/firestore";
+import { collection, addDoc } from "firebase/firestore";
 import { File, Loader2, Wand2, AlertTriangle, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import useLocalStorage from "@/hooks/use-local-storage";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 
 function EntitiesCard({ entities, isLoading }: { entities: Record<string, any> | null, isLoading: boolean }) {
@@ -192,7 +191,7 @@ export default function GerarNovoContratoPage() {
             };
 
             const filledContractsRef = collection(firestore, 'users', user.uid, 'filledContracts');
-            const docRef = await addDocumentNonBlocking(filledContractsRef, newContract);
+            const docRef = await addDoc(filledContractsRef, newContract);
             
             router.push(`/preencher/${docRef.id}`);
 

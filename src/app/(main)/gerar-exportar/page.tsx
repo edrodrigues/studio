@@ -1,10 +1,10 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { collection, doc, deleteDoc } from "firebase/firestore";
-import { FilePlus2, MoreHorizontal, Trash2, Pencil, Eye } from "lucide-react";
+import { FilePlus2, MoreHorizontal, Trash2, Pencil, Eye, GitCompareArrows } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { type Contract } from "@/lib/types";
 import { useCollection, useFirebase, useUser, useMemoFirebase } from "@/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,25 +28,29 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ContractPreviewModal } from "@/components/app/contract-preview-modal";
+import { ComparisonModal } from "@/components/app/comparison-modal";
 
 function ContractsTable({ 
     contracts, 
     isLoading, 
     onEdit, 
     onDelete, 
-    onPreview 
+    onPreview,
+    selectedContracts,
+    onSelectionChange
 }: { 
     contracts: (Contract & {id: string})[] | null, 
     isLoading: boolean,
     onEdit: (id: string) => void,
     onDelete: (id: string) => void,
-    onPreview: (contract: Contract) => void
+    onPreview: (contract: Contract) => void,
+    selectedContracts: string[],
+    onSelectionChange: (id: string) => void,
 }) {
-
     if (isLoading) {
         return (
             <div className="space-y-2">
-                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
             </div>
         )
     }
@@ -64,6 +69,17 @@ function ContractsTable({
         <Table>
             <TableHeader>
                 <TableRow>
+                    <TableHead className="w-[40px]">
+                       <Checkbox
+                            checked={selectedContracts.length === contracts.length && contracts.length > 0}
+                            onCheckedChange={(checked) => {
+                                contracts.forEach(c => {
+                                    if(checked && !selectedContracts.includes(c.id)) onSelectionChange(c.id);
+                                    if(!checked && selectedContracts.includes(c.id)) onSelectionChange(c.id);
+                                })
+                            }}
+                        />
+                    </TableHead>
                     <TableHead>Nome do Contrato</TableHead>
                     <TableHead>Data de Criação</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
@@ -71,7 +87,13 @@ function ContractsTable({
             </TableHeader>
             <TableBody>
                 {contracts.map((contract) => (
-                    <TableRow key={contract.id}>
+                    <TableRow key={contract.id} data-state={selectedContracts.includes(contract.id) ? 'selected' : ''}>
+                        <TableCell>
+                            <Checkbox 
+                                checked={selectedContracts.includes(contract.id)}
+                                onCheckedChange={() => onSelectionChange(contract.id)}
+                            />
+                        </TableCell>
                         <TableCell className="font-medium">{contract.name}</TableCell>
                         <TableCell>
                             {contract.createdAt ? format(new Date(contract.createdAt), "dd 'de' MMMM 'de' yyyy, 'às' HH:mm", { locale: ptBR }) : 'Data indisponível'}
@@ -111,8 +133,12 @@ export default function GerarExportarPage() {
   const { firestore } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
+  
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+  const [selectedForComparison, setSelectedForComparison] = useState<string[]>([]);
+
 
   const filledContractsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -120,6 +146,11 @@ export default function GerarExportarPage() {
   }, [user, firestore]);
 
   const { data: contracts, isLoading } = useCollection<Omit<Contract, 'id'>>(filledContractsQuery);
+  
+  const comparisonContracts = useMemo(() => {
+    if (!contracts) return [];
+    return contracts.filter(c => selectedForComparison.includes(c.id));
+  }, [contracts, selectedForComparison]);
 
   const handleEdit = (id: string) => {
     router.push(`/preencher/${id}`);
@@ -136,6 +167,7 @@ export default function GerarExportarPage() {
           title: "Contrato excluído",
           description: "O contrato foi removido com sucesso.",
         });
+        setSelectedForComparison(prev => prev.filter(cid => cid !== id));
       } catch (error) {
         console.error("Erro ao excluir o contrato:", error);
         toast({
@@ -156,6 +188,12 @@ export default function GerarExportarPage() {
     router.push('/gerar-novo');
   }
 
+  const handleSelectionChange = (id: string) => {
+    setSelectedForComparison(prev => 
+        prev.includes(id) ? prev.filter(cid => cid !== id) : [...prev, id]
+    );
+  };
+
   return (
     <>
       <div className="container py-12">
@@ -165,13 +203,23 @@ export default function GerarExportarPage() {
               Revisar Contratos
             </h1>
             <p className="mt-2 text-muted-foreground">
-              Visualize, edite ou exporte os contratos que você já preencheu.
+              Visualize, edite, exporte ou compare os contratos que você já gerou.
             </p>
           </div>
-          <Button size="lg" onClick={handleGoToGenerator}>
-            <FilePlus2 className="mr-2 h-5 w-5"/>
-            Gerar Contratos
-          </Button>
+           <div className="flex items-center gap-2">
+                <Button 
+                    variant="outline"
+                    onClick={() => setIsComparisonOpen(true)}
+                    disabled={selectedForComparison.length < 2}
+                >
+                    <GitCompareArrows className="mr-2 h-5 w-5"/>
+                    Comparar com IA ({selectedForComparison.length})
+                </Button>
+                <Button size="lg" onClick={handleGoToGenerator}>
+                    <FilePlus2 className="mr-2 h-5 w-5"/>
+                    Gerar Contratos
+                </Button>
+           </div>
         </div>
         
         <div className="border rounded-lg">
@@ -181,6 +229,8 @@ export default function GerarExportarPage() {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onPreview={handlePreview}
+                selectedContracts={selectedForComparison}
+                onSelectionChange={handleSelectionChange}
             />
         </div>
       </div>
@@ -191,6 +241,11 @@ export default function GerarExportarPage() {
             onClose={() => setIsPreviewOpen(false)}
         />
       )}
+      <ComparisonModal
+        isOpen={isComparisonOpen}
+        onClose={() => setIsComparisonOpen(false)}
+        contracts={comparisonContracts as (Contract & { id: string; })[]}
+      />
     </>
   );
 }

@@ -77,7 +77,6 @@ const extractTemplateSchema = z.object({
 export async function handleExtractTemplate(formData: FormData) {
   try {
     const dataUri = formData.get('document') as string;
-    const fileName = formData.get('fileName') as string; // We just need the name for the template
 
     if (!dataUri || !dataUri.startsWith('data:')) {
       return {
@@ -86,7 +85,6 @@ export async function handleExtractTemplate(formData: FormData) {
       };
     }
 
-    // The AI model will handle the content extraction from the data URI
     const documentContent = dataUri;
 
     const validatedData = extractTemplateSchema.safeParse({

@@ -140,8 +140,8 @@ export default function DocumentosIniciaisPage() {
                     <Label htmlFor="convenios">Convênios</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="acordos" id="acordos" />
-                    <Label htmlFor="acordos">Acordos</Label>
+                    <RadioGroupItem value="act" id="act" />
+                    <Label htmlFor="act">ACT</Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="contratos" id="contratos" />

@@ -61,22 +61,11 @@ export default function PreencherContratoPage() {
   }, []);
 
   if (isLoading || !contract) {
-    return (
-        <div className="flex flex-col h-screen">
-            <header className="p-4 border-b">
-                 <Button variant="outline" asChild>
-                    <Link href="/gerar-exportar"><ArrowLeft className="mr-2 h-4 w-4" /> Voltar</Link>
-                </Button>
-            </header>
-            <div className="flex-1">
-                <EditorLoadingSkeleton />
-            </div>
-        </div>
-    );
+    return <EditorLoadingSkeleton />;
   }
 
   return (
-    <div className="flex h-screen flex-col bg-muted/40">
+    <div className="flex h-[calc(100vh-12rem)] flex-col bg-muted/40">
         <header className="flex-shrink-0 bg-background p-4 border-b">
             <div className="container flex items-center justify-between max-w-7xl">
                 <Button variant="outline" asChild>

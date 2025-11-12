@@ -217,7 +217,7 @@ export default function GerarExportarPage() {
                 </Button>
                 <Button size="lg" onClick={handleGoToGenerator}>
                     <FilePlus2 className="mr-2 h-5 w-5"/>
-                    Gerar Contratos
+                    Exportar Contratos
                 </Button>
            </div>
         </div>

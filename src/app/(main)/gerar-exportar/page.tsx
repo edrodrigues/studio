@@ -29,6 +29,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ContractPreviewModal } from "@/components/app/contract-preview-modal";
 import { ComparisonModal } from "@/components/app/comparison-modal";
+import { saveAs } from "file-saver";
+import { exportToDocx } from "@/lib/export";
 
 function ContractsTable({ 
     contracts, 
@@ -184,9 +186,33 @@ export default function GerarExportarPage() {
     setIsPreviewOpen(true);
   }
 
-  const handleGoToGenerator = () => {
-    router.push('/gerar-novo');
-  }
+  const handleExportSelected = () => {
+    if (selectedForComparison.length === 0 || !contracts) {
+        toast({
+            variant: "destructive",
+            title: "Nenhum contrato selecionado",
+            description: "Por favor, selecione pelo menos um contrato para exportar."
+        });
+        return;
+    }
+
+    const selectedContracts = contracts.filter(c => selectedForComparison.includes(c.id));
+
+    selectedContracts.forEach(contract => {
+        // Export Markdown
+        const cleanedContent = contract.markdownContent.replace(/<span class="[^"]*">/g, '').replace(/<\/span>/g, '');
+        const mdBlob = new Blob([cleanedContent], { type: "text/markdown;charset=utf-8" });
+        saveAs(mdBlob, `${contract.name.replace(/\s/g, '_')}.md`);
+
+        // Export Docx
+        exportToDocx(contract.markdownContent, contract.name.replace(/\s/g, '_'));
+    });
+
+    toast({
+        title: "Exportação iniciada!",
+        description: `${selectedContracts.length} contrato(s) estão sendo baixados.`
+    });
+  };
 
   const handleSelectionChange = (id: string) => {
     setSelectedForComparison(prev => 
@@ -215,9 +241,9 @@ export default function GerarExportarPage() {
                     <GitCompareArrows className="mr-2 h-5 w-5"/>
                     Comparar com IA ({selectedForComparison.length})
                 </Button>
-                <Button size="lg" onClick={handleGoToGenerator}>
+                <Button size="lg" onClick={handleExportSelected} disabled={selectedForComparison.length === 0}>
                     <FilePlus2 className="mr-2 h-5 w-5"/>
-                    Exportar Contratos
+                    Exportar Contratos ({selectedForComparison.length})
                 </Button>
            </div>
         </div>
@@ -249,3 +275,5 @@ export default function GerarExportarPage() {
     </>
   );
 }
+
+    

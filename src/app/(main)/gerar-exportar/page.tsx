@@ -55,7 +55,7 @@ function ContractsTable({
             <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 border border-dashed rounded-lg">
                 <FilePlus2 className="h-8 w-8 mb-4" />
                 <p className="font-semibold">Nenhum contrato gerado ainda</p>
-                <p className="text-sm">Vá para a aba "Gerar Novo Contrato" para começar.</p>
+                <p className="text-sm">Vá para a aba "Gerar Contratos" para começar.</p>
             </div>
         )
     }
@@ -162,7 +162,7 @@ export default function GerarExportarPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold leading-tight tracking-tighter md:text-4xl">
-              Contratos Gerados
+              Revisar Contratos
             </h1>
             <p className="mt-2 text-muted-foreground">
               Visualize, edite ou exporte os contratos que você já preencheu.
@@ -170,7 +170,7 @@ export default function GerarExportarPage() {
           </div>
           <Button size="lg" onClick={handleGoToGenerator}>
             <FilePlus2 className="mr-2 h-5 w-5"/>
-            Gerar Novo Contrato
+            Gerar Contratos
           </Button>
         </div>
         

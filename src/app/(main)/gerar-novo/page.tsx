@@ -330,7 +330,7 @@ export default function GerarNovoContratoPage() {
                 )}
             </Button>
             <p className="text-xs text-muted-foreground">
-                Os contratos serão salvos e você será redirecionado para a lista.
+                Os contratos serão salvos e você será redirecionado para a lista de revisão.
             </p>
         </section>
     </div>

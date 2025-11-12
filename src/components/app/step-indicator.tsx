@@ -10,7 +10,7 @@ const steps = [
   { href: "/", label: "Comece Aqui", icon: Home },
   { href: "/documentos-iniciais", label: "Documentos Iniciais", icon: FileUp },
   { href: "/gerar-novo", label: "Gerar Contratos", icon: FilePlus },
-  { href: "/gerar-exportar", label: "Contratos Gerados", icon: CheckCircle },
+  { href: "/gerar-exportar", label: "Revisar Contratos", icon: CheckCircle },
 ];
 
 function Step({

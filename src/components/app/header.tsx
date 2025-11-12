@@ -11,7 +11,7 @@ const navLinks = [
   { href: "/documentos-iniciais", label: "Documentos Iniciais" },
   { href: "/modelos", label: "Gerenciar Modelos" },
   { href: "/gerar-novo", label: "Gerar Contratos" },
-  { href: "/gerar-exportar", label: "Contratos Gerados" },
+  { href: "/gerar-exportar", label: "Revisar Contratos" },
 ];
 
 function NavLink({ href, label }: { href: string; label: string }) {

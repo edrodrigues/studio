@@ -3,7 +3,7 @@
 
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, FileUp, FilePlus, DraftingCompass, CheckCircle } from "lucide-react";
+import { Home, FileUp, FilePlus, CheckCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const steps = [

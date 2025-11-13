@@ -3,7 +3,7 @@
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { FileText, DraftingCompass, UploadCloud } from "lucide-react";
+import { FileText, DraftingCompass, UploadCloud, GitCompareArrows } from "lucide-react";
 
 export default function ComeceAquiPage() {
   return (
@@ -43,20 +43,20 @@ export default function ComeceAquiPage() {
                 </div>
                 <div className="flex flex-col items-center text-center">
                     <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary mb-4">
-                        <DraftingCompass size={32} />
+                        <FileText size={32} />
                     </div>
-                    <h3 className="text-xl font-semibold">2. Gerencie Seus Modelos</h3>
+                    <h3 className="text-xl font-semibold">2. Gerar Contratos</h3>
                     <p className="mt-2 text-muted-foreground">
-                        Use modelos pré-existentes ou crie novos a partir de seus próprios documentos na aba "Gerenciar Modelos".
+                        Selecione modelos e use as entidades extraídas para gerar novas minutas de contrato preenchidas com IA na aba "Gerar Contratos".
                     </p>
                 </div>
                 <div className="flex flex-col items-center text-center">
                     <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary mb-4">
-                        <FileText size={32} />
+                        <GitCompareArrows size={32} />
                     </div>
-                    <h3 className="text-xl font-semibold">3. Gere e Exporte</h3>
+                    <h3 className="text-xl font-semibold">3. Analisar Contratos</h3>
                     <p className="mt-2 text-muted-foreground">
-                        A IA irá gerar documentos baseados nos modelos e nas entidades extraidas nos documentos iniciais. Depois exporte-os em Markdown ou .DOCX.
+                        Compare as minutas geradas com a ajuda da IA, revise, edite e exporte os documentos finais em Markdown ou .DOCX na aba "Revisar Contratos".
                     </p>
                 </div>
             </div>

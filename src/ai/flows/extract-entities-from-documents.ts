@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Extracts entities from a collection of documents using AI.
+ * @fileOverview Extracts entities and a corresponding JSON Schema from a collection of documents using AI.
  *
  * - extractEntitiesFromDocuments - A function that handles the entity extraction process.
  * - ExtractEntitiesFromDocumentsInput - The input type for the function.
@@ -24,9 +24,10 @@ export type ExtractEntitiesFromDocumentsInput = z.infer<
 >;
 
 const ExtractEntitiesFromDocumentsOutputSchema = z.object({
-  extractedJson: z
-    .any()
-    .describe('The structured JSON with the keys and values found.'),
+  extractedJson: z.object({
+    entities: z.record(z.any()).describe('An object where keys are the extracted entity names and values are the extracted entity values.'),
+    schema: z.any().describe('A valid JSON schema object describing the extracted entities. Each property in the schema should have a "description" explaining what the entity represents.'),
+  }).describe('The structured JSON containing both the extracted key-value pairs and their corresponding JSON schema with descriptions.')
 });
 
 export type ExtractEntitiesFromDocumentsOutput = z.infer<
@@ -47,48 +48,56 @@ const extractEntitiesPrompt = ai.definePrompt({
     schema: ExtractEntitiesFromDocumentsOutputSchema,
   },
   prompt: `Instrução:
-Analise os documentos fornecidos e identifique todas as informações variáveis — ou seja, elementos que mudariam entre versões diferentes do mesmo tipo de documento.
+Analise os documentos fornecidos e execute duas tarefas:
+1.  Identifique todas as informações variáveis — ou seja, elementos que mudariam entre versões diferentes do mesmo tipo de documento (nomes, datas, valores, etc.).
+2.  Para cada variável identificada, crie uma descrição concisa que explique o seu significado no contexto do documento.
 
 Os documentos para análise são:
 {{#each documents}}
 - {{media url=this.url}}
 {{/each}}
 
-As variáveis incluem:
-
-Nomes de pessoas, cargos e instituições
-Datas
-Valores monetários
-Números de processos, contratos ou documentos
-Títulos e descrições específicas de projetos ou instrumentos
-Termos ou expressões que representam detalhes únicos
-
 Output esperado:
-Um JSON estruturado com as chaves e valores encontrados, no seguinte formato:
+Um único objeto JSON que contenha duas chaves principais: "entities" e "schema".
 
+1.  "entities": Um objeto contendo os pares de chave-valor das informações extraídas.
+    *   As chaves devem ser em MAIÚSCULAS e com underscores (ex: "NOME_DO_REITOR").
+    *   Os valores devem ser strings, mantendo o formato original do documento.
+
+2.  "schema": Um objeto JSON Schema que descreve a estrutura de "entities".
+    *   Deve ter "type": "object".
+    *   A chave "properties" deve conter um objeto onde cada chave corresponde a uma chave em "entities".
+    *   Cada propriedade dentro de "properties" deve ser um objeto com "type": "string" e uma "description" que explica o que aquela variável representa.
+
+Exemplo de Output:
 {
-  "NOME_DO_REITOR": "Alfredo Macedo Gomes",
-  "NOME_DA_UNIVERSIDADE": "Universidade Federal de Pernambuco",
-  "NOME_DA_ENTIDADE_PARCEIRA": "Coordenação de Aperfeiçoamento de Pessoal de Nível Superior",
-  "NOME_DA_FUNDACAO_INTERVENIENTE": "FADE",
-  "TIPO_DE_INSTRUMENTO_JURIDICO": "Instrumento Novo TED",
-  "NOME_DO_PROJETO": "Automação na Gestão de Processos de Cobranças Administrativas da CAPES",
-  "UNIDADE_RESPONSAVEL": "CIn/UFPE",
-  "NUMERO_DO_TED": "13260/2023",
-  "NUMERO_DO_PROCESSO": "23076.xxxxx/yyyy-yy",
-  "NOME_FISCAL_TITULAR": "Fulano de Tal",
-  "CPF_FISCAL_TITULAR": "000.000.000-00",
-  "NOME_FISCAL_SUPLENTE": "Beltrano de Tal",
-  "CPF_FISCAL_SUPLENTE": "111.111.111-11",
-  "LOCAL_E_DATA": "Recife, 20 de outubro de 2023"
+  "entities": {
+    "NOME_DO_REITOR": "Alfredo Macedo Gomes",
+    "NOME_DA_UNIVERSIDADE": "Universidade Federal de Pernambuco",
+    "NUMERO_DO_PROCESSO": "23076.xxxxx/yyyy-yy"
+  },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "NOME_DO_REITOR": {
+        "type": "string",
+        "description": "O nome completo do reitor da universidade."
+      },
+      "NOME_DA_UNIVERSIDADE": {
+        "type": "string",
+        "description": "O nome oficial da universidade mencionada no documento."
+      },
+      "NUMERO_DO_PROCESSO": {
+        "type": "string",
+        "description": "O número de identificação único do processo administrativo."
+      }
+    }
+  }
 }
 
 Regras de saída:
-
-O resultado deve ser apenas o JSON, sem comentários ou explicações extras.
-Se algum campo não existir no documento, simplesmente omita-o.
-Use os nomes das chaves em MAIÚSCULAS e com underscores (_).
-Converta valores numéricos e monetários para strings, mantendo o formato original.
+- O resultado deve ser APENAS o JSON, sem comentários ou explicações extras.
+- Se nenhum campo for encontrado, retorne um objeto com "entities" e "schema" vazios.
 `,
 });
 

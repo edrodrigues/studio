@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileDown } from "lucide-react";
+import { FileDown, Loader2 } from "lucide-react";
 import { saveAs } from "file-saver";
 
 interface EntitiesPreviewModalProps {
@@ -20,66 +21,97 @@ interface EntitiesPreviewModalProps {
   jsonContent: string;
 }
 
+interface ParsedEntities {
+  entities: Record<string, any>;
+  schema: {
+    properties: Record<string, { description: string }>;
+  };
+}
+
 export function EntitiesPreviewModal({
   isOpen,
   onClose,
   jsonContent,
 }: EntitiesPreviewModalProps) {
-  let entities: Record<string, any> = {};
-  let errorMessage = "";
-  
-  try {
+  const [parsedData, setParsedData] = useState<ParsedEntities | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
     if (jsonContent) {
-      entities = JSON.parse(jsonContent);
+      setIsLoading(true);
+      setErrorMessage("");
+      setParsedData(null);
+      try {
+        const data = JSON.parse(jsonContent);
+        if (data.entities && data.schema && data.schema.properties) {
+          setParsedData(data);
+        } else {
+          setErrorMessage("O JSON retornado pela IA não possui a estrutura esperada (entities/schema).");
+        }
+      } catch (e) {
+        setErrorMessage("O JSON retornado pela IA é inválido ou está vazio.");
+        console.error("Error parsing entities JSON:", e);
+        console.error("Original content:", jsonContent);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      setIsLoading(false);
+      setErrorMessage("");
+      setParsedData(null);
     }
-  } catch (e) {
-      errorMessage = "O JSON retornado pela IA é inválido ou está vazio.";
-      console.error("Error parsing entities JSON:", e);
-      console.error("Original content:", jsonContent);
-  }
+  }, [jsonContent]);
 
   const handleExportJson = () => {
     if (!jsonContent) return;
     try {
-        const formattedJson = JSON.stringify(entities, null, 2);
-        const blob = new Blob([formattedJson], {
-            type: "application/json;charset=utf-8",
-        });
-        saveAs(blob, `entidades_extraidas_${new Date().toISOString()}.json`);
+      const formattedJson = JSON.stringify(JSON.parse(jsonContent), null, 2);
+      const blob = new Blob([formattedJson], {
+        type: "application/json;charset=utf-8",
+      });
+      saveAs(blob, `entidades_extraidas_${new Date().toISOString()}.json`);
     } catch (e) {
-        // Fallback if formatting fails for some reason
-        const blob = new Blob([jsonContent], {
-            type: "text/plain;charset=utf-8",
-        });
-        saveAs(blob, `entidades_extraidas_raw_${new Date().toISOString()}.txt`);
+      const blob = new Blob([jsonContent], {
+        type: "text/plain;charset=utf-8",
+      });
+      saveAs(blob, `entidades_extraidas_raw_${new Date().toISOString()}.txt`);
     }
   };
 
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl h-[80vh] flex flex-col">
+      <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Entidades Extraídas</DialogTitle>
           <DialogDescription>
-            Abaixo estão as entidades que a IA extraiu dos documentos. Você pode
-            revisar e exportar o resultado como um arquivo JSON.
+            Abaixo estão as entidades que a IA extraiu e descreveu dos seus
+            documentos. Você pode revisar e exportar o resultado.
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="flex-1 rounded-md border bg-muted/50 p-4">
-          {errorMessage ? (
+          {isLoading ? (
+             <div className="flex items-center justify-center h-full text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : errorMessage ? (
             <p className="text-destructive">{errorMessage}</p>
-          ) : Object.keys(entities).length > 0 ? (
-            <div className="space-y-2">
-              {Object.entries(entities).map(([key, value]) => (
-                <div key={key} className="grid grid-cols-[1fr,2fr] gap-4 text-sm items-center">
-                  <strong className="font-mono text-muted-foreground truncate text-right">{key}:</strong>
-                  <span className="font-mono bg-background/50 rounded px-2 py-1">{String(value)}</span>
+          ) : parsedData && Object.keys(parsedData.entities).length > 0 ? (
+            <div className="space-y-4">
+              {Object.entries(parsedData.entities).map(([key, value]) => (
+                <div key={key} className="grid grid-cols-[2fr,3fr] gap-4 items-start text-sm border-b pb-4 last:border-b-0">
+                  <div className="text-right space-y-1">
+                    <strong className="font-mono text-muted-foreground break-all">{key}</strong>
+                    <p className="text-xs text-muted-foreground/80">
+                      {parsedData.schema.properties[key]?.description || "Sem descrição."}
+                    </p>
+                  </div>
+                  <span className="font-mono bg-background/50 rounded px-2 py-1 self-center">{String(value)}</span>
                 </div>
               ))}
             </div>
           ) : (
-             <p className="text-muted-foreground">Nenhuma entidade extraída.</p>
+             <p className="text-muted-foreground">Nenhuma entidade foi extraída dos documentos.</p>
           )}
         </ScrollArea>
         <DialogFooter className="mt-auto pt-4 border-t">

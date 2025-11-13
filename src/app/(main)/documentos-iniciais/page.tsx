@@ -190,7 +190,7 @@ export default function DocumentosIniciaisPage() {
           />
           <FileUploader
             icon={<Clock size={24} />}
-            title="Termo de Execução"
+            title="Termo de Execução (TED)"
             description="Cronograma e prazos do projeto."
             onFileSelect={handleFileSelect('termOfExecution')}
             onFeedbackClick={() => handleFeedbackClick(files.termOfExecution)}

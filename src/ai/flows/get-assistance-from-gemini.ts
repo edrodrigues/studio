@@ -10,7 +10,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { googleAI } from '@genkit-ai/google-genai';
 
 const GetAssistanceFromGeminiInputSchema = z.object({
@@ -35,7 +35,7 @@ const getAssistanceFromGeminiPrompt = ai.definePrompt({
   name: 'getAssistanceFromGeminiPrompt',
   input: { schema: GetAssistanceFromGeminiInputSchema },
   output: { schema: GetAssistanceFromGeminiOutputSchema },
-  model: googleAI('gemini-1.5-flash-latest'),
+  model: 'googleai/gemini-1.5-flash-latest',
   prompt: `Você é um assistente de contratos especializado em contratos administrativos de cooperação entre o V-Lab e a UFPE.
 
   Você deve responder às perguntas do usuário com base no conteúdo do contrato e, se disponível, no conteúdo da cláusula atual.

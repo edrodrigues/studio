@@ -136,20 +136,20 @@ export default function DocumentosIniciaisPage() {
                   className="flex flex-wrap gap-4"
                 >
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="convenios" id="convenios" />
-                    <Label htmlFor="convenios">Convênios</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="act" id="act" />
-                    <Label htmlFor="act">ACT</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="contratos" id="contratos" />
-                    <Label htmlFor="contratos">Contratos</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
                     <RadioGroupItem value="ted" id="ted" />
                     <Label htmlFor="ted">TED</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="acordo-parceria-inovacao" id="acordo-parceria-inovacao" />
+                    <Label htmlFor="acordo-parceria-inovacao">Acordo de Parceria (Lei de Inovação)</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="acordo-parceria-embrapii" id="acordo-parceria-embrapii" />
+                    <Label htmlFor="acordo-parceria-embrapii">Acordo de Parceria (Embrapii)</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="contrato-extensao" id="contrato-extensao" />
+                    <Label htmlFor="contrato-extensao">Contrato de Extensão Tecnológica (Prestação de Serviços Técnicos)</Label>
                   </div>
                 </RadioGroup>
               </div>

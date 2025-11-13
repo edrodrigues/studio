@@ -46,10 +46,9 @@ const getDocumentFeedbackPrompt = ai.definePrompt({
   name: 'getDocumentFeedbackPrompt',
   input: {schema: GetDocumentFeedbackInputSchema},
   output: {schema: GetDocumentFeedbackOutputSchema},
-  tools: ['fileSearch'],
   prompt: `{{systemPrompt}}
 
-Analise os documentos disponíveis usando a ferramenta de busca de arquivos e forneça um feedback detalhado com base no prompt do sistema.
+Analise os documentos disponíveis e forneça um feedback detalhado com base no prompt do sistema.
 
 Os documentos para análise são:
 {{#each documents}}

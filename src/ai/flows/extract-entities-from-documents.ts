@@ -46,9 +46,8 @@ const extractEntitiesPrompt = ai.definePrompt({
     format: 'json',
     schema: ExtractEntitiesFromDocumentsOutputSchema,
   },
-  tools: ['fileSearch'],
   prompt: `Instrução:
-Analise os documentos fornecidos usando a ferramenta de busca de arquivos e identifique todas as informações variáveis — ou seja, elementos que mudariam entre versões diferentes do mesmo tipo de documento.
+Analise os documentos fornecidos e identifique todas as informações variáveis — ou seja, elementos que mudariam entre versões diferentes do mesmo tipo de documento.
 
 Os documentos para análise são:
 {{#each documents}}

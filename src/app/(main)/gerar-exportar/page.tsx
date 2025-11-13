@@ -75,10 +75,14 @@ function ContractsTable({
                        <Checkbox
                             checked={selectedContracts.length === contracts.length && contracts.length > 0}
                             onCheckedChange={(checked) => {
-                                contracts.forEach(c => {
-                                    if(checked && !selectedContracts.includes(c.id)) onSelectionChange(c.id);
-                                    if(!checked && selectedContracts.includes(c.id)) onSelectionChange(c.id);
-                                })
+                                if (checked) {
+                                    const allIds = contracts.map(c => c.id);
+                                    allIds.forEach(id => {
+                                        if (!selectedContracts.includes(id)) onSelectionChange(id);
+                                    });
+                                } else {
+                                    selectedContracts.forEach(id => onSelectionChange(id));
+                                }
                             }}
                         />
                     </TableHead>
@@ -148,11 +152,16 @@ export default function GerarExportarPage() {
   }, [user, firestore]);
 
   const { data: contracts, isLoading } = useCollection<Omit<Contract, 'id'>>(filledContractsQuery);
+
+  const sortedContracts = useMemo(() => {
+    if (!contracts) return null;
+    return [...contracts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [contracts]);
   
   const comparisonContracts = useMemo(() => {
-    if (!contracts) return [];
-    return contracts.filter(c => selectedForComparison.includes(c.id));
-  }, [contracts, selectedForComparison]);
+    if (!sortedContracts) return [];
+    return sortedContracts.filter(c => selectedForComparison.includes(c.id));
+  }, [sortedContracts, selectedForComparison]);
 
   const handleEdit = (id: string) => {
     router.push(`/preencher/${id}`);
@@ -187,7 +196,7 @@ export default function GerarExportarPage() {
   }
 
   const handleExportSelected = () => {
-    if (selectedForComparison.length === 0 || !contracts) {
+    if (selectedForComparison.length === 0 || !sortedContracts) {
         toast({
             variant: "destructive",
             title: "Nenhum contrato selecionado",
@@ -196,26 +205,24 @@ export default function GerarExportarPage() {
         return;
     }
 
-    const selectedContracts = contracts.filter(c => selectedForComparison.includes(c.id));
+    const selectedContractsData = sortedContracts.filter(c => selectedForComparison.includes(c.id));
 
-    selectedContracts.forEach(contract => {
+    selectedContractsData.forEach(contract => {
         if (!contract.markdownContent) {
             console.warn(`Contrato '${contract.name}' (ID: ${contract.id}) ignorado por não ter conteúdo.`);
-            return; // Pula para a próxima iteração
+            return;
         }
         
-        // Export Markdown
         const cleanedContent = contract.markdownContent.replace(/<span class="[^"]*">/g, '').replace(/<\/span>/g, '');
-        const mdBlob = new Blob([cleanedContent], { type: "text/markdown;charset=utf-8" });
+        const mdBlob = new Blob([cleanedContent], { type: "text/markdown;charset=utf-t" });
         saveAs(mdBlob, `${contract.name.replace(/\s/g, '_')}.md`);
 
-        // Export Docx
         exportToDocx(contract.markdownContent, contract.name.replace(/\s/g, '_'));
     });
 
     toast({
         title: "Exportação iniciada!",
-        description: `${selectedContracts.length} contrato(s) estão sendo baixados.`
+        description: `${selectedContractsData.length} contrato(s) estão sendo baixados.`
     });
   };
 
@@ -255,7 +262,7 @@ export default function GerarExportarPage() {
         
         <div className="border rounded-lg">
             <ContractsTable 
-                contracts={contracts as (Contract & { id: string; })[] | null}
+                contracts={sortedContracts as (Contract & { id: string; })[] | null}
                 isLoading={isLoading}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
@@ -280,3 +287,5 @@ export default function GerarExportarPage() {
     </>
   );
 }
+
+    

@@ -1,11 +1,17 @@
 
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { FileText, DraftingCompass, UploadCloud, GitCompareArrows } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function ComeceAquiPage() {
+    const [clientName, setClientName] = useState("");
+    const [yourName, setYourName] = useState("");
+
   return (
     <div className="container relative">
       <section className="mx-auto flex max-w-4xl flex-col items-center justify-center py-12 text-center md:py-20">
@@ -15,6 +21,30 @@ export default function ComeceAquiPage() {
         <p className="mt-6 max-w-2xl text-muted-foreground sm:text-xl">
           Sua ferramenta inteligente para criar, gerenciar e preencher minutas de contratos de cooperação de forma rápida e eficiente.
         </p>
+
+        <div className="mt-8 w-full max-w-sm space-y-4">
+            <div className="grid w-full items-center gap-1.5 text-left">
+                <Label htmlFor="client-name">Cliente</Label>
+                <Input 
+                    type="text" 
+                    id="client-name" 
+                    placeholder="Nome do cliente"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                />
+            </div>
+            <div className="grid w-full items-center gap-1.5 text-left">
+                <Label htmlFor="your-name">Seu nome</Label>
+                <Input 
+                    type="text" 
+                    id="your-name" 
+                    placeholder="Seu nome completo"
+                    value={yourName}
+                    onChange={(e) => setYourName(e.target.value)}
+                />
+            </div>
+        </div>
+
         <div className="mt-8 flex flex-wrap justify-center gap-4">
             <Button size="lg" asChild>
                 <Link href="/documentos-iniciais">Começar a Gerar um Contrato</Link>

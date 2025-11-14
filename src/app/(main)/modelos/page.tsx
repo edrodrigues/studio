@@ -4,7 +4,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { Plus, File as FileIcon, Trash2, Copy, Check } from "lucide-react";
-import { collection, doc } from "firebase/firestore";
+import { collection, doc, addDoc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { type Template } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase";
-import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { setDocumentNonBlocking, deleteDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 
 const INSTRUCTIONS_PROMPT = `Você é um especialista em criar modelos de documentos. Analise o contrato preenchido abaixo e crie um modelo genérico em formato Markdown.
@@ -181,15 +181,15 @@ export default function ModelosPage() {
         }
     }, [isLoading, templates, selectedTemplateId, editingTemplate]);
 
-    // Effect to load the selected template into the editor
+    // Effect to load the selected template into the editor for editing an existing one
     useEffect(() => {
-        if (selectedTemplateId && templates) {
+        if (selectedTemplateId && templates && !editingTemplate?.isNew) {
             const templateToEdit = templates.find(t => t.id === selectedTemplateId);
             if (templateToEdit) {
                 setEditingTemplate(JSON.parse(JSON.stringify(templateToEdit))); // Deep copy
             }
         }
-    }, [selectedTemplateId, templates]);
+    }, [selectedTemplateId, templates, editingTemplate?.isNew]);
     
     const templateForPreview = useMemo(() => {
         // Preview should always show the content from the editor if it's open
@@ -204,13 +204,13 @@ export default function ModelosPage() {
     }, []);
 
     const handleNewTemplate = useCallback(() => {
-        const newId = `template-${Date.now()}`;
         const newTemplate: Template = {
-            id: newId,
+            id: `new-${Date.now()}`, // Temporary ID for a new template
             name: "Novo Modelo sem Título",
             description: "",
             markdownContent: "# Novo Modelo\n\nComece a editar...",
             googleDocLink: "",
+            isNew: true,
         };
         startEditing(newTemplate);
     }, [startEditing]);
@@ -229,12 +229,11 @@ export default function ModelosPage() {
         }
     }, [editingTemplate]);
 
-    const handleSaveTemplate = useCallback(() => {
+    const handleSaveTemplate = useCallback(async () => {
         if (!editingTemplate || !user || !firestore) return;
 
-        const { id, ...templateData } = editingTemplate;
+        const { id, isNew, ...templateData } = editingTemplate;
         
-        // Ensure all fields are present for saving
         const templateToSave = {
             name: templateData.name,
             description: templateData.description,
@@ -242,14 +241,26 @@ export default function ModelosPage() {
             googleDocLink: templateData.googleDocLink || "",
         };
 
-        const templateRef = doc(firestore, 'users', user.uid, 'contractModels', id);
-
-        setDocumentNonBlocking(templateRef, templateToSave, { merge: true });
-
-        toast({
-            title: "Modelo Salvo!",
-            description: `O modelo "${editingTemplate.name}" foi salvo com sucesso.`,
-        });
+        if (isNew) {
+            // Add new document
+            const collectionRef = collection(firestore, 'users', user.uid, 'contractModels');
+            const newDocRef = await addDocumentNonBlocking(collectionRef, templateToSave);
+            toast({
+                title: "Modelo Criado!",
+                description: `O modelo "${templateToSave.name}" foi salvo com sucesso.`,
+            });
+            if (newDocRef) {
+                setSelectedTemplateId(newDocRef.id);
+            }
+        } else {
+            // Update existing document
+            const templateRef = doc(firestore, 'users', user.uid, 'contractModels', id);
+            setDocumentNonBlocking(templateRef, templateToSave, { merge: true });
+            toast({
+                title: "Modelo Salvo!",
+                description: `O modelo "${templateToSave.name}" foi salvo com sucesso.`,
+            });
+        }
         
         // Exit editing mode
         setEditingTemplate(null);

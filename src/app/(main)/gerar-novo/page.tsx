@@ -43,7 +43,7 @@ function EntitiesCard({ entities, isLoading }: { entities: Record<string, any> |
                         Nenhuma Entidade Encontrada
                     </CardTitle>
                     <CardDescription>
-                       Vá para a aba "Documentos Iniciais", carregue seus arquivos e clique em "Indexar Documentos" para extrair as entidades.
+                       Vá para a aba "Documentos Iniciais", carregue seus arquivos e clique em "Extrair Entidades dos Documentos" para extrair as entidades.
                     </CardDescription>
                 </CardHeader>
             </Card>
@@ -216,12 +216,18 @@ export default function GerarNovoContratoPage() {
             try {
                 let filledContent = selectedTemplate.markdownContent;
                 if (storedEntities) {
-                    const placeholders = filledContent.match(/{{(.*?)}}/g) || [];
+                    const placeholders = filledContent.match(/{{(.*?)}}|<(.*?)>/g) || [];
                     
+                    const caseInsensitiveEntities = Object.entries(storedEntities.entities).reduce((acc, [key, value]) => {
+                        acc[key.toLowerCase()] = value;
+                        return acc;
+                    }, {} as Record<string, any>);
+
                     placeholders.forEach(placeholder => {
-                        const key = placeholder.replace(/{{|}}/g, '').trim();
-                        if (Object.prototype.hasOwnProperty.call(storedEntities.entities, key)) {
-                            filledContent = filledContent.replace(new RegExp(placeholder, 'g'), String(storedEntities.entities[key]));
+                        const key = placeholder.replace(/{{|}}|'<'|'>'/g, '').trim().toLowerCase();
+                        
+                        if (Object.prototype.hasOwnProperty.call(caseInsensitiveEntities, key)) {
+                            filledContent = filledContent.replace(new RegExp(placeholder, 'g'), String(caseInsensitiveEntities[key]));
                         } else {
                             const highlightedPlaceholder = `<span class="bg-yellow-200 text-yellow-800 font-mono px-1 py-0.5 rounded text-xs">${placeholder}</span>`;
                             filledContent = filledContent.replace(new RegExp(placeholder, 'g'), highlightedPlaceholder);

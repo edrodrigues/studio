@@ -38,7 +38,7 @@ export default function ComeceAquiPage() {
                 <Input 
                     type="text" 
                     id="your-name" 
-                    placeholder="Seu nome completo"
+                    placeholder="Pessoa preenchendo o projeto"
                     value={yourName}
                     onChange={(e) => setYourName(e.target.value)}
                 />

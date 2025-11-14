@@ -1,16 +1,18 @@
 
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { FileText, DraftingCompass, UploadCloud, GitCompareArrows } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import useLocalStorage from "@/hooks/use-local-storage";
 
 export default function ComeceAquiPage() {
-    const [clientName, setClientName] = useState("");
-    const [yourName, setYourName] = useState("");
+    const [clientName, setClientName] = useLocalStorage("clientName", "");
+    const [yourName, setYourName] = useLocalStorage("yourName", "");
+
+    const areFieldsFilled = clientName.trim() !== "" && yourName.trim() !== "";
 
   return (
     <div className="container relative">
@@ -31,6 +33,7 @@ export default function ComeceAquiPage() {
                     placeholder="Nome do cliente"
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
+                    required
                 />
             </div>
             <div className="grid w-full items-center gap-1.5 text-left">
@@ -41,12 +44,13 @@ export default function ComeceAquiPage() {
                     placeholder="Pessoa preenchendo o projeto"
                     value={yourName}
                     onChange={(e) => setYourName(e.target.value)}
+                    required
                 />
             </div>
         </div>
 
         <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Button size="lg" asChild>
+            <Button size="lg" asChild={areFieldsFilled} disabled={!areFieldsFilled}>
                 <Link href="/documentos-iniciais">Começar a Gerar um Contrato</Link>
             </Button>
             <Button size="lg" variant="outline" asChild>

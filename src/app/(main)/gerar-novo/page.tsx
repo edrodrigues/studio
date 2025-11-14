@@ -150,6 +150,7 @@ export default function GerarNovoContratoPage() {
   const { user } = useUser();
   const { firestore } = useFirebase();
   const [storedEntities] = useLocalStorage<Record<string, any> | null>("extractedEntities", null);
+  const [clientName] = useLocalStorage("clientName", "Cliente não especificado");
   const { toast } = useToast();
   const router = useRouter();
   const [isGenerating, startGeneration] = useTransition();
@@ -214,19 +215,19 @@ export default function GerarNovoContratoPage() {
 
             try {
                 let filledContent = selectedTemplate.markdownContent;
-                const placeholders = filledContent.match(/{{(.*?)}}/g) || [];
-                
-                placeholders.forEach(placeholder => {
-                    const key = placeholder.replace(/{{|}}/g, '').trim();
-                    if (storedEntities && Object.prototype.hasOwnProperty.call(storedEntities, key)) {
-                        filledContent = filledContent.replace(new RegExp(placeholder, 'g'), String(storedEntities[key]));
-                    } else {
-                        const highlightedPlaceholder = `<span class="bg-yellow-200 text-yellow-800 font-mono px-1 py-0.5 rounded text-xs">${placeholder}</span>`;
-                        filledContent = filledContent.replace(new RegExp(placeholder, 'g'), highlightedPlaceholder);
-                    }
-                });
-                
-                const clientName = storedEntities?.NOME_DA_ENTIDADE_PARCEIRA || 'Cliente não especificado';
+                if (storedEntities) {
+                    const placeholders = filledContent.match(/{{(.*?)}}/g) || [];
+                    
+                    placeholders.forEach(placeholder => {
+                        const key = placeholder.replace(/{{|}}/g, '').trim();
+                        if (Object.prototype.hasOwnProperty.call(storedEntities.entities, key)) {
+                            filledContent = filledContent.replace(new RegExp(placeholder, 'g'), String(storedEntities.entities[key]));
+                        } else {
+                            const highlightedPlaceholder = `<span class="bg-yellow-200 text-yellow-800 font-mono px-1 py-0.5 rounded text-xs">${placeholder}</span>`;
+                            filledContent = filledContent.replace(new RegExp(placeholder, 'g'), highlightedPlaceholder);
+                        }
+                    });
+                }
 
                 const newContract = {
                     contractModelId: selectedTemplate.id,
@@ -295,7 +296,7 @@ export default function GerarNovoContratoPage() {
       <div className="mt-12 mx-auto max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
         <div className="space-y-6">
             <h2 className="text-xl font-semibold">1. Entidades para Preenchimento</h2>
-            <EntitiesCard entities={storedEntities} isLoading={!isClient} />
+            <EntitiesCard entities={storedEntities?.entities ?? null} isLoading={!isClient} />
         </div>
 
         <div className="space-y-6">

@@ -29,7 +29,8 @@ export function ContractPreviewModal({ contract, isOpen, onClose }: ContractPrev
     if (!contract) return null;
 
     const handleExportMD = () => {
-        const cleanedContent = contract.markdownContent.replace(/<span class="[^"]*">/g, '').replace(/<\/span>/g, '');
+        // Removes any HTML-like tags for a clean markdown export.
+        const cleanedContent = contract.markdownContent.replace(/<[^>]*>?/gm, '');
         const blob = new Blob([cleanedContent], { type: "text/markdown;charset=utf-8" });
         saveAs(blob, `${contract.name.replace(/\s/g, '_')}.md`);
     };
@@ -37,6 +38,11 @@ export function ContractPreviewModal({ contract, isOpen, onClose }: ContractPrev
     const handleExportDocx = () => {
         exportToDocx(contract.markdownContent, contract.name.replace(/\s/g, '_'));
     };
+
+    // Sanitize content for preview by removing non-standard HTML tags that React can't render,
+    // but keep our specific highlighting spans.
+    const previewContent = contract.markdownContent.replace(/<(?!\/?span\b)[^>]*>/gi, '');
+
     
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -53,7 +59,7 @@ export function ContractPreviewModal({ contract, isOpen, onClose }: ContractPrev
                             rehypePlugins={[rehypeRaw]}
                             className="prose prose-sm max-w-none dark:prose-invert"
                         >
-                            {contract.markdownContent}
+                            {previewContent}
                         </ReactMarkdown>
                     </div>
                 </ScrollArea>

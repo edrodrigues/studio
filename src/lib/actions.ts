@@ -1,3 +1,4 @@
+
 'use server';
 import 'dotenv/config';
 
@@ -113,7 +114,7 @@ const extractEntitiesSchema = z.object({
   documents: z.array(fileObjectSchema),
 });
 
-export async function handleExtractEntities(input: {
+export async function handleExtractEntitiesAction(input: {
   documents: {name: string; dataUri: string}[];
 }) {
   try {

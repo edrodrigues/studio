@@ -83,10 +83,10 @@ export function EntitiesPreviewModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Entidades Extraídas</DialogTitle>
+          <DialogTitle>Revisar Entidades Extraídas</DialogTitle>
           <DialogDescription>
-            Abaixo estão as entidades que a IA extraiu e descreveu dos seus
-            documentos. Você pode revisar e exportar o resultado.
+            Abaixo estão as variáveis que a IA extraiu e descreveu dos seus
+            documentos. Revise os dados antes de prosseguir para a geração do contrato.
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="flex-1 rounded-md border bg-muted/50 p-4">

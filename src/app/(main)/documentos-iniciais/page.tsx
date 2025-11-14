@@ -1,3 +1,4 @@
+
 'use client';
 
 import {useState, useTransition} from 'react';
@@ -5,7 +6,7 @@ import {FileText, Clock, CircleDollarSign, Loader2} from 'lucide-react';
 
 import {Button} from '@/components/ui/button';
 import {FileUploader} from '@/components/app/file-uploader';
-import {handleExtractEntities} from '@/lib/actions';
+import {handleExtractEntitiesAction} from '@/lib/actions';
 import {useToast} from '@/hooks/use-toast';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
 import {Label} from '@/components/ui/label';
@@ -32,7 +33,7 @@ export default function DocumentosIniciaisPage() {
   });
   const [contractType, setContractType] = useState<string>('');
   const [processType, setProcessType] = useState<string>('');
-  const [isPending, startTransition] = useTransition();
+  const [isExtracting, startTransition] = useTransition();
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackFiles, setFeedbackFiles] = useState<UploadedFile[]>([]);
   const [isEntitiesModalOpen, setIsEntitiesModalOpen] = useState(false);
@@ -72,12 +73,12 @@ export default function DocumentosIniciaisPage() {
           toast({
             variant: 'destructive',
             title: 'Nenhum arquivo',
-            description: 'Carregue ao menos um documento para indexar.',
+            description: 'Carregue ao menos um documento para extrair as entidades.',
           });
           return;
         }
 
-        const result = await handleExtractEntities({documents: uploadedFiles});
+        const result = await handleExtractEntitiesAction({documents: uploadedFiles});
 
         if (result.success && result.data?.extractedJson) {
           const entitiesJson = result.data.extractedJson;
@@ -116,9 +117,7 @@ export default function DocumentosIniciaisPage() {
             Analise os documentos iniciais
           </h1>
           <p className="mt-4 max-w-xl text-muted-foreground sm:text-lg">
-            Analise os documentos iniciais com a IA e depois clique em "Indexar
-            Documentos" para que eles sejam usados de contexto para os demais
-            documentos.
+            Analise os documentos iniciais com a IA e depois clique em "Extrair Entidades" para que as variáveis sejam identificadas e usadas de contexto para os demais documentos.
           </p>
         </section>
 
@@ -210,15 +209,15 @@ export default function DocumentosIniciaisPage() {
           <Button
             size="lg"
             onClick={handleSubmit}
-            disabled={!hasAtLeastOneFile || isPending}
+            disabled={!hasAtLeastOneFile || isExtracting}
           >
-            {isPending ? (
+            {isExtracting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Indexando...
+                Extraindo...
               </>
             ) : (
-              'Indexar Documentos'
+              'Extrair Entidades'
             )}
           </Button>
         </section>

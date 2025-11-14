@@ -1,9 +1,9 @@
 
 "use client";
 
-import { useState, useMemo, useCallback, useRef, useTransition, useEffect } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { Plus, Upload, File as FileIcon, Trash2, Wand2, Loader2, Check } from "lucide-react";
+import { Plus, File as FileIcon, Trash2, Copy, Check } from "lucide-react";
 import { collection, doc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
@@ -14,112 +14,74 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { type Template } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { handleExtractTemplate } from "@/lib/actions";
 import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase";
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
-const fileToDataURI = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
-};
 
-function TemplateExtractor({ onTemplateExtracted }: { onTemplateExtracted: (template: Template) => void }) {
-    const [file, setFile] = useState<File | null>(null);
-    const [isPending, startTransition] = useTransition();
-    const fileInputRef = useRef<HTMLInputElement>(null);
+const INSTRUCTIONS_PROMPT = `Você é um especialista em criar modelos de documentos. Analise o contrato preenchido abaixo e crie um modelo genérico em formato Markdown.
+
+Sua tarefa é identificar as partes que são variáveis (como nomes, datas, valores, descrições específicas) e substituí-las por placeholders no formato {{NOME_DA_VARIAVEL_EM_MAIUSCULAS}}.
+
+O output deve ser APENAS o texto do modelo em Markdown, usando cabeçalhos de nível 1 (# TÍTULO DA CLÁUSULA) para cada cláusula. Não adicione nenhuma explicação extra.
+
+Conteúdo do Contrato:
+[COLE SEU CONTEÚDO DE CONTRATO AQUI]
+`;
+
+function InstructionsCard() {
     const { toast } = useToast();
+    const [hasCopied, setHasCopied] = useState(false);
 
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = event.target.files?.[0];
-        if (selectedFile) {
-            setFile(selectedFile);
-        }
-    };
-    
-    const handleExtract = () => {
-        if (!file) {
-            toast({
-                title: "Nenhum arquivo selecionado",
-                description: "Por favor, carregue um arquivo para extrair o modelo.",
-                variant: "destructive",
-            });
-            return;
-        }
-
-        startTransition(async () => {
-            try {
-                const dataUri = await fileToDataURI(file);
-                const formData = new FormData();
-                formData.append("document", dataUri);
-                formData.append("fileName", file.name);
-
-                const result = await handleExtractTemplate(formData);
-
-                if (result.success && result.data?.templateContent) {
-                    const newTemplate: Template = {
-                        id: `template-${Date.now()}`,
-                        name: `Modelo de ${file.name.replace(/\.[^/.]+$/, "")}`,
-                        description: `Extraído de ${file.name}`,
-                        markdownContent: result.data.templateContent,
-                    };
-                    onTemplateExtracted(newTemplate);
-                    toast({
-                        title: "Modelo Extraído!",
-                        description: "O modelo foi carregado no editor abaixo.",
-                    });
-                    setFile(null); // Clear file after extraction
-                } else {
-                    throw new Error(result.error || "Falha ao extrair o modelo do documento.");
-                }
-
-            } catch (error) {
-                console.error(error);
-                toast({
-                    variant: "destructive",
-                    title: "Erro na Extração",
-                    description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido.",
-                });
-            }
+    const handleCopyPrompt = () => {
+        navigator.clipboard.writeText(INSTRUCTIONS_PROMPT).then(() => {
+            setHasCopied(true);
+            toast({ title: "Prompt copiado para a área de transferência!" });
+            setTimeout(() => setHasCopied(false), 3000);
         });
     };
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Extrair Modelo de Documento com IA</CardTitle>
+                <CardTitle>Instruções para Gerar Modelo com ChatGPT</CardTitle>
                 <CardDescription>
-                    Faça o upload de um contrato existente (PDF, DOCX) e a IA criará um modelo genérico para você.
+                    Siga os passos abaixo para criar um modelo de contrato usando uma IA externa como o ChatGPT.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col sm:flex-row items-center gap-4">
-                 <input
-                    type="file"
-                    className="hidden"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept=".pdf,.doc,.docx"
-                />
-                <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full sm:w-auto">
-                    {file ? <Check className="mr-2 h-4 w-4" /> : <Upload className="mr-2 h-4 w-4" />}
-                    {file ? (file.name.length > 20 ? `${file.name.slice(0,17)}...` : file.name) : "Carregar Documento"}
-                </Button>
-                <Button onClick={handleExtract} disabled={isPending || !file} className="w-full sm:w-auto">
-                    {isPending ? (
-                        <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Extraindo...
-                        </>
-                    ) : (
-                        <>
-                            <Wand2 className="mr-2 h-4 w-4" />
-                            Extrair Modelo
-                        </>
-                    )}
-                </Button>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label>1. Copie o Prompt</Label>
+                    <p className="text-xs text-muted-foreground">
+                        Use o prompt abaixo como base para sua solicitação no ChatGPT.
+                    </p>
+                    <div className="relative">
+                        <Textarea
+                            readOnly
+                            value={INSTRUCTIONS_PROMPT}
+                            className="h-32 resize-none font-mono text-xs"
+                        />
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="absolute right-2 top-2"
+                            onClick={handleCopyPrompt}
+                        >
+                            {hasCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <Label>2. Gere o Modelo no ChatGPT</Label>
+                    <p className="text-xs text-muted-foreground">
+                        Abra o <a href="https://chatgpt.com/" target="_blank" rel="noreferrer" className="underline font-semibold">ChatGPT</a>, cole o prompt e, em seguida, cole o conteúdo do seu contrato no local indicado.
+                    </p>
+                </div>
+                 <div className="space-y-2">
+                    <Label>3. Crie e Cole o Modelo</Label>
+                    <p className="text-xs text-muted-foreground">
+                        Clique em "Novo Modelo", cole o resultado gerado pela IA no campo "Conteúdo do Modelo" e salve.
+                    </p>
+                </div>
             </CardContent>
         </Card>
     );
@@ -319,10 +281,6 @@ export default function ModelosPage() {
         }
     }, [selectedTemplateId, editingTemplate, user, firestore, templates, toast]);
     
-    const handleTemplateExtracted = useCallback((newTemplate: Template) => {
-        startEditing(newTemplate);
-    }, [startEditing]);
-
     const isEditing = !!editingTemplate;
 
     return (
@@ -374,7 +332,7 @@ export default function ModelosPage() {
             {/* Main Content */}
             <main className="w-1/2 p-8 overflow-y-auto">
                 <div className="space-y-8">
-                     <TemplateExtractor onTemplateExtracted={handleTemplateExtracted} />
+                     <InstructionsCard />
                     {isEditing ? (
                         <TemplateEditor
                             template={editingTemplate}

@@ -3,7 +3,6 @@ import 'dotenv/config';
 
 import {generateContractFromDocuments} from '@/ai/flows/generate-contract-from-documents';
 import {getAssistanceFromGemini} from '@/ai/flows/get-assistance-from-gemini';
-import {extractTemplateFromDocument} from '@/ai/flows/extract-template-from-document';
 import {getDocumentFeedback} from '@/ai/flows/get-document-feedback';
 import {extractEntitiesFromDocuments} from '@/ai/flows/extract-entities-from-documents';
 import {z} from 'zod';
@@ -67,42 +66,6 @@ export async function handleGetAssistance(input: {
   } catch (error) {
     console.error('Error getting assistance:', error);
     return {success: false, error: 'Falha ao obter assistência.'};
-  }
-}
-
-const extractTemplateSchema = z.object({
-  documentContent: z.string(),
-});
-
-export async function handleExtractTemplate(formData: FormData) {
-  try {
-    const dataUri = formData.get('document') as string;
-
-    if (!dataUri || !dataUri.startsWith('data:')) {
-      return {
-        success: false,
-        error: 'URI de documento inválido ou ausente.',
-      };
-    }
-
-    const documentContent = dataUri;
-
-    const validatedData = extractTemplateSchema.safeParse({
-      documentContent: documentContent,
-    });
-
-    if (!validatedData.success) {
-      console.error('Validation failed', validatedData.error.flatten());
-      return {success: false, error: 'Conteúdo do documento inválido.'};
-    }
-
-    const result = await extractTemplateFromDocument(validatedData.data);
-    return {success: true, data: result};
-  } catch (error) {
-    console.error('Error extracting template:', error);
-    const errorMessage =
-      error instanceof Error ? error.message : 'Falha ao extrair o modelo.';
-    return {success: false, error: errorMessage};
   }
 }
 

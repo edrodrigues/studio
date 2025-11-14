@@ -213,8 +213,8 @@ export default function GerarExportarPage() {
             return;
         }
         
-        const cleanedContent = contract.markdownContent.replace(/<span class="[^"]*">/g, '').replace(/<\/span>/g, '');
-        const mdBlob = new Blob([cleanedContent], { type: "text/markdown;charset=utf-t" });
+        const cleanedContent = contract.markdownContent.replace(/<[^>]*>?/gm, '');
+        const mdBlob = new Blob([cleanedContent], { type: "text/markdown;charset=utf-8" });
         saveAs(mdBlob, `${contract.name.replace(/\s/g, '_')}.md`);
 
         exportToDocx(contract.markdownContent, contract.name.replace(/\s/g, '_'));

@@ -10,7 +10,7 @@ const navLinks = [
   { href: "/", label: "Comece Aqui" },
   { href: "/documentos-iniciais", label: "Documentos Iniciais" },
   { href: "/modelos", label: "Gerenciar Modelos" },
-  { href: "/gerar-novo", label: "Gerar Contratos" },
+  { href: "/gerar-novo", label: "Gerar Documentos" },
   { href: "/gerar-exportar", label: "Revisar Contratos" },
 ];
 

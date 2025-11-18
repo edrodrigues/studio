@@ -79,9 +79,9 @@ export default function ComeceAquiPage() {
                     <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary mb-4">
                         <FileText size={32} />
                     </div>
-                    <h3 className="text-xl font-semibold">2. Gerar Contratos</h3>
+                    <h3 className="text-xl font-semibold">2. Gerar Documentos</h3>
                     <p className="mt-2 text-muted-foreground">
-                        Selecione modelos e use as entidades extraídas para gerar novas minutas de contrato preenchidas com IA na aba "Gerar Contratos".
+                        Selecione modelos e use as entidades extraídas para gerar novos documentos preenchidos com IA na aba "Gerar Documentos".
                     </p>
                 </div>
                 <div className="flex flex-col items-center text-center">

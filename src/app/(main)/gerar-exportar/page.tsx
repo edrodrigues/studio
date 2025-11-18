@@ -62,7 +62,7 @@ function ContractsTable({
             <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 border border-dashed rounded-lg">
                 <FilePlus2 className="h-8 w-8 mb-4" />
                 <p className="font-semibold">Nenhum contrato gerado ainda</p>
-                <p className="text-sm">Vá para a aba "Gerar Contratos" para começar.</p>
+                <p className="text-sm">Vá para a aba "Gerar Documentos" para começar.</p>
             </div>
         )
     }

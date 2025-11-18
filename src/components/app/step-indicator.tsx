@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 const steps = [
   { href: "/", label: "Comece Aqui", icon: Home },
   { href: "/documentos-iniciais", label: "Documentos Iniciais", icon: FileUp },
-  { href: "/gerar-novo", label: "Gerar Contratos", icon: FilePlus },
+  { href: "/gerar-novo", label: "Gerar Documentos", icon: FilePlus },
   { href: "/gerar-exportar", label: "Revisar Contratos", icon: CheckCircle },
 ];
 

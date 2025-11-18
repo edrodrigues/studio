@@ -254,7 +254,7 @@ export default function GerarNovoContratoPage() {
                 console.error(`Error generating contract for template ${templateId}:`, error);
                 toast({
                     variant: "destructive",
-                    title: `Erro ao Gerar Contrato para ${selectedTemplate.name}`,
+                    title: `Erro ao Gerar Documento para ${selectedTemplate.name}`,
                     description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido.",
                 });
             }
@@ -265,14 +265,14 @@ export default function GerarNovoContratoPage() {
         if (generatedCount > 0) {
             toast({
                 title: "Geração Concluída!",
-                description: `${generatedCount} de ${selectedTemplateIds.length} contratos foram gerados com sucesso.`,
+                description: `${generatedCount} de ${selectedTemplateIds.length} documentos foram gerados com sucesso.`,
             });
             router.push('/gerar-exportar');
         } else {
             toast({
                 variant: "destructive",
-                title: "Nenhum Contrato Gerado",
-                description: `Não foi possível gerar nenhum dos contratos selecionados.`,
+                title: "Nenhum Documento Gerado",
+                description: `Não foi possível gerar nenhum dos documentos selecionados.`,
             });
         }
     });
@@ -284,7 +284,7 @@ export default function GerarNovoContratoPage() {
         const totalCount = generationStatus.total;
         return `Gerando ${completedCount + 1} de ${totalCount}...`;
     }
-    return 'Gerar Contratos com IA';
+    return 'Gerar Documentos com IA';
   }
 
 
@@ -292,10 +292,10 @@ export default function GerarNovoContratoPage() {
     <div className="container py-12">
       <div className="mx-auto max-w-3xl text-center">
         <h1 className="text-3xl font-bold leading-tight tracking-tighter md:text-5xl lg:leading-[1.1]">
-          Gerar Contratos
+          Gerar Documentos
         </h1>
         <p className="mt-4 max-w-xl mx-auto text-muted-foreground sm:text-lg">
-          Selecione um ou mais modelos e use as entidades extraídas para gerar novas minutas de contrato preenchidas com IA.
+          Selecione um ou mais modelos e use as entidades extraídas para gerar novos documentos preenchidos com IA.
         </p>
       </div>
       
@@ -337,7 +337,7 @@ export default function GerarNovoContratoPage() {
                 )}
             </Button>
             <p className="text-xs text-muted-foreground">
-                Os contratos serão salvos e você será redirecionado para a lista de revisão.
+                Os documentos serão salvos e você será redirecionado para a lista de revisão.
             </p>
         </section>
     </div>

@@ -45,7 +45,7 @@ const generateContractPrompt = ai.definePrompt({
   input: {schema: GenerateContractFromDocumentsInputSchema},
   output: {schema: GenerateContractFromDocumentsOutputSchema},
   prompt: `Você é um especialista em direito administrativo e contratos de cooperação.
-Com base nos documentos disponíveis (Plano de Trabalho, Termo de Execução, Planilha de Orçamento), gere uma minuta de contrato completa em Markdown, estruturada e pronta para ser preenchida. Utilize os dados dos documentos para preencher os campos relevantes do contrato.
+Com base nos documentos disponíveis (Plano de Trabalho, Termo de Execução, Planilha Orçamentária), gere uma minuta de contrato completa em Markdown, estruturada e pronta para ser preenchida. Utilize os dados dos documentos para preencher os campos relevantes do contrato.
 
 Os documentos para análise são:
 {{#each documents}}

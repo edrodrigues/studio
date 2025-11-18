@@ -197,7 +197,7 @@ export default function DocumentosIniciaisPage() {
           />
           <FileUploader
             icon={<CircleDollarSign size={24} />}
-            title="Planilha de Orçamento"
+            title="Planilha Orçamentária"
             description="Valores e distribuição de recursos."
             onFileSelect={handleFileSelect('budgetSpreadsheet')}
             onFeedbackClick={() => handleFeedbackClick(files.budgetSpreadsheet)}

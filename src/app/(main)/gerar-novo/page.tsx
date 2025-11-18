@@ -1,10 +1,10 @@
 
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { collection, addDoc } from "firebase/firestore";
-import { File, Loader2, Wand2, AlertTriangle, ArrowRight, CheckCircle } from "lucide-react";
+import { File, Loader2, Wand2, AlertTriangle, ArrowRight, CheckCircle, Filter } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { type Template } from "@/lib/types";
@@ -16,6 +16,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
+const contractTypeOptions = [
+    "TED",
+    "Acordo de Parceria (Lei de Inovação)",
+    "Acordo de Parceria (Embrapii)",
+    "Contrato de Extensão Tecnológica (Prestação de Serviços Técnicos)"
+];
 
 function EntitiesCard({ entities, isLoading }: { entities: Record<string, any> | null, isLoading: boolean }) {
     if (isLoading) {
@@ -95,7 +101,7 @@ function TemplatesList({
              <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 border border-dashed rounded-lg">
                 <File className="h-8 w-8 mb-4" />
                 <p className="font-semibold">Nenhum modelo encontrado</p>
-                <p className="text-sm">Crie um modelo na aba "Gerenciar Modelos" para começar.</p>
+                <p className="text-sm">Crie um modelo na aba "Gerenciar Modelos" ou ajuste seus filtros.</p>
             </div>
         )
     }
@@ -166,12 +172,29 @@ export default function GerarNovoContratoPage() {
     setIsClient(true);
   }, []);
 
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+
   const templatesQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return collection(firestore, 'users', user.uid, 'contractModels');
   }, [user, firestore]);
 
   const { data: templates, isLoading } = useCollection<Template>(templatesQuery);
+
+  const filteredTemplates = useMemo(() => {
+    if (!templates) return null;
+    if (selectedFilters.length === 0) return templates;
+    return templates.filter(template => 
+      template.contractTypes?.some(type => selectedFilters.includes(type))
+    );
+  }, [templates, selectedFilters]);
+
+
+  const handleFilterChange = (type: string, checked: boolean) => {
+    setSelectedFilters(prev => 
+        checked ? [...prev, type] : prev.filter(f => f !== type)
+    );
+  };
 
   const handleSelectionChange = (id: string) => {
     setSelectedTemplateIds(prev =>
@@ -307,8 +330,28 @@ export default function GerarNovoContratoPage() {
 
         <div className="space-y-6">
             <h2 className="text-xl font-semibold">2. Escolha os Modelos</h2>
+             <Card>
+                <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                        <Filter className="h-4 w-4"/>
+                        Filtrar por Tipo de Contrato
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-x-6 gap-y-4">
+                     {contractTypeOptions.map(type => (
+                        <div key={type} className="flex items-center gap-2">
+                            <Checkbox
+                                id={`filter-${type}`}
+                                checked={selectedFilters.includes(type)}
+                                onCheckedChange={(checked) => handleFilterChange(type, !!checked)}
+                            />
+                            <Label htmlFor={`filter-${type}`} className="font-normal text-sm">{type}</Label>
+                        </div>
+                    ))}
+                </CardContent>
+            </Card>
              <TemplatesList
-                templates={templates}
+                templates={filteredTemplates}
                 isLoading={isLoading}
                 selectedTemplateIds={selectedTemplateIds}
                 onSelectionChange={handleSelectionChange}
@@ -343,3 +386,5 @@ export default function GerarNovoContratoPage() {
     </div>
   );
 }
+
+    

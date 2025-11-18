@@ -251,7 +251,7 @@ export default function GerarExportarPage() {
                     disabled={selectedForComparison.length < 2}
                 >
                     <GitCompareArrows className="mr-2 h-5 w-5"/>
-                    Comparar com IA ({selectedForComparison.length})
+                    Analisar Documentos com IA ({selectedForComparison.length})
                 </Button>
                 <Button size="lg" onClick={handleExportSelected} disabled={selectedForComparison.length === 0}>
                     <FilePlus2 className="mr-2 h-5 w-5"/>
@@ -287,5 +287,7 @@ export default function GerarExportarPage() {
     </>
   );
 }
+
+    
 
     

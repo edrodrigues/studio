@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "ContractModel": {
@@ -26,6 +27,19 @@
         "markdownContent": {
           "type": "string",
           "description": "Markdown content of the contract model."
+        },
+        "contractTypes": {
+          "type": "array",
+          "description": "A list of contract types this model is associated with.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "TED",
+              "Acordo de Parceria (Lei de Inovação)",
+              "Acordo de Parceria (Embrapii)",
+              "Contrato de Extensão Tecnológica (Prestação de Serviços Técnicos)"
+            ]
+          }
         }
       },
       "required": [

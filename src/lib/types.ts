@@ -6,6 +6,7 @@ export interface Template {
   markdownContent: string;
   googleDocLink?: string;
   isNew?: boolean;
+  contractTypes?: string[];
 }
 
 export interface Contract {

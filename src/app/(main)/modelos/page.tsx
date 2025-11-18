@@ -16,6 +16,7 @@ import { type Template } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase";
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { Checkbox } from "@/components/ui/checkbox";
 
 
 const INSTRUCTIONS_PROMPT = `Você é um especialista em criar modelos de documentos. Analise o contrato preenchido abaixo e crie um modelo genérico em formato Markdown.
@@ -27,6 +28,13 @@ O output deve ser APENAS o texto do modelo em Markdown, usando cabeçalhos de n�
 Conteúdo do Contrato:
 [COLE SEU CONTEÚDO DE CONTRATO AQUI]
 `;
+
+const contractTypeOptions = [
+    "TED",
+    "Acordo de Parceria (Lei de Inovação)",
+    "Acordo de Parceria (Embrapii)",
+    "Contrato de Extensão Tecnológica (Prestação de Serviços Técnicos)"
+];
 
 function InstructionsCard() {
     const { toast } = useToast();
@@ -95,11 +103,19 @@ function TemplateEditor({
     onCancel,
 }: {
     template: Template | null;
-    onTemplateChange: (field: keyof Omit<Template, 'id'>, value: string) => void;
+    onTemplateChange: (field: keyof Omit<Template, 'id'>, value: string | string[]) => void;
     onSave: () => void;
     onCancel: () => void;
 }) {
     if (!template) return null;
+
+    const handleContractTypeChange = (type: string, checked: boolean) => {
+        const currentTypes = template.contractTypes || [];
+        const newTypes = checked
+            ? [...currentTypes, type]
+            : currentTypes.filter(t => t !== type);
+        onTemplateChange("contractTypes", newTypes);
+    };
 
     return (
         <div className="space-y-8">
@@ -125,6 +141,21 @@ function TemplateEditor({
                             value={template.description}
                             onChange={(e) => onTemplateChange("description", e.target.value)}
                         />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Tipo de Contrato</Label>
+                        <div className="space-y-2 rounded-md border p-4">
+                            {contractTypeOptions.map(type => (
+                                <div key={type} className="flex items-center gap-2">
+                                    <Checkbox
+                                        id={`type-${type}`}
+                                        checked={template.contractTypes?.includes(type)}
+                                        onCheckedChange={(checked) => handleContractTypeChange(type, !!checked)}
+                                    />
+                                    <Label htmlFor={`type-${type}`} className="font-normal">{type}</Label>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="template-doc-link">Link do Modelo em Google Doc (Opcional)</Label>
@@ -210,6 +241,7 @@ export default function ModelosPage() {
             description: "",
             markdownContent: "# Novo Modelo\n\nComece a editar...",
             googleDocLink: "",
+            contractTypes: [],
             isNew: true,
         };
         startEditing(newTemplate);
@@ -223,7 +255,7 @@ export default function ModelosPage() {
         setSelectedTemplateId(id);
     }, [editingTemplate]);
 
-    const handleTemplateChange = useCallback((field: keyof Omit<Template, 'id'>, value: string) => {
+    const handleTemplateChange = useCallback((field: keyof Omit<Template, 'id'>, value: string | string[]) => {
         if (editingTemplate) {
             setEditingTemplate(prev => prev ? { ...prev, [field]: value } : null);
         }
@@ -239,6 +271,7 @@ export default function ModelosPage() {
             description: templateData.description,
             markdownContent: templateData.markdownContent,
             googleDocLink: templateData.googleDocLink || "",
+            contractTypes: templateData.contractTypes || [],
         };
 
         if (isNew) {
@@ -395,3 +428,4 @@ export default function ModelosPage() {
     
 
     
+

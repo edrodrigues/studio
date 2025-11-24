@@ -1,11 +1,11 @@
-import type {Metadata} from 'next';
+import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { cn } from '@/lib/utils';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
 });
@@ -13,9 +13,6 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Assistente de Contratos V-Lab',
   description: 'Crie, gerencie e preencha minutas de contratos de cooperação.',
-  icons: {
-    icon: 'https://storage.googleapis.com/aai-web-samples/app-icons/fav-1721946896205.png',
-  },
 };
 
 export default function RootLayout({

@@ -1,5 +1,4 @@
-import {config} from 'dotenv';
-config();
+import '@/env-setup';
 
 // Keep this import to ensure the flows are registered
 import '@/ai/flows/extract-entities-from-documents.ts';

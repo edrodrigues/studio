@@ -8,8 +8,8 @@
  * - ExtractEntitiesFromDocumentsOutput - The return type for the function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
 
 const ExtractEntitiesFromDocumentsInputSchema = z.object({
   documents: z.array(
@@ -25,8 +25,8 @@ export type ExtractEntitiesFromDocumentsInput = z.infer<
 
 const ExtractEntitiesFromDocumentsOutputSchema = z.object({
   extractedJson: z.object({
-    entities: z.record(z.any()).describe('An object where keys are the extracted entity names and values are the extracted entity values.'),
-    schema: z.any().describe('A valid JSON schema object describing the extracted entities. Each property in the schema should have a "description" explaining what the entity represents.'),
+    entities: z.any().describe('An object where keys are the extracted entity names and values are the extracted entity values.'),
+    schema: z.any().describe('A valid JSON schema object describing the extracted entities. Each property in the schema should have a \"description\" explaining what the entity represents.'),
   }).describe('The structured JSON containing both the extracted key-value pairs and their corresponding JSON schema with descriptions.')
 });
 
@@ -42,7 +42,7 @@ export async function extractEntitiesFromDocuments(
 
 const extractEntitiesPrompt = ai.definePrompt({
   name: 'extractEntitiesPrompt',
-  input: {schema: ExtractEntitiesFromDocumentsInputSchema},
+  input: { schema: ExtractEntitiesFromDocumentsInputSchema },
   output: {
     format: 'json',
     schema: ExtractEntitiesFromDocumentsOutputSchema,

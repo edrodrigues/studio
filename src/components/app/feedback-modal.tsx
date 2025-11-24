@@ -33,9 +33,8 @@ Seu feedback deve incluir:
 1.  **Análise de Completude:** Verifique se todas as informações necessárias estão presentes nos documentos (ex: objeto, metas, cronograma, orçamento detalhado).
 2.  **Identificação de Inconsistências:** Aponte quaisquer contradições entre os diferentes documentos (ex: cronograma do plano de trabalho vs. termo de execução).
 3.  **Sugestões de Melhoria:** Ofereça sugestões claras para melhorar a clareza, precisão e conformidade dos documentos.
-4.  **Pontos de Atenção:** Destaque cláusulas ou seções que podem gerar ambiguidades ou riscos futuros.
 
-Organize seu feedback em seções claras usando Markdown. Seja objetivo e profissional.`;
+Organize seu feedback em seções claras usando Markdown. Seja objetivo e profissional. Finalize com uma lista de pontos de melhorias.`;
 
 
 export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
@@ -80,9 +79,9 @@ export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
         const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido ao gerar o feedback.";
         setFeedback(`**Erro ao gerar feedback:**\n\n${errorMessage}`);
         toast({
-            variant: "destructive",
-            title: "Erro na Geração do Feedback",
-            description: errorMessage,
+          variant: "destructive",
+          title: "Erro na Geração do Feedback",
+          description: errorMessage,
         });
       }
     });
@@ -91,9 +90,9 @@ export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
   const handleCopy = () => {
     if (!feedback) return;
     navigator.clipboard.writeText(feedback).then(() => {
-        setHasCopied(true);
-        setTimeout(() => setHasCopied(false), 2000); // Reset after 2 seconds
-        toast({ title: "Feedback copiado para a área de transferência!" });
+      setHasCopied(true);
+      setTimeout(() => setHasCopied(false), 2000); // Reset after 2 seconds
+      toast({ title: "Feedback copiado para a área de transferência!" });
     });
   };
 
@@ -115,72 +114,72 @@ export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 overflow-hidden">
-            {/* Left Column: Prompt Editor */}
-            <div className="flex flex-col gap-4">
-                <Label htmlFor="system-prompt" className="font-semibold">Prompt de Sistema</Label>
-                <Textarea
-                    id="system-prompt"
-                    value={systemPrompt}
-                    onChange={(e) => setSystemPrompt(e.target.value)}
-                    className="flex-1 resize-none font-mono text-xs"
-                    placeholder="Descreva como a IA deve analisar os documentos..."
-                    disabled={isPending}
-                />
-                 <Button onClick={handleGenerateFeedback} disabled={isPending || files.length === 0}>
-                    {isPending ? (
-                        <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Analisando...
-                        </>
-                    ) : (
-                        <>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            Gerar Feedback
-                        </>
-                    )}
-                </Button>
+          {/* Left Column: Prompt Editor */}
+          <div className="flex flex-col gap-4">
+            <Label htmlFor="system-prompt" className="font-semibold">Prompt de Sistema</Label>
+            <Textarea
+              id="system-prompt"
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              className="flex-1 resize-none font-mono text-xs"
+              placeholder="Descreva como a IA deve analisar os documentos..."
+              disabled={isPending}
+            />
+            <Button onClick={handleGenerateFeedback} disabled={isPending || files.length === 0}>
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Analisando...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Gerar Feedback
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Right Column: Feedback Display */}
+          <div className="flex flex-col gap-4 min-h-0">
+            <div className="flex justify-between items-center">
+              <Label htmlFor="feedback-output" className="font-semibold">Resultado da Análise</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopy}
+                disabled={!feedback}
+              >
+                {hasCopied ? (
+                  <>
+                    <Check className="mr-2 h-4 w-4 text-green-500" /> Copiado!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="mr-2 h-4 w-4" /> Copiar
+                  </>
+                )}
+              </Button>
             </div>
-            
-            {/* Right Column: Feedback Display */}
-            <div className="flex flex-col gap-4 min-h-0">
-                <div className="flex justify-between items-center">
-                    <Label htmlFor="feedback-output" className="font-semibold">Resultado da Análise</Label>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleCopy}
-                        disabled={!feedback}
-                    >
-                        {hasCopied ? (
-                            <>
-                                <Check className="mr-2 h-4 w-4 text-green-500" /> Copiado!
-                            </>
-                        ) : (
-                            <>
-                                <Copy className="mr-2 h-4 w-4" /> Copiar
-                            </>
-                        )}
-                    </Button>
-                </div>
-                <ScrollArea id="feedback-output" className="flex-1 rounded-md border bg-muted/50" role="status">
-                   <div className="p-4" aria-live="polite">
-                     {isPending && !feedback && (
-                        <div className="flex items-center justify-center h-full text-muted-foreground">
-                            <Loader2 className="h-8 w-8 animate-spin" />
-                        </div>
-                     )}
-                     {feedback ? (
-                        <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none">
-                            {feedback}
-                        </ReactMarkdown>
-                     ) : !isPending && (
-                        <div className="flex items-center justify-center h-full text-center text-muted-foreground p-8">
-                            <p>O feedback da IA aparecerá aqui.</p>
-                        </div>
-                     )}
-                   </div>
-                </ScrollArea>
-            </div>
+            <ScrollArea id="feedback-output" className="flex-1 rounded-md border bg-muted/50" role="status">
+              <div className="p-4" aria-live="polite">
+                {isPending && !feedback && (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                )}
+                {feedback ? (
+                  <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none">
+                    {feedback}
+                  </ReactMarkdown>
+                ) : !isPending && (
+                  <div className="flex items-center justify-center h-full text-center text-muted-foreground p-8">
+                    <p>O feedback da IA aparecerá aqui.</p>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
         </div>
 
         <DialogFooter className="mt-4">

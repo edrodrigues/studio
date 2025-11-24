@@ -8,8 +8,8 @@
  * - GetDocumentFeedbackOutput - The return type for the getDocumentFeedback function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
 
 const GetDocumentFeedbackInputSchema = z.object({
   systemPrompt: z
@@ -44,8 +44,12 @@ export async function getDocumentFeedback(
 
 const getDocumentFeedbackPrompt = ai.definePrompt({
   name: 'getDocumentFeedbackPrompt',
-  input: {schema: GetDocumentFeedbackInputSchema},
-  output: {schema: GetDocumentFeedbackOutputSchema},
+  input: { schema: GetDocumentFeedbackInputSchema },
+  output: { schema: GetDocumentFeedbackOutputSchema },
+  config: {
+    maxOutputTokens: 16384,
+    temperature: 0.7,
+  },
   prompt: `{{systemPrompt}}
 
 Analise os documentos disponíveis e forneça um feedback detalhado com base no prompt do sistema.
@@ -64,7 +68,7 @@ const getDocumentFeedbackFlow = ai.defineFlow(
     outputSchema: GetDocumentFeedbackOutputSchema,
   },
   async input => {
-    const {output} = await getDocumentFeedbackPrompt(input);
+    const { output } = await getDocumentFeedbackPrompt(input);
     if (!output) {
       throw new Error('AI failed to generate feedback.');
     }

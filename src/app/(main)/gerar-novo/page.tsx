@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { EntityEditModal } from "@/components/app/entity-edit-modal";
 
 const contractTypeOptions = [
     "TED",
@@ -174,6 +175,7 @@ export default function GerarNovoContratoPage() {
     }, []);
 
     const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+    const [isEntityModalOpen, setIsEntityModalOpen] = useState(false);
 
     const templatesQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
@@ -204,46 +206,28 @@ export default function GerarNovoContratoPage() {
     };
 
     const handleGenerateContracts = () => {
-        if (selectedTemplateIds.length === 0 || !templates || !user || !firestore) {
+        if (selectedTemplateIds.length === 0 || !templates) {
             toast({
                 variant: "destructive",
                 title: "Requisitos não atendidos",
-                description: "Por favor, selecione pelo menos um modelo e certifique-se de que as entidades foram extraídas.",
+                description: "Por favor, selecione pelo menos um modelo.",
             });
             return;
         }
 
-        // Validate entities upfront before starting generation
-        if (!storedEntities || typeof storedEntities !== 'object') {
-            console.error('No entities found in localStorage:', storedEntities);
-            toast({
-                variant: "destructive",
-                title: "Entidades não encontradas",
-                description: "Por favor, vá para 'Documentos Iniciais' e extraia as entidades antes de gerar documentos.",
-            });
-            return;
-        }
+        // Open the entity edit modal instead of generating immediately
+        setIsEntityModalOpen(true);
+    };
 
-        // Check if entities property exists and has content
-        const entities = storedEntities.entities || {};
-        if (typeof entities !== 'object' || Object.keys(entities).length === 0) {
-            console.error('Invalid or empty entity structure:', {
-                storedEntities,
-                entities,
-                entitiesType: typeof entities,
-                entitiesKeys: Object.keys(entities)
-            });
-            toast({
-                variant: "destructive",
-                title: "Entidades vazias ou inválidas",
-                description: "As entidades extraídas estão vazias. Por favor, extraia as entidades novamente na aba 'Documentos Iniciais'.",
-            });
-            return;
-        }
+    const handleConfirmGeneration = (editedEntities: Record<string, any>) => {
+        if (!user || !firestore || !templates) return;
+
+        // Close the modal
+        setIsEntityModalOpen(false);
 
         console.log('Starting document generation with entities:', {
-            entityCount: Object.keys(entities).length,
-            entityKeys: Object.keys(entities),
+            entityCount: Object.keys(editedEntities).length,
+            entityKeys: Object.keys(editedEntities),
             templateCount: selectedTemplateIds.length
         });
 
@@ -278,8 +262,8 @@ export default function GerarNovoContratoPage() {
                     const placeholders = filledContent.match(/{{(.*?)}}|<(.*?)>/g) || [];
                     console.log(`Template "${selectedTemplate.name}" has ${placeholders.length} placeholders:`, placeholders);
 
-                    // Create case-insensitive entity lookup
-                    const caseInsensitiveEntities = Object.entries(entities).reduce((acc, [key, value]) => {
+                    // Create case-insensitive entity lookup from edited entities
+                    const caseInsensitiveEntities = Object.entries(editedEntities).reduce((acc, [key, value]) => {
                         acc[key.toLowerCase()] = value;
                         return acc;
                     }, {} as Record<string, any>);
@@ -308,7 +292,7 @@ export default function GerarNovoContratoPage() {
                     const newContract = {
                         contractModelId: selectedTemplate.id,
                         clientName: clientName,
-                        filledData: JSON.stringify(storedEntities),
+                        filledData: JSON.stringify({ entities: editedEntities }),
                         name: `Contrato de ${selectedTemplate.name} - ${clientName} - ${new Date().toLocaleDateString('pt-BR')}`,
                         markdownContent: filledContent,
                         createdAt: new Date().toISOString(),
@@ -411,7 +395,7 @@ export default function GerarNovoContratoPage() {
                 <Button
                     size="lg"
                     onClick={handleGenerateContracts}
-                    disabled={selectedTemplateIds.length === 0 || !storedEntities || Object.keys(storedEntities).length === 0 || isGenerating || !isClient}
+                    disabled={selectedTemplateIds.length === 0 || isGenerating || !isClient}
                     className="w-full max-w-md"
                 >
                     {isGenerating ? (
@@ -430,6 +414,22 @@ export default function GerarNovoContratoPage() {
                     Os documentos serão salvos e você será redirecionado para a lista de revisão.
                 </p>
             </section>
+
+            <EntityEditModal
+                isOpen={isEntityModalOpen}
+                onClose={() => setIsEntityModalOpen(false)}
+                onConfirm={handleConfirmGeneration}
+                selectedTemplates={templates?.filter(t => selectedTemplateIds.includes(t.id)) || []}
+                extractedEntities={storedEntities?.entities || {}}
+                entityDescriptions={storedEntities?.schema?.properties ?
+                    Object.entries(storedEntities.schema.properties).reduce((acc, [key, prop]: [string, any]) => {
+                        if (prop.description) {
+                            acc[key] = prop.description;
+                        }
+                        return acc;
+                    }, {} as Record<string, string>) : undefined
+                }
+            />
         </div>
     );
 }

@@ -15,7 +15,8 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { EntityEditModal } from "@/components/app/entity-edit-modal";
+const EntityEditModal = dynamic(() => import('@/components/app/entity-edit-modal').then(mod => mod.EntityEditModal), { ssr: false });
+import dynamic from 'next/dynamic';
 
 const contractTypeOptions = [
     "TED",
@@ -179,7 +180,7 @@ export default function GerarNovoContratoPage() {
 
     const templatesQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
-        return collection(firestore, 'users', user.uid, 'contractModels');
+        return collection(firestore, 'contractModels');
     }, [user, firestore]);
 
     const { data: templates, isLoading } = useCollection<Template>(templatesQuery);

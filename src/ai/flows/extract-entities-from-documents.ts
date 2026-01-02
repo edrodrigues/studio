@@ -34,10 +34,12 @@ export type ExtractEntitiesFromDocumentsOutput = z.infer<
   typeof ExtractEntitiesFromDocumentsOutputSchema
 >;
 
+import { withCache } from '@/lib/cache';
+
 export async function extractEntitiesFromDocuments(
   input: ExtractEntitiesFromDocumentsInput
 ): Promise<ExtractEntitiesFromDocumentsOutput> {
-  return extractEntitiesFlow(input);
+  return withCache('extractEntities', input, () => extractEntitiesFlow(input));
 }
 
 const extractEntitiesPrompt = ai.definePrompt({

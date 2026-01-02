@@ -3,14 +3,14 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { ArrowLeft, ArrowRight, Save, CheckCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 interface ContractEditorProps {
   initialContent: string;
   onContentChange: (newContent: string) => void;
-  onClauseChange: (newClauseContent: string) => void;
+  onClauseChange?: (newClauseContent: string) => void;
 }
 
 const parseClauses = (content: string) => {
@@ -44,8 +44,8 @@ export function ContractEditor({ initialContent, onContentChange, onClauseChange
 
 
   useEffect(() => {
-    if (currentClause) {
-        onClauseChange(currentClause.title + '\n' + currentClause.content);
+    if (currentClause && onClauseChange) {
+      onClauseChange(currentClause.title + '\n' + currentClause.content);
     }
   }, [currentClause, onClauseChange]);
 
@@ -56,14 +56,14 @@ export function ContractEditor({ initialContent, onContentChange, onClauseChange
     );
     setClauses(updatedClauses);
   };
-  
+
   const handleSave = () => {
     startSaving(() => {
-        const fullContent = clauses
-          .map((c) => `${c.title}\n${c.content}`)
-          .join("\n");
-        onContentChange(fullContent);
-        setIsSaved(true);
+      const fullContent = clauses
+        .map((c) => `${c.title}\n${c.content}`)
+        .join("\n");
+      onContentChange(fullContent);
+      setIsSaved(true);
     });
   };
 
@@ -78,7 +78,7 @@ export function ContractEditor({ initialContent, onContentChange, onClauseChange
       setCurrentClauseIndex(currentClauseIndex - 1);
     }
   };
-  
+
   if (!currentClause) {
     return null; // Or a loading state
   }
@@ -92,22 +92,22 @@ export function ContractEditor({ initialContent, onContentChange, onClauseChange
         </span>
       </div>
       <div className="mb-4 rounded-md border bg-muted p-4">
-          <ReactMarkdown className="prose prose-sm max-w-none dark:prose-invert">{currentClause.title}</ReactMarkdown>
+        <ReactMarkdown className="prose prose-sm max-w-none dark:prose-invert">{currentClause.title}</ReactMarkdown>
       </div>
-      <Textarea
+      <RichTextEditor
         value={currentClause.content}
-        onChange={(e) => handleClauseContentChange(e.target.value)}
-        className="flex-1 resize-none"
+        onChange={(value) => handleClauseContentChange(value)}
         placeholder="Preencha o conteúdo da cláusula aqui..."
+        className="flex-1"
       />
       <div className="mt-4 flex items-center justify-between">
         <Button variant="outline" onClick={goToPrev} disabled={currentClauseIndex === 0}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Anterior
         </Button>
         <Button variant="secondary" onClick={handleSave} disabled={isSaving || isSaved}>
-          {isSaving ? (<>Salvando...</>) : isSaved ? 
-          (<><CheckCircle className="mr-2 h-4 w-4"/> Salvo</>) : 
-          (<><Save className="mr-2 h-4 w-4" /> Salvar Progresso</>)}
+          {isSaving ? (<>Salvando...</>) : isSaved ?
+            (<><CheckCircle className="mr-2 h-4 w-4" /> Salvo</>) :
+            (<><Save className="mr-2 h-4 w-4" /> Salvar Progresso</>)}
         </Button>
         <Button variant="outline" onClick={goToNext} disabled={currentClauseIndex === clauses.length - 1}>
           Próximo <ArrowRight className="ml-2 h-4 w-4" />

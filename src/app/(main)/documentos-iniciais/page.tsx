@@ -1,19 +1,22 @@
 
 'use client';
 
-import {useState, useTransition} from 'react';
-import {FileText, Clock, CircleDollarSign, Loader2} from 'lucide-react';
+import { useState, useTransition } from 'react';
+import { FileText, Clock, CircleDollarSign, Loader2 } from 'lucide-react';
 
-import {Button} from '@/components/ui/button';
-import {FileUploader} from '@/components/app/file-uploader';
-import {handleExtractEntitiesAction} from '@/lib/actions';
-import {useToast} from '@/hooks/use-toast';
-import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
-import {Label} from '@/components/ui/label';
-import {RadioGroup, RadioGroupItem} from '@/components/ui/radio-group';
-import {FeedbackModal} from '@/components/app/feedback-modal';
-import {type UploadedFile} from '@/lib/types';
-import {EntitiesPreviewModal} from '@/components/app/entities-preview-modal';
+import { Button } from '@/components/ui/button';
+import { type UploadedFile } from '@/lib/types';
+import { FileUploader } from '@/components/app/file-uploader';
+import { handleExtractEntitiesAction } from '@/lib/actions';
+import { useToast } from '@/hooks/use-toast';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import dynamic from 'next/dynamic';
+
+const FeedbackModal = dynamic(() => import('@/components/app/feedback-modal').then(mod => mod.FeedbackModal), { ssr: false });
+const ConsistencyAnalysisModal = dynamic(() => import('@/components/app/consistency-analysis-modal').then(mod => mod.ConsistencyAnalysisModal), { ssr: false });
+const EntitiesPreviewModal = dynamic(() => import('@/components/app/entities-preview-modal').then(mod => mod.EntitiesPreviewModal), { ssr: false });
 import useLocalStorage from '@/hooks/use-local-storage';
 
 export const fileToDataURI = (file: File): Promise<string> => {
@@ -26,7 +29,7 @@ export const fileToDataURI = (file: File): Promise<string> => {
 };
 
 export default function DocumentosIniciaisPage() {
-  const [files, setFiles] = useState<{[key: string]: File | null}>({
+  const [files, setFiles] = useState<{ [key: string]: File | null }>({
     planOfWork: null,
     termOfExecution: null,
     budgetSpreadsheet: null,
@@ -36,24 +39,30 @@ export default function DocumentosIniciaisPage() {
   const [isExtracting, startTransition] = useTransition();
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackFiles, setFeedbackFiles] = useState<UploadedFile[]>([]);
+  const [isConsistencyModalOpen, setIsConsistencyModalOpen] = useState(false);
   const [isEntitiesModalOpen, setIsEntitiesModalOpen] = useState(false);
   const [extractedEntities, setExtractedEntities] = useState<string>('');
   const [, setStoredEntities] = useLocalStorage('extractedEntities', null);
 
-  const {toast} = useToast();
+  const { toast } = useToast();
 
   const handleFileSelect = (key: string) => (file: File | null) => {
-    setFiles(prev => ({...prev, [key]: file}));
+    setFiles(prev => ({ ...prev, [key]: file }));
   };
 
   const handleFeedbackClick = (file: File | null) => {
     if (file) {
-      setFeedbackFiles([{id: file.name, file}]);
+      setFeedbackFiles([{ id: file.name, file }]);
       setIsFeedbackModalOpen(true);
     }
   };
 
   const hasAtLeastOneFile = Object.values(files).some(file => file !== null);
+  const hasAtLeastTwoFiles = Object.values(files).filter(file => file !== null).length >= 2;
+
+  const handleConsistencyClick = () => {
+    setIsConsistencyModalOpen(true);
+  };
 
   const handleSubmit = async () => {
     if (!hasAtLeastOneFile) return;
@@ -78,11 +87,11 @@ export default function DocumentosIniciaisPage() {
           return;
         }
 
-        const result = await handleExtractEntitiesAction({documents: uploadedFiles});
+        const result = await handleExtractEntitiesAction({ documents: uploadedFiles });
 
         if (result.success && result.data?.extractedJson) {
           const entitiesJson = result.data.extractedJson;
-          
+
           setExtractedEntities(JSON.stringify(entitiesJson, null, 2));
           setStoredEntities(entitiesJson);
 
@@ -208,6 +217,14 @@ export default function DocumentosIniciaisPage() {
         <section className="mt-12 flex justify-center gap-4 py-8">
           <Button
             size="lg"
+            onClick={handleConsistencyClick}
+            disabled={!hasAtLeastTwoFiles}
+            variant="outline"
+          >
+            Análise da consistência de documentos com IA
+          </Button>
+          <Button
+            size="lg"
             onClick={handleSubmit}
             disabled={!hasAtLeastOneFile || isExtracting}
           >
@@ -226,6 +243,13 @@ export default function DocumentosIniciaisPage() {
         isOpen={isFeedbackModalOpen}
         onClose={() => setIsFeedbackModalOpen(false)}
         files={feedbackFiles}
+      />
+      <ConsistencyAnalysisModal
+        isOpen={isConsistencyModalOpen}
+        onClose={() => setIsConsistencyModalOpen(false)}
+        files={Object.entries(files)
+          .filter(([, file]) => file !== null)
+          .map(([key, file]) => ({ id: key, file: file! }))}
       />
       <EntitiesPreviewModal
         isOpen={isEntitiesModalOpen}

@@ -65,32 +65,23 @@ Descrições das entidades (quando disponíveis):
 {{/each}}
 {{/if}}
 
-Instruções:
-1. Para cada placeholder, identifique qual entidade disponível melhor corresponde semanticamente a ele
-2. Use compreensão semântica, não apenas matching exato de string
-3. Exemplos de matching correto:
-   - Placeholder "REITOR" deve corresponder a entidade "NOME_DO_REITOR"
-   - Placeholder "UNIVERSIDADE" deve corresponder a "NOME_DA_UNIVERSIDADE"
-   - Placeholder "CNPJ" deve corresponder a "CNPJ_DA_INSTITUICAO"
-   - Placeholder "DATA_INICIO" deve corresponder a "DATA_DE_INICIO_DO_PROJETO"
-4. Se um placeholder não tiver uma entidade correspondente clara, NÃO inclua ele no resultado
-5. Priorize matches mais específicos e completos
+Instruções CRÍTICAS:
+1. Matching SEMÂNTICO: Entenda o significado. Não se prenda a palavras exatas.
+2. Ignore artigos, preposições e palavras comuns como "Nome", "Valor", "Data", "do", "da".
+   - Ex: "Parceiro" DEVE dar match com "Nome do Parceiro".
+   - Ex: "Instituição" DEVE dar match com "UFPE" (se for a única instituição).
+3. Entidades Parciais: Se o placeholder for genérico (ex: "RG") e a entidade for específica (ex: "RG do Gestor"), considere o match se fizer sentido no contexto.
+4. Normalize maiúsculas/minúsculas e acentos mentalmente.
+5. Priorize as entidades com valores mais ricos/completos.
+6. Se houver dúvida razoável, faça o match mais provável ao invés de deixar vazio. O usuário pode corrigir depois.
 
 Output esperado:
-Um array JSON de objetos, onde cada objeto tem:
-- "placeholder": o nome do placeholder do template
-- "entityKey": o nome da entidade que deve preenchê-lo
+Um array JSON de objetos:
+[
+  { "placeholder": "NOME_NO_TEMPLATE", "entityKey": "NOME_NA_LISTA_ENTIDADES" }
+]
 
-Exemplo de output:
-{
-  "matches": [
-    { "placeholder": "REITOR", "entityKey": "NOME_DO_REITOR" },
-    { "placeholder": "UNIVERSIDADE", "entityKey": "NOME_DA_UNIVERSIDADE" },
-    { "placeholder": "CNPJ", "entityKey": "CNPJ_DA_INSTITUICAO" }
-  ]
-}
-
-IMPORTANTE: Retorne APENAS o JSON, sem explicações adicionais.
+IMPORTANTE: Retorne APENAS o JSON.
 `,
 });
 

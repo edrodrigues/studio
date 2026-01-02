@@ -6,7 +6,8 @@ import { generateContractFromDocuments } from '@/ai/flows/generate-contract-from
 import { getAssistanceFromGemini } from '@/ai/flows/get-assistance-from-gemini';
 import { getDocumentFeedback } from '@/ai/flows/get-document-feedback';
 import { extractEntitiesFromDocuments } from '@/ai/flows/extract-entities-from-documents';
-import { convertDocumentsToSupportedFormats } from '@/lib/document-converter';
+import { analyzeDocumentConsistency } from '@/ai/flows/analyze-document-consistency';
+import { convertDocumentsToSupportedFormats, convertBufferToSupportedDataUri } from '@/lib/document-converter';
 import { z } from 'zod';
 
 const fileSchema = z.string().refine(s => s.startsWith('data:'), {
@@ -157,6 +158,59 @@ export async function handleExtractEntitiesAction(input: {
     console.error('Error extracting entities:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Falha ao extrair entidades.';
+    return { success: false, error: errorMessage };
+  }
+}
+
+// Helper to get data URI from File
+async function fileToDataUri(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const base64 = buffer.toString('base64');
+  return `data:${file.type};base64,${base64}`;
+}
+
+const analyzeConsistencySchema = z.object({
+  systemPrompt: z.string(),
+  // We validate structure after processing FormData, or just validate raw input manually
+});
+
+export async function handleAnalyzeDocumentConsistency(formData: FormData) {
+  try {
+    const systemPrompt = formData.get('systemPrompt') as string;
+    const files = formData.getAll('documents') as File[];
+
+    if (!systemPrompt) {
+      return { success: false, error: 'Prompt do sistema é obrigatório.' };
+    }
+
+    if (files.length < 2) {
+      return { success: false, error: 'Ao menos dois documentos são necessários para análise de consistência.' };
+    }
+
+    // Convert Files to Data URIs on the server using optimized buffer flow
+    const documentsForFlow = await Promise.all(
+      files.map(async (file) => {
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const mimeType = file.type; // or detect from filename if empty
+        const dataUri = await convertBufferToSupportedDataUri(buffer, mimeType, file.name);
+        return { url: dataUri };
+      })
+    );
+
+    const result = await analyzeDocumentConsistency({
+      systemPrompt,
+      documents: documentsForFlow,
+    });
+
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error analyzing document consistency:', error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Falha ao analisar a consistência dos documentos.';
     return { success: false, error: errorMessage };
   }
 }

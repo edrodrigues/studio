@@ -1,0 +1,9 @@
+✅ API Key found (ends with ...2QTw)
+
+--- Test 1: List Models ---
+✅ Found 50 models.
+✅ Model 'gemini-3-flash-preview' FOUND in list: models/gemini-3-flash-preview
+
+--- Test 2: Generate Content (Simple Hello) ---
+Attempting fetch to: https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=API_KEY
+✅ Generate Content SUCCEEDED!

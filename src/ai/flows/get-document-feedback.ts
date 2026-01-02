@@ -47,7 +47,7 @@ const getDocumentFeedbackPrompt = ai.definePrompt({
   input: { schema: GetDocumentFeedbackInputSchema },
   output: { schema: GetDocumentFeedbackOutputSchema },
   config: {
-    maxOutputTokens: 16384,
+    maxOutputTokens: 8192,
     temperature: 0.7,
   },
   prompt: `{{systemPrompt}}

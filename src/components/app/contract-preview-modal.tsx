@@ -2,12 +2,12 @@
 "use client";
 
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,13 +19,13 @@ import { FileDown, FileText } from "lucide-react";
 import rehypeRaw from "rehype-raw";
 
 interface ContractPreviewModalProps {
-  contract: Contract | null;
-  isOpen: boolean;
-  onClose: () => void;
+    contract: Contract | null;
+    isOpen: boolean;
+    onClose: () => void;
 }
 
 export function ContractPreviewModal({ contract, isOpen, onClose }: ContractPreviewModalProps) {
-    
+
     if (!contract) return null;
 
     const handleExportMD = () => {
@@ -39,11 +39,16 @@ export function ContractPreviewModal({ contract, isOpen, onClose }: ContractPrev
         exportToDocx(contract.markdownContent, contract.name.replace(/\s/g, '_'));
     };
 
-    // Sanitize content for preview by removing non-standard HTML tags that React can't render,
-    // but keep our specific highlighting spans.
-    const previewContent = contract.markdownContent.replace(/<(?!\/?span\b)[^>]*>/gi, '');
+    // Sanitize content for preview:
+    // 1. First, escape potential placeholders (e.g., <NOME>) so they aren't stripped as invalid HTML.
+    // We assume placeholders start with an uppercase letter to differentiate from most HTML variable tags,
+    // or just match the specific pattern used in templates.
+    const escapedContent = contract.markdownContent.replace(/<([A-Z][\w\s\-]+)>/g, '&lt;$1&gt;');
 
-    
+    // 2. Remove non-standard HTML tags that React can't render, keeping our specific highlighting spans.
+    const previewContent = escapedContent.replace(/<(?!\/?span\b)[^>]*>/gi, '');
+
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-4xl h-[90vh]">

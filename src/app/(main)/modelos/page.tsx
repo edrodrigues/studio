@@ -2,14 +2,13 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import ReactMarkdown from "react-markdown";
 import { Plus, File as FileIcon, Trash2, Copy, Check } from "lucide-react";
 import { collection, doc, addDoc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { type Template } from "@/lib/types";
@@ -19,81 +18,12 @@ import { setDocumentNonBlocking, deleteDocumentNonBlocking, addDocumentNonBlocki
 import { Checkbox } from "@/components/ui/checkbox";
 
 
-const INSTRUCTIONS_PROMPT = `Você é um especialista em criar modelos de documentos. Analise o contrato preenchido abaixo e crie um modelo genérico em formato Markdown.
-
-Sua tarefa é identificar as partes que são variáveis (como nomes, datas, valores, descrições específicas) e substituí-las por placeholders no formato {{NOME_DA_VARIAVEL_EM_MAIUSCULAS}}.
-
-O output deve ser APENAS o texto do modelo em Markdown, usando cabeçalhos de nível 1 (# TÍTULO DA CLÁUSULA) para cada cláusula. Não adicione nenhuma explicação extra.
-
-Conteúdo do Contrato:
-[COLE SEU CONTEÚDO DE CONTRATO AQUI]
-`;
-
 const contractTypeOptions = [
     "TED",
     "Acordo de Parceria (Lei de Inovação)",
     "Acordo de Parceria (Embrapii)",
     "Contrato de Extensão Tecnológica (Prestação de Serviços Técnicos)"
 ];
-
-function InstructionsCard() {
-    const { toast } = useToast();
-    const [hasCopied, setHasCopied] = useState(false);
-
-    const handleCopyPrompt = () => {
-        navigator.clipboard.writeText(INSTRUCTIONS_PROMPT).then(() => {
-            setHasCopied(true);
-            toast({ title: "Prompt copiado para a área de transferência!" });
-            setTimeout(() => setHasCopied(false), 3000);
-        });
-    };
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Instruções para Gerar Modelo com ChatGPT</CardTitle>
-                <CardDescription>
-                    Siga os passos abaixo para criar um modelo de contrato usando uma IA externa como o ChatGPT.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="space-y-2">
-                    <Label>1. Copie o Prompt</Label>
-                    <p className="text-xs text-muted-foreground">
-                        Use o prompt abaixo como base para sua solicitação no ChatGPT.
-                    </p>
-                    <div className="relative">
-                        <Textarea
-                            readOnly
-                            value={INSTRUCTIONS_PROMPT}
-                            className="h-32 resize-none font-mono text-xs"
-                        />
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            className="absolute right-2 top-2"
-                            onClick={handleCopyPrompt}
-                        >
-                            {hasCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                        </Button>
-                    </div>
-                </div>
-                <div className="space-y-2">
-                    <Label>2. Gere o Modelo no ChatGPT</Label>
-                    <p className="text-xs text-muted-foreground">
-                        Abra o <a href="https://chatgpt.com/" target="_blank" rel="noreferrer" className="underline font-semibold">ChatGPT</a>, cole o prompt e, em seguida, cole o conteúdo do seu contrato no local indicado.
-                    </p>
-                </div>
-                 <div className="space-y-2">
-                    <Label>3. Crie e Cole o Modelo</Label>
-                    <p className="text-xs text-muted-foreground">
-                        Clique em "Novo Modelo", cole o resultado gerado pela IA no campo "Conteúdo do Modelo" e salve.
-                    </p>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
 
 
 function TemplateEditor({
@@ -167,13 +97,11 @@ function TemplateEditor({
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="template-content">Conteúdo do Modelo (Markdown)</Label>
-                        <Textarea
-                            id="template-content"
+                        <Label>Conteúdo do Modelo</Label>
+                        <RichTextEditor
                             value={template.markdownContent}
-                            onChange={(e) => onTemplateChange("markdownContent", e.target.value)}
-                            className="min-h-[250px] font-mono"
-                            placeholder="Escreva o conteúdo do seu modelo em Markdown aqui..."
+                            onChange={(value) => onTemplateChange("markdownContent", value)}
+                            placeholder="Escreva o conteúdo do seu modelo aqui..."
                         />
                     </div>
                 </CardContent>
@@ -193,10 +121,10 @@ function TemplateEditor({
 export default function ModelosPage() {
     const { user } = useUser();
     const { firestore } = useFirebase();
-    
+
     const templatesQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
-        return collection(firestore, 'users', user.uid, 'contractModels');
+        return collection(firestore, 'contractModels');
     }, [user, firestore]);
 
     const { data: templates, isLoading } = useCollection<Template>(templatesQuery);
@@ -221,13 +149,7 @@ export default function ModelosPage() {
             }
         }
     }, [selectedTemplateId, templates, editingTemplate?.isNew]);
-    
-    const templateForPreview = useMemo(() => {
-        // Preview should always show the content from the editor if it's open
-        if (editingTemplate) return editingTemplate;
-        // Otherwise, show the selected (and saved) template from the list
-        return templates?.find((t) => t.id === selectedTemplateId) ?? null;
-    }, [templates, selectedTemplateId, editingTemplate]);
+
 
     const startEditing = useCallback((template: Template) => {
         setSelectedTemplateId(template.id);
@@ -265,7 +187,7 @@ export default function ModelosPage() {
         if (!editingTemplate || !user || !firestore) return;
 
         const { id, isNew, ...templateData } = editingTemplate;
-        
+
         const templateToSave = {
             name: templateData.name,
             description: templateData.description,
@@ -276,7 +198,7 @@ export default function ModelosPage() {
 
         if (isNew) {
             // Add new document
-            const collectionRef = collection(firestore, 'users', user.uid, 'contractModels');
+            const collectionRef = collection(firestore, 'contractModels');
             const newDocRef = await addDocumentNonBlocking(collectionRef, templateToSave);
             toast({
                 title: "Modelo Criado!",
@@ -287,14 +209,14 @@ export default function ModelosPage() {
             }
         } else {
             // Update existing document
-            const templateRef = doc(firestore, 'users', user.uid, 'contractModels', id);
+            const templateRef = doc(firestore, 'contractModels', id);
             setDocumentNonBlocking(templateRef, templateToSave, { merge: true });
             toast({
                 title: "Modelo Salvo!",
                 description: `O modelo "${templateToSave.name}" foi salvo com sucesso.`,
             });
         }
-        
+
         // Exit editing mode
         setEditingTemplate(null);
 
@@ -310,9 +232,9 @@ export default function ModelosPage() {
         if (!user || !firestore) return;
 
         if (window.confirm("Tem certeza que deseja deletar este modelo?")) {
-            const templateRef = doc(firestore, 'users', user.uid, 'contractModels', id);
+            const templateRef = doc(firestore, 'contractModels', id);
             deleteDocumentNonBlocking(templateRef);
-           
+
             toast({ title: "Modelo deletado." });
 
             if (selectedTemplateId === id) {
@@ -324,7 +246,7 @@ export default function ModelosPage() {
             }
         }
     }, [selectedTemplateId, editingTemplate, user, firestore, templates, toast]);
-    
+
     const isEditing = !!editingTemplate;
 
     return (
@@ -374,9 +296,8 @@ export default function ModelosPage() {
             </aside>
 
             {/* Main Content */}
-            <main className="w-1/2 p-8 overflow-y-auto">
+            <main className="flex-1 p-8 overflow-y-auto">
                 <div className="space-y-8">
-                     <InstructionsCard />
                     {isEditing ? (
                         <TemplateEditor
                             template={editingTemplate}
@@ -395,37 +316,11 @@ export default function ModelosPage() {
                 </div>
             </main>
 
-            {/* Preview */}
-            <aside className="w-1/4 min-w-[300px] border-l bg-background/80 p-6">
-                <div className="sticky top-0">
-                    <h2 className="text-xl font-semibold mb-4">Visualização em Tempo Real</h2>
-                    {templateForPreview ? (
-                        <Card className="h-[calc(100vh-10rem)] bg-card/50">
-                            <CardContent className="p-6 h-full overflow-y-auto">
-                                <ReactMarkdown
-                                    className="prose prose-sm dark:prose-invert max-w-none"
-                                    components={{
-                                        p: ({ node, ...props }) => <p className="mb-4" {...props} />,
-                                        h1: ({ node, ...props }) => <h1 className="text-xl font-bold mb-4" {...props} />,
-                                        h2: ({ node, ...props }) => <h2 className="text-lg font-semibold mt-6 mb-2" {...props} />,
-                                    }}
-                                >
-                                    {templateForPreview.markdownContent}
-                                </ReactMarkdown>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <div className="flex items-center justify-center h-[calc(100vh-10rem)] text-center text-muted-foreground border rounded-lg border-dashed bg-card/50">
-                            <p>Selecione ou crie um modelo para visualizar.</p>
-                        </div>
-                    )}
-                </div>
-            </aside>
         </div>
     );
 }
 
-    
 
-    
+
+
 

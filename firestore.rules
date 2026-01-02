@@ -45,6 +45,24 @@ service cloud.firestore {
     }
 
     /**
+     * @description Rules for global contractModels collection (shared across all users).
+     * @path /contractModels/{contractModelId}
+     * @allow (create) Any authenticated user can create a contract model in the global collection.
+     * @allow (get) Any authenticated user can read any contract model in the global collection.
+     * @allow (update) Any authenticated user can update any contract model in the global collection.
+     * @allow (delete) Any authenticated user can delete any contract model in the global collection.
+     * @allow (list) Any authenticated user can list all contract models in the global collection.
+     * @principle Global shared resource model - all authenticated users have full access.
+     */
+    match /contractModels/{contractModelId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    /**
      * @description Rules for contractModels owned by a specific user.
      * @path /users/{userId}/contractModels/{contractModelId}
      * @allow (create) User 'A' can create a contract model under /users/A/contractModels/123 if authenticated as user 'A'.

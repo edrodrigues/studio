@@ -35,7 +35,7 @@ const getAssistanceFromGeminiPrompt = ai.definePrompt({
   name: 'getAssistanceFromGeminiPrompt',
   input: { schema: GetAssistanceFromGeminiInputSchema },
   output: { schema: GetAssistanceFromGeminiOutputSchema },
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3-flash-preview',
   prompt: `Você é um assistente de contratos especializado em contratos administrativos de cooperação entre o V-Lab e a UFPE.
 
   Você deve responder às perguntas do usuário com base no conteúdo do contrato e, se disponível, no conteúdo da cláusula atual.

@@ -4,6 +4,7 @@
 import { useState, useTransition } from 'react';
 import { FileText, Clock, CircleDollarSign, Loader2 } from 'lucide-react';
 
+import { cn, fileToDataURI } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { type UploadedFile } from '@/lib/types';
 import { FileUploader } from '@/components/app/file-uploader';
@@ -19,14 +20,7 @@ const ConsistencyAnalysisModal = dynamic(() => import('@/components/app/consiste
 const EntitiesPreviewModal = dynamic(() => import('@/components/app/entities-preview-modal').then(mod => mod.EntitiesPreviewModal), { ssr: false });
 import useLocalStorage from '@/hooks/use-local-storage';
 
-export const fileToDataURI = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
+
 
 export default function DocumentosIniciaisPage() {
   const [files, setFiles] = useState<{ [key: string]: File | null }>({
@@ -42,7 +36,7 @@ export default function DocumentosIniciaisPage() {
   const [isConsistencyModalOpen, setIsConsistencyModalOpen] = useState(false);
   const [isEntitiesModalOpen, setIsEntitiesModalOpen] = useState(false);
   const [extractedEntities, setExtractedEntities] = useState<string>('');
-  const [, setStoredEntities] = useLocalStorage('extractedEntities', null);
+  const [, setStoredEntities] = useLocalStorage<any>('extractedEntities', null);
 
   const { toast } = useToast();
 
@@ -192,24 +186,24 @@ export default function DocumentosIniciaisPage() {
             icon={<FileText size={24} />}
             title="Plano de Trabalho"
             description="Documento com o escopo e atividades."
-            onFileSelect={handleFileSelect('planOfWork')}
-            onFeedbackClick={() => handleFeedbackClick(files.planOfWork)}
+            handleFileSelect={handleFileSelect('planOfWork')}
+            handleFeedback={() => handleFeedbackClick(files.planOfWork)}
             name="planOfWork"
           />
           <FileUploader
             icon={<Clock size={24} />}
             title="Termo de Execução Decentralizada (TED)"
             description="Cronograma e prazos do projeto."
-            onFileSelect={handleFileSelect('termOfExecution')}
-            onFeedbackClick={() => handleFeedbackClick(files.termOfExecution)}
+            handleFileSelect={handleFileSelect('termOfExecution')}
+            handleFeedback={() => handleFeedbackClick(files.termOfExecution)}
             name="termOfExecution"
           />
           <FileUploader
             icon={<CircleDollarSign size={24} />}
             title="Planilha Orçamentária"
             description="Valores e distribuição de recursos."
-            onFileSelect={handleFileSelect('budgetSpreadsheet')}
-            onFeedbackClick={() => handleFeedbackClick(files.budgetSpreadsheet)}
+            handleFileSelect={handleFileSelect('budgetSpreadsheet')}
+            handleFeedback={() => handleFeedbackClick(files.budgetSpreadsheet)}
             name="budgetSpreadsheet"
           />
         </section>
@@ -241,19 +235,19 @@ export default function DocumentosIniciaisPage() {
       </div>
       <FeedbackModal
         isOpen={isFeedbackModalOpen}
-        onClose={() => setIsFeedbackModalOpen(false)}
+        onOpenChange={setIsFeedbackModalOpen}
         files={feedbackFiles}
       />
       <ConsistencyAnalysisModal
         isOpen={isConsistencyModalOpen}
-        onClose={() => setIsConsistencyModalOpen(false)}
+        onOpenChange={setIsConsistencyModalOpen}
         files={Object.entries(files)
           .filter(([, file]) => file !== null)
           .map(([key, file]) => ({ id: key, file: file! }))}
       />
       <EntitiesPreviewModal
         isOpen={isEntitiesModalOpen}
-        onClose={() => setIsEntitiesModalOpen(false)}
+        onOpenChange={setIsEntitiesModalOpen}
         jsonContent={extractedEntities}
       />
     </>

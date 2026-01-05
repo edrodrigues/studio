@@ -1,5 +1,4 @@
 
-"use client";
 
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
@@ -11,19 +10,19 @@ interface FileUploaderProps {
   icon: ReactNode;
   title: string;
   description: string;
-  onFileSelect: (file: File | null) => void;
-  onFeedbackClick: () => void;
+  handleFileSelect: (file: File | null) => void;
+  handleFeedback: () => void;
   name: string;
 }
 
-export function FileUploader({ icon, title, description, onFileSelect, onFeedbackClick, name }: FileUploaderProps) {
+export function FileUploader({ icon, title, description, handleFileSelect, handleFeedback, name }: FileUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0] ?? null;
     setFile(selectedFile);
-    onFileSelect(selectedFile);
+    handleFileSelect(selectedFile);
   };
 
   const handleButtonClick = () => {
@@ -61,9 +60,9 @@ export function FileUploader({ icon, title, description, onFileSelect, onFeedbac
             </>
           )}
         </Button>
-        <Button onClick={onFeedbackClick} variant="outline" className="w-full" disabled={!file}>
-            <Bot className="mr-2 h-4 w-4" />
-            Feedback de IA
+        <Button onClick={handleFeedback} variant="outline" className="w-full" disabled={!file}>
+          <Bot className="mr-2 h-4 w-4" />
+          Feedback de IA
         </Button>
       </CardContent>
     </Card>

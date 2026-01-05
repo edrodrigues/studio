@@ -16,14 +16,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Bot, Loader2, Sparkles, Copy, Check } from "lucide-react";
 import { handleGetFeedback } from "@/lib/actions";
-import { fileToDataURI } from "@/app/(main)/documentos-iniciais/page";
+import { fileToDataURI } from "@/lib/utils";
 import { type UploadedFile } from "@/lib/types";
 import ReactMarkdown from "react-markdown";
 import { useToast } from "@/hooks/use-toast";
 
 interface FeedbackModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
   files: UploadedFile[];
 }
 
@@ -37,7 +37,7 @@ Seu feedback deve incluir:
 Organize seu feedback em seções claras usando Markdown. Seja objetivo e profissional. Finalize com uma lista de pontos de melhorias.`;
 
 
-export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
+export function FeedbackModal({ isOpen, onOpenChange, files }: FeedbackModalProps) {
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [feedback, setFeedback] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -96,13 +96,15 @@ export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
     });
   };
 
-  const handleClose = () => {
-    setFeedback(""); // Reset feedback when closing
-    onClose();
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setFeedback(""); // Reset feedback when closing
+    }
+    onOpenChange(open);
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -183,7 +185,7 @@ export function FeedbackModal({ isOpen, onClose, files }: FeedbackModalProps) {
         </div>
 
         <DialogFooter className="mt-4">
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={() => handleOpenChange(false)}>
             Fechar
           </Button>
         </DialogFooter>

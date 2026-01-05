@@ -4,6 +4,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { collection, doc, deleteDoc } from "firebase/firestore";
+import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { FilePlus2, MoreHorizontal, Trash2, Pencil, Eye, GitCompareArrows } from "lucide-react";
 import {
   Table,
@@ -32,106 +33,106 @@ import { ComparisonModal } from "@/components/app/comparison-modal";
 import { saveAs } from "file-saver";
 import { exportToDocx } from "@/lib/export";
 
-function ContractsTable({ 
-    contracts, 
-    isLoading, 
-    onEdit, 
-    onDelete, 
-    onPreview,
-    selectedContracts,
-    onSelectionChange
-}: { 
-    contracts: (Contract & {id: string})[] | null, 
-    isLoading: boolean,
-    onEdit: (id: string) => void,
-    onDelete: (id: string) => void,
-    onPreview: (contract: Contract) => void,
-    selectedContracts: string[],
-    onSelectionChange: (id: string) => void,
+function ContractsTable({
+  contracts,
+  isLoading,
+  onEdit,
+  onDelete,
+  onPreview,
+  selectedContracts,
+  onSelectionChange
+}: {
+  contracts: (Contract & { id: string })[] | null,
+  isLoading: boolean,
+  onEdit: (id: string) => void,
+  onDelete: (id: string) => void,
+  onPreview: (contract: Contract) => void,
+  selectedContracts: string[],
+  onSelectionChange: (id: string) => void,
 }) {
-    if (isLoading) {
-        return (
-            <div className="space-y-2">
-                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
-            </div>
-        )
-    }
-
-    if (!contracts || contracts.length === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 border border-dashed rounded-lg">
-                <FilePlus2 className="h-8 w-8 mb-4" />
-                <p className="font-semibold">Nenhum contrato gerado ainda</p>
-                <p className="text-sm">Vá para a aba "Gerar Documentos" para começar.</p>
-            </div>
-        )
-    }
-
+  if (isLoading) {
     return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead className="w-[40px]">
-                       <Checkbox
-                            checked={selectedContracts.length === contracts.length && contracts.length > 0}
-                            onCheckedChange={(checked) => {
-                                if (checked) {
-                                    const allIds = contracts.map(c => c.id);
-                                    allIds.forEach(id => {
-                                        if (!selectedContracts.includes(id)) onSelectionChange(id);
-                                    });
-                                } else {
-                                    selectedContracts.forEach(id => onSelectionChange(id));
-                                }
-                            }}
-                        />
-                    </TableHead>
-                    <TableHead>Nome do Contrato</TableHead>
-                    <TableHead>Data de Criação</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {contracts.map((contract) => (
-                    <TableRow key={contract.id} data-state={selectedContracts.includes(contract.id) ? 'selected' : ''}>
-                        <TableCell>
-                            <Checkbox 
-                                checked={selectedContracts.includes(contract.id)}
-                                onCheckedChange={() => onSelectionChange(contract.id)}
-                            />
-                        </TableCell>
-                        <TableCell className="font-medium">{contract.name}</TableCell>
-                        <TableCell>
-                            {contract.createdAt ? format(new Date(contract.createdAt), "dd 'de' MMMM 'de' yyyy, 'às' HH:mm", { locale: ptBR }) : 'Data indisponível'}
-                        </TableCell>
-                        <TableCell>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon">
-                                        <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent>
-                                    <DropdownMenuItem onSelect={() => onPreview(contract)}>
-                                        <Eye className="mr-2 h-4 w-4" />
-                                        Visualizar e Exportar
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onSelect={() => onEdit(contract.id)}>
-                                        <Pencil className="mr-2 h-4 w-4" />
-                                        Editar
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onSelect={() => onDelete(contract.id)} className="text-destructive">
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        Deletar
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </TableCell>
-                    </TableRow>
-                ))}
-            </TableBody>
-        </Table>
+      <div className="space-y-2">
+        {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
+      </div>
     )
+  }
+
+  if (!contracts || contracts.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 border border-dashed rounded-lg">
+        <FilePlus2 className="h-8 w-8 mb-4" />
+        <p className="font-semibold">Nenhum contrato gerado ainda</p>
+        <p className="text-sm">Vá para a aba "Gerar Documentos" para começar.</p>
+      </div>
+    )
+  }
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-[40px]">
+            <Checkbox
+              checked={selectedContracts.length === contracts.length && contracts.length > 0}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  const allIds = contracts.map(c => c.id);
+                  allIds.forEach(id => {
+                    if (!selectedContracts.includes(id)) onSelectionChange(id);
+                  });
+                } else {
+                  selectedContracts.forEach(id => onSelectionChange(id));
+                }
+              }}
+            />
+          </TableHead>
+          <TableHead>Nome do Contrato</TableHead>
+          <TableHead>Data de Criação</TableHead>
+          <TableHead className="w-[50px]"></TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {contracts.map((contract) => (
+          <TableRow key={contract.id} data-state={selectedContracts.includes(contract.id) ? 'selected' : ''}>
+            <TableCell>
+              <Checkbox
+                checked={selectedContracts.includes(contract.id)}
+                onCheckedChange={() => onSelectionChange(contract.id)}
+              />
+            </TableCell>
+            <TableCell className="font-medium">{contract.name}</TableCell>
+            <TableCell>
+              {contract.createdAt ? format(new Date(contract.createdAt), "dd 'de' MMMM 'de' yyyy, 'às' HH:mm", { locale: ptBR }) : 'Data indisponível'}
+            </TableCell>
+            <TableCell>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onSelect={() => onPreview(contract)}>
+                    <Eye className="mr-2 h-4 w-4" />
+                    Visualizar e Exportar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onEdit(contract.id)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Editar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onDelete(contract.id)} className="text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Deletar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
 }
 
 export default function GerarExportarPage() {
@@ -139,11 +140,12 @@ export default function GerarExportarPage() {
   const { firestore } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
-  
+
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
   const [selectedForComparison, setSelectedForComparison] = useState<string[]>([]);
+  const [startInEditMode, setStartInEditMode] = useState(false);
 
 
   const filledContractsQuery = useMemoFirebase(() => {
@@ -157,14 +159,19 @@ export default function GerarExportarPage() {
     if (!contracts) return null;
     return [...contracts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [contracts]);
-  
+
   const comparisonContracts = useMemo(() => {
     if (!sortedContracts) return [];
     return sortedContracts.filter(c => selectedForComparison.includes(c.id));
   }, [sortedContracts, selectedForComparison]);
 
   const handleEdit = (id: string) => {
-    router.push(`/preencher/${id}`);
+    const contract = sortedContracts?.find(c => c.id === id);
+    if (contract) {
+      setSelectedContract(contract as (Contract & { id: string }));
+      setStartInEditMode(true);
+      setIsPreviewOpen(true);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -189,46 +196,47 @@ export default function GerarExportarPage() {
       }
     }
   };
-  
+
   const handlePreview = (contract: Contract) => {
     setSelectedContract(contract);
+    setStartInEditMode(false);
     setIsPreviewOpen(true);
   }
 
   const handleExportSelected = () => {
     if (selectedForComparison.length === 0 || !sortedContracts) {
-        toast({
-            variant: "destructive",
-            title: "Nenhum contrato selecionado",
-            description: "Por favor, selecione pelo menos um contrato para exportar."
-        });
-        return;
+      toast({
+        variant: "destructive",
+        title: "Nenhum contrato selecionado",
+        description: "Por favor, selecione pelo menos um contrato para exportar."
+      });
+      return;
     }
 
     const selectedContractsData = sortedContracts.filter(c => selectedForComparison.includes(c.id));
 
     selectedContractsData.forEach(contract => {
-        if (!contract.markdownContent) {
-            console.warn(`Contrato '${contract.name}' (ID: ${contract.id}) ignorado por não ter conteúdo.`);
-            return;
-        }
-        
-        const cleanedContent = contract.markdownContent.replace(/<[^>]*>?/gm, '');
-        const mdBlob = new Blob([cleanedContent], { type: "text/markdown;charset=utf-8" });
-        saveAs(mdBlob, `${contract.name.replace(/\s/g, '_')}.md`);
+      if (!contract.markdownContent) {
+        console.warn(`Contrato '${contract.name}' (ID: ${contract.id}) ignorado por não ter conteúdo.`);
+        return;
+      }
 
-        exportToDocx(contract.markdownContent, contract.name.replace(/\s/g, '_'));
+      const cleanedContent = contract.markdownContent.replace(/<[^>]*>?/gm, '');
+      const mdBlob = new Blob([cleanedContent], { type: "text/markdown;charset=utf-8" });
+      saveAs(mdBlob, `${contract.name.replace(/\s/g, '_')}.md`);
+
+      exportToDocx(contract.markdownContent, contract.name.replace(/\s/g, '_'));
     });
 
     toast({
-        title: "Exportação iniciada!",
-        description: `${selectedContractsData.length} contrato(s) estão sendo baixados.`
+      title: "Exportação iniciada!",
+      description: `${selectedContractsData.length} contrato(s) estão sendo baixados.`
     });
   };
 
   const handleSelectionChange = (id: string) => {
-    setSelectedForComparison(prev => 
-        prev.includes(id) ? prev.filter(cid => cid !== id) : [...prev, id]
+    setSelectedForComparison(prev =>
+      prev.includes(id) ? prev.filter(cid => cid !== id) : [...prev, id]
     );
   };
 
@@ -244,50 +252,64 @@ export default function GerarExportarPage() {
               Visualize, edite, exporte ou compare os contratos que você já gerou.
             </p>
           </div>
-           <div className="flex items-center gap-2">
-                <Button 
-                    variant="outline"
-                    onClick={() => setIsComparisonOpen(true)}
-                    disabled={selectedForComparison.length < 2}
-                >
-                    <GitCompareArrows className="mr-2 h-5 w-5"/>
-                    Analisar Documentos com IA ({selectedForComparison.length})
-                </Button>
-                <Button size="lg" onClick={handleExportSelected} disabled={selectedForComparison.length === 0}>
-                    <FilePlus2 className="mr-2 h-5 w-5"/>
-                    Exportar Contratos ({selectedForComparison.length})
-                </Button>
-           </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsComparisonOpen(true)}
+              disabled={selectedForComparison.length < 2}
+            >
+              <GitCompareArrows className="mr-2 h-5 w-5" />
+              Analisar Documentos com IA ({selectedForComparison.length})
+            </Button>
+            <Button size="lg" onClick={handleExportSelected} disabled={selectedForComparison.length === 0}>
+              <FilePlus2 className="mr-2 h-5 w-5" />
+              Exportar Contratos ({selectedForComparison.length})
+            </Button>
+          </div>
         </div>
-        
+
         <div className="border rounded-lg">
-            <ContractsTable 
-                contracts={sortedContracts as (Contract & { id: string; })[] | null}
-                isLoading={isLoading}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onPreview={handlePreview}
-                selectedContracts={selectedForComparison}
-                onSelectionChange={handleSelectionChange}
-            />
+          <ContractsTable
+            contracts={sortedContracts as (Contract & { id: string; })[] | null}
+            isLoading={isLoading}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onPreview={handlePreview}
+            selectedContracts={selectedForComparison}
+            onSelectionChange={handleSelectionChange}
+          />
         </div>
       </div>
       {selectedContract && (
         <ContractPreviewModal
-            contract={selectedContract}
-            isOpen={isPreviewOpen}
-            onClose={() => setIsPreviewOpen(false)}
+          contract={selectedContract}
+          isOpen={isPreviewOpen}
+          initialEditMode={startInEditMode}
+          onClose={() => setIsPreviewOpen(false)}
+          onSave={(newContent) => {
+            if (!user || !firestore || !selectedContract.id) return;
+            const contractRef = doc(firestore, 'users', user.uid, 'filledContracts', selectedContract.id);
+            updateDocumentNonBlocking(contractRef, { markdownContent: newContent });
+
+            // Update local state so the preview reflects the change immediately if revisited
+            setSelectedContract(prev => prev ? { ...prev, markdownContent: newContent } : null);
+
+            toast({
+              title: "Contrato salvo",
+              description: "As alterações foram salvas com sucesso.",
+            });
+          }}
         />
       )}
       <ComparisonModal
         isOpen={isComparisonOpen}
-        onClose={() => setIsComparisonOpen(false)}
+        onOpenChange={setIsComparisonOpen}
         contracts={comparisonContracts as (Contract & { id: string; })[]}
       />
     </>
   );
 }
 
-    
 
-    
+
+

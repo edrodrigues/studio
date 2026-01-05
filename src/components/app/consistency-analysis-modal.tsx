@@ -24,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface ConsistencyAnalysisModalProps {
     isOpen: boolean;
-    onClose: () => void;
+    onOpenChange: (open: boolean) => void;
     files: UploadedFile[];
 }
 
@@ -43,7 +43,7 @@ Você DEVE retornar:
 
 Seja objetivo, profissional e forneça exemplos específicos quando possível.`;
 
-export function ConsistencyAnalysisModal({ isOpen, onClose, files }: ConsistencyAnalysisModalProps) {
+export function ConsistencyAnalysisModal({ isOpen, onOpenChange, files }: ConsistencyAnalysisModalProps) {
     const router = useRouter();
     const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
     const [consistencyPercentage, setConsistencyPercentage] = useState<number | null>(null);
@@ -108,12 +108,14 @@ export function ConsistencyAnalysisModal({ isOpen, onClose, files }: Consistency
         });
     };
 
-    const handleClose = () => {
-        setConsistencyPercentage(null);
-        setAnalysis("");
-        setSuggestions([]);
-        onClose();
-        router.push('/gerar-novo');
+    const handleOpenChange = (open: boolean) => {
+        if (!open) {
+            setConsistencyPercentage(null);
+            setAnalysis("");
+            setSuggestions([]);
+            router.push('/gerar-novo');
+        }
+        onOpenChange(open);
     };
 
     const getConsistencyColor = (percentage: number) => {
@@ -123,7 +125,7 @@ export function ConsistencyAnalysisModal({ isOpen, onClose, files }: Consistency
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={handleClose}>
+        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
@@ -234,7 +236,7 @@ export function ConsistencyAnalysisModal({ isOpen, onClose, files }: Consistency
                 </div>
 
                 <DialogFooter className="mt-4">
-                    <Button variant="outline" onClick={handleClose}>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>
                         Fechar
                     </Button>
                 </DialogFooter>

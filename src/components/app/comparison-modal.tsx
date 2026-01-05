@@ -22,8 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 
 interface ComparisonModalProps {
   isOpen: boolean;
-  onClose: () => void;
-  contracts: (Contract & {id: string})[];
+  onOpenChange: (open: boolean) => void;
+  contracts: (Contract & { id: string })[];
 }
 
 const DEFAULT_SYSTEM_PROMPT = `Você é um assistente de IA especializado em análise comparativa de documentos jurídicos. Sua tarefa é revisar os contratos fornecidos e fornecer um feedback detalhado e comparativo.
@@ -37,14 +37,14 @@ Seu feedback deve incluir:
 Organize seu feedback em seções claras usando Markdown. Seja objetivo, preciso e profissional. Inicie a análise listando os nomes dos contratos que estão sendo comparados.`;
 
 const markdownToDataURI = (markdown: string, name: string) => {
-    const base64 = Buffer.from(markdown).toString('base64');
-    return {
-        name,
-        dataUri: `data:text/markdown;base64,${base64}`
-    };
+  const base64 = Buffer.from(markdown).toString('base64');
+  return {
+    name,
+    dataUri: `data:text/markdown;base64,${base64}`
+  };
 };
 
-export function ComparisonModal({ isOpen, onClose, contracts }: ComparisonModalProps) {
+export function ComparisonModal({ isOpen, onOpenChange, contracts }: ComparisonModalProps) {
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [feedback, setFeedback] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -64,8 +64,8 @@ export function ComparisonModal({ isOpen, onClose, contracts }: ComparisonModalP
     setFeedback("");
     startTransition(async () => {
       try {
-        const documentsWithData = contracts.map(c => 
-            markdownToDataURI(c.markdownContent, c.name)
+        const documentsWithData = contracts.map(c =>
+          markdownToDataURI(c.markdownContent, c.name)
         );
 
         const result = await handleGetFeedback({
@@ -83,9 +83,9 @@ export function ComparisonModal({ isOpen, onClose, contracts }: ComparisonModalP
         const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido ao gerar o feedback.";
         setFeedback(`**Erro ao gerar feedback:**\n\n${errorMessage}`);
         toast({
-            variant: "destructive",
-            title: "Erro na Geração do Feedback",
-            description: errorMessage,
+          variant: "destructive",
+          title: "Erro na Geração do Feedback",
+          description: errorMessage,
         });
       }
     });
@@ -94,19 +94,21 @@ export function ComparisonModal({ isOpen, onClose, contracts }: ComparisonModalP
   const handleCopy = () => {
     if (!feedback) return;
     navigator.clipboard.writeText(feedback).then(() => {
-        setHasCopied(true);
-        setTimeout(() => setHasCopied(false), 2000);
-        toast({ title: "Feedback copiado para a área de transferência!" });
+      setHasCopied(true);
+      setTimeout(() => setHasCopied(false), 2000);
+      toast({ title: "Feedback copiado para a área de transferência!" });
     });
   };
 
-  const handleClose = () => {
-    setFeedback("");
-    onClose();
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setFeedback("");
+    }
+    onOpenChange(open);
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -118,74 +120,74 @@ export function ComparisonModal({ isOpen, onClose, contracts }: ComparisonModalP
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 overflow-hidden">
-            <div className="flex flex-col gap-4">
-                <Label htmlFor="system-prompt" className="font-semibold">Prompt de Sistema</Label>
-                <Textarea
-                    id="system-prompt"
-                    value={systemPrompt}
-                    onChange={(e) => setSystemPrompt(e.target.value)}
-                    className="flex-1 resize-none font-mono text-xs"
-                    placeholder="Descreva como a IA deve comparar os documentos..."
-                    disabled={isPending}
-                />
-                 <Button onClick={handleGenerateFeedback} disabled={isPending || contracts.length < 2}>
-                    {isPending ? (
-                        <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Analisando...
-                        </>
-                    ) : (
-                        <>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            Gerar Comparação
-                        </>
-                    )}
-                </Button>
+          <div className="flex flex-col gap-4">
+            <Label htmlFor="system-prompt" className="font-semibold">Prompt de Sistema</Label>
+            <Textarea
+              id="system-prompt"
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              className="flex-1 resize-none font-mono text-xs"
+              placeholder="Descreva como a IA deve comparar os documentos..."
+              disabled={isPending}
+            />
+            <Button onClick={handleGenerateFeedback} disabled={isPending || contracts.length < 2}>
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Analisando...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Gerar Comparação
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="flex flex-col gap-4 min-h-0">
+            <div className="flex justify-between items-center">
+              <Label htmlFor="feedback-output" className="font-semibold">Resultado da Análise</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopy}
+                disabled={!feedback}
+              >
+                {hasCopied ? (
+                  <>
+                    <Check className="mr-2 h-4 w-4 text-green-500" /> Copiado!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="mr-2 h-4 w-4" /> Copiar
+                  </>
+                )}
+              </Button>
             </div>
-            
-            <div className="flex flex-col gap-4 min-h-0">
-                <div className="flex justify-between items-center">
-                    <Label htmlFor="feedback-output" className="font-semibold">Resultado da Análise</Label>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleCopy}
-                        disabled={!feedback}
-                    >
-                        {hasCopied ? (
-                            <>
-                                <Check className="mr-2 h-4 w-4 text-green-500" /> Copiado!
-                            </>
-                        ) : (
-                            <>
-                                <Copy className="mr-2 h-4 w-4" /> Copiar
-                            </>
-                        )}
-                    </Button>
-                </div>
-                <ScrollArea id="feedback-output" className="flex-1 rounded-md border bg-muted/50" role="status">
-                   <div className="p-4" aria-live="polite">
-                     {isPending && !feedback && (
-                        <div className="flex items-center justify-center h-full text-muted-foreground">
-                            <Loader2 className="h-8 w-8 animate-spin" />
-                        </div>
-                     )}
-                     {feedback ? (
-                        <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none">
-                            {feedback}
-                        </ReactMarkdown>
-                     ) : !isPending && (
-                        <div className="flex items-center justify-center h-full text-center text-muted-foreground p-8">
-                            <p>O resultado da comparação aparecerá aqui.</p>
-                        </div>
-                     )}
-                   </div>
-                </ScrollArea>
-            </div>
+            <ScrollArea id="feedback-output" className="flex-1 rounded-md border bg-muted/50" role="status">
+              <div className="p-4" aria-live="polite">
+                {isPending && !feedback && (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                )}
+                {feedback ? (
+                  <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none">
+                    {feedback}
+                  </ReactMarkdown>
+                ) : !isPending && (
+                  <div className="flex items-center justify-center h-full text-center text-muted-foreground p-8">
+                    <p>O resultado da comparação aparecerá aqui.</p>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
         </div>
 
         <DialogFooter className="mt-4">
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={() => handleOpenChange(false)}>
             Fechar
           </Button>
         </DialogFooter>

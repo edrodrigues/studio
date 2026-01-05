@@ -17,7 +17,7 @@ import { saveAs } from "file-saver";
 
 interface EntitiesPreviewModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
   jsonContent: string;
 }
 
@@ -30,7 +30,7 @@ interface ParsedEntities {
 
 export function EntitiesPreviewModal({
   isOpen,
-  onClose,
+  onOpenChange,
   jsonContent,
 }: EntitiesPreviewModalProps) {
   const [parsedData, setParsedData] = useState<ParsedEntities | null>(null);
@@ -80,7 +80,7 @@ export function EntitiesPreviewModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Revisar Entidades Extraídas</DialogTitle>
@@ -91,8 +91,8 @@ export function EntitiesPreviewModal({
         </DialogHeader>
         <ScrollArea className="flex-1 rounded-md border bg-muted/50 p-4">
           {isLoading ? (
-             <div className="flex items-center justify-center h-full text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin" />
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : errorMessage ? (
             <p className="text-destructive">{errorMessage}</p>
@@ -111,7 +111,7 @@ export function EntitiesPreviewModal({
               ))}
             </div>
           ) : (
-             <p className="text-muted-foreground">Nenhuma entidade foi extraída dos documentos.</p>
+            <p className="text-muted-foreground">Nenhuma entidade foi extraída dos documentos.</p>
           )}
         </ScrollArea>
         <DialogFooter className="mt-auto pt-4 border-t">
@@ -123,7 +123,7 @@ export function EntitiesPreviewModal({
             <FileDown className="mr-2 h-4 w-4" />
             Exportar JSON
           </Button>
-          <Button onClick={onClose}>Fechar</Button>
+          <Button onClick={() => onOpenChange(false)}>Fechar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

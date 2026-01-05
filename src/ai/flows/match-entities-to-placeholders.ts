@@ -45,43 +45,62 @@ const matchEntitiesPrompt = ai.definePrompt({
         schema: MatchEntitiesToPlaceholdersOutputSchema,
     },
     prompt: `Tarefa:
-Você receberá uma lista de placeholders (variáveis) de um template de contrato e uma lista de entidades (informações extraídas de documentos).
-Sua tarefa é fazer o matching inteligente entre placeholders e entidades, identificando qual entidade deve preencher qual placeholder.
+Você é um assistente especialista em análise de contratos. Sua tarefa é vincular "Placeholders" (variáveis de um modelo) a "Entidades" (valores extraídos de um documento).
 
-Placeholders do template:
+Objetivo:
+Para cada Placeholder, encontre a Entidade que melhor o preenche.
+
+Dados de Entrada:
+-----------------
+1. Placeholders (do template):
 {{#each placeholders}}
 - {{this}}
 {{/each}}
 
-Entidades disponíveis:
+2. Entidades Disponíveis (extraídas):
 {{#each entities}}
-- {{@key}}: {{this}}
+- Key: "{{@key}}", Valor: "{{this}}"
 {{/each}}
 
+3. Descrições (opcional):
 {{#if entityDescriptions}}
-Descrições das entidades (quando disponíveis):
 {{#each entityDescriptions}}
 - {{@key}}: {{this}}
 {{/each}}
 {{/if}}
 
-Instruções CRÍTICAS:
-1. Matching SEMÂNTICO: Entenda o significado. Não se prenda a palavras exatas.
-2. Ignore artigos, preposições e palavras comuns como "Nome", "Valor", "Data", "do", "da".
-   - Ex: "Parceiro" DEVE dar match com "Nome do Parceiro".
-   - Ex: "Instituição" DEVE dar match com "UFPE" (se for a única instituição).
-3. Entidades Parciais: Se o placeholder for genérico (ex: "RG") e a entidade for específica (ex: "RG do Gestor"), considere o match se fizer sentido no contexto.
-4. Normalize maiúsculas/minúsculas e acentos mentalmente.
-5. Priorize as entidades com valores mais ricos/completos.
-6. Se houver dúvida razoável, faça o match mais provável ao invés de deixar vazio. O usuário pode corrigir depois.
+Regras de Matching (Prioridade Descrescente):
+1. Correspondência Exata ou Normalizada: "NOME_PARCEIRO" == "Nome Parceiro"
+2. Semântica/Sinônimos: "Contratada" pode ser preenchido por "RAZAO_SOCIAL", "NOME_DA_EMPRESA", "INSTITUICAO_PARCEIRA".
+3. Conteúdo/Valor: Se o placeholder é "Data de Início" e a única entidade com formato de data (24/11/2025) é "DATA_ASSINATURA", faça o match.
+4. Inferência Lógica Baseada no Contexto:
+   - "GESTor" pode ser "COORDENADOR_DO_PROJETO".
+   - "UFPE" geralmente é a "INSTITUICAO_EXECUTORA" ou apenas "INSTITUICAO".
 
-Output esperado:
-Um array JSON de objetos:
+Exemplos de Raciocínio (Few-Shot):
+----------------------------------
+Exemplo 1:
+Placeholders: ["NOME_COORDENADOR", "SEI_NUMERO"]
+Entidades: {"COORDENADOR_PROJETO": "João Silva", "NUMERO_PROCESSO_SEI": "23076.000/2024-00"}
+Saída:
 [
-  { "placeholder": "NOME_NO_TEMPLATE", "entityKey": "NOME_NA_LISTA_ENTIDADES" }
+  { "placeholder": "NOME_COORDENADOR", "entityKey": "COORDENADOR_PROJETO" },
+  { "placeholder": "SEI_NUMERO", "entityKey": "NUMERO_PROCESSO_SEI" }
 ]
 
-IMPORTANTE: Retorne APENAS o JSON.
+Exemplo 2:
+Placeholders: ["PARTICIPE", "OBJETO"]
+Entidades: {"NOME_PARCEIRA": "Empresa X Ltda", "RESUMO_OBJETO": "Pesquisa em IA"}
+Saída:
+[
+  { "placeholder": "PARTICIPE", "entityKey": "NOME_PARCEIRA" }, // "Partícipe" é termo jurídico para parceiro
+  { "placeholder": "OBJETO", "entityKey": "RESUMO_OBJETO" }
+]
+
+Instruções Finais:
+- Retorne APENAS o JSON válido.
+- Se não houver match confiável, NÃO inclua o placeholder na lista de matches.
+- Seja flexível com maiúsculas/minúsculas e acentos.
 `,
 });
 
@@ -92,6 +111,10 @@ const matchEntitiesFlow = ai.defineFlow(
         outputSchema: MatchEntitiesToPlaceholdersOutputSchema,
     },
     async input => {
+        console.log('--- MATCH ENTITIES DEBUG ---');
+        console.log('Placeholders:', JSON.stringify(input.placeholders));
+        console.log('Entities:', JSON.stringify(input.entities));
+
         const llmResponse = await matchEntitiesPrompt(input);
         const output = llmResponse.output;
 

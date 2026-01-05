@@ -296,6 +296,7 @@ export default function GerarNovoContratoPage() {
                         filledData: JSON.stringify({ entities: editedEntities }),
                         name: `Contrato de ${selectedTemplate.name} - ${clientName} - ${new Date().toLocaleDateString('pt-BR')}`,
                         markdownContent: filledContent,
+                        googleDocLink: selectedTemplate.googleDocLink || "",
                         createdAt: new Date().toISOString(),
                     };
 

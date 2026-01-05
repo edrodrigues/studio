@@ -15,11 +15,12 @@ export interface Contract {
   clientName: string;
   filledData: string;
   name: string;
-  markdownContent: string; 
+  markdownContent: string;
+  googleDocLink?: string;
   createdAt: string;
 }
 
 export interface UploadedFile {
-    id: string;
-    file: File;
+  id: string;
+  file: File;
 }

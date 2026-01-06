@@ -25,12 +25,13 @@ export function initializeFirebase() {
       firebaseApp = initializeApp(firebaseConfig);
     }
 
-    const auth = getAuth(firebaseApp);
-    onAuthStateChanged(auth, user => {
-      if (!user) {
-        signInAnonymously(auth);
-      }
-    });
+    // Anonymous login removed to support mandatory auth
+    // const auth = getAuth(firebaseApp);
+    // onAuthStateChanged(auth, user => {
+    //   if (!user) {
+    //     signInAnonymously(auth);
+    //   }
+    // });
 
     return getSdks(firebaseApp);
   }

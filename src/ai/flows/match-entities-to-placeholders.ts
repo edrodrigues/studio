@@ -48,7 +48,7 @@ const matchEntitiesPrompt = ai.definePrompt({
 Você é um assistente especialista em análise de contratos. Sua tarefa é vincular "Placeholders" (variáveis de um modelo) a "Entidades" (valores extraídos de um documento).
 
 Objetivo:
-Para cada Placeholder, encontre a Entidade que melhor o preenche.
+Para cada Placeholder, encontre a Entidade que melhor o preenche. O Placeholder pode vir no formato "<nome da variável>" ou apenas "nome da variável".
 
 Dados de Entrada:
 -----------------
@@ -69,38 +69,21 @@ Dados de Entrada:
 {{/each}}
 {{/if}}
 
+Lógica de Correspondência e Limpeza:
+1. **Limpeza de Placeholders:** Se um placeholder estiver envolto em sinais de menor/maior (ex: "<nome>"), considere apenas o texto interno ("nome") para o match semântico.
+2. **Ignorar Ruído:** Se um placeholder for uma tag HTML (ex: "EM", "LI", "P", "/EM", "/LI") ou começar com "/", IGNORE-O. Não faça match.
+
 Regras de Matching (Prioridade Descrescente):
-1. Correspondência Exata ou Normalizada: "NOME_PARCEIRO" == "Nome Parceiro"
-2. Semântica/Sinônimos: "Contratada" pode ser preenchido por "RAZAO_SOCIAL", "NOME_DA_EMPRESA", "INSTITUICAO_PARCEIRA".
-3. Conteúdo/Valor: Se o placeholder é "Data de Início" e a única entidade com formato de data (24/11/2025) é "DATA_ASSINATURA", faça o match.
+1. Correspondência Exata ou Normalizada: "<NOME_PARCEIRO>" ou "NOME_PARCEIRO" == "Nome Parceiro"
+2. Semântica/Sinônimos: "<Contratada>" pode ser preenchido por "RAZAO_SOCIAL", "NOME_DA_EMPRESA", "INSTITUICAO_PARCEIRA".
+3. Conteúdo/Valor: Se o placeholder é "<Data de Início>" e a única entidade com formato de data (24/11/2025) é "DATA_ASSINATURA", faça o match.
 4. Inferência Lógica Baseada no Contexto:
-   - "GESTor" pode ser "COORDENADOR_DO_PROJETO".
-   - "UFPE" geralmente é a "INSTITUICAO_EXECUTORA" ou apenas "INSTITUICAO".
-
-Exemplos de Raciocínio (Few-Shot):
-----------------------------------
-Exemplo 1:
-Placeholders: ["NOME_COORDENADOR", "SEI_NUMERO"]
-Entidades: {"COORDENADOR_PROJETO": "João Silva", "NUMERO_PROCESSO_SEI": "23076.000/2024-00"}
-Saída:
-[
-  { "placeholder": "NOME_COORDENADOR", "entityKey": "COORDENADOR_PROJETO" },
-  { "placeholder": "SEI_NUMERO", "entityKey": "NUMERO_PROCESSO_SEI" }
-]
-
-Exemplo 2:
-Placeholders: ["PARTICIPE", "OBJETO"]
-Entidades: {"NOME_PARCEIRA": "Empresa X Ltda", "RESUMO_OBJETO": "Pesquisa em IA"}
-Saída:
-[
-  { "placeholder": "PARTICIPE", "entityKey": "NOME_PARCEIRA" }, // "Partícipe" é termo jurídico para parceiro
-  { "placeholder": "OBJETO", "entityKey": "RESUMO_OBJETO" }
-]
+    - "GESTor" pode ser "COORDENADOR_DO_PROJETO".
+    - "UFPE" geralmente é a "INSTITUICAO_EXECUTORA" ou apenas "INSTITUICAO".
 
 Instruções Finais:
 - Retorne APENAS o JSON válido.
-- Se não houver match confiável, NÃO inclua o placeholder na lista de matches.
-- Seja flexível com maiúsculas/minúsculas e acentos.
+- Se não houver match confiável ou se o placeholder for ruído HTML, NÃO inclua o placeholder na lista de matches.
 `,
 });
 

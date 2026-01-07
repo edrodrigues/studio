@@ -70,13 +70,13 @@ Dados de Entrada:
 {{/if}}
 
 Lógica de Correspondência e Limpeza:
-1. **Limpeza de Placeholders:** Se um placeholder estiver envolto em sinais de menor/maior (ex: "<nome>"), considere apenas o texto interno ("nome") para o match semântico.
+1. **Limpeza de Placeholders:** Se um placeholder estiver envolto em sinais de double curly braces (ex: "{{nome}}"), considere apenas o texto interno ("nome") para o match semântico.
 2. **Ignorar Ruído:** Se um placeholder for uma tag HTML (ex: "EM", "LI", "P", "/EM", "/LI") ou começar com "/", IGNORE-O. Não faça match.
 
 Regras de Matching (Prioridade Descrescente):
-1. Correspondência Exata ou Normalizada: "<NOME_PARCEIRO>" ou "NOME_PARCEIRO" == "Nome Parceiro"
-2. Semântica/Sinônimos: "<Contratada>" pode ser preenchido por "RAZAO_SOCIAL", "NOME_DA_EMPRESA", "INSTITUICAO_PARCEIRA".
-3. Conteúdo/Valor: Se o placeholder é "<Data de Início>" e a única entidade com formato de data (24/11/2025) é "DATA_ASSINATURA", faça o match.
+1. Correspondência Exata ou Normalizada: "{{NOME_PARCEIRO}}" ou "NOME_PARCEIRO" == "Nome Parceiro"
+2. Semântica/Sinônimos: "{{Contratada}}" pode ser preenchido por "RAZAO_SOCIAL", "NOME_DA_EMPRESA", "INSTITUICAO_PARCEIRA".
+3. Conteúdo/Valor: Se o placeholder é "{{Data de Início}}" e a única entidade com formato de data (24/11/2025) é "DATA_ASSINATURA", faça o match.
 4. Inferência Lógica Baseada no Contexto:
     - "GESTor" pode ser "COORDENADOR_DO_PROJETO".
     - "UFPE" geralmente é a "INSTITUICAO_EXECUTORA" ou apenas "INSTITUICAO".

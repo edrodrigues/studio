@@ -49,57 +49,52 @@ const extractEntitiesPrompt = ai.definePrompt({
     format: 'json',
     schema: ExtractEntitiesFromDocumentsOutputSchema,
   },
-  prompt: `Instrução:
-Analise os documentos fornecidos e execute duas tarefas:
-1.  Identifique todas as informações variáveis — ou seja, elementos que mudariam entre versões diferentes do mesmo tipo de documento (nomes, datas, valores, etc.).
-2.  Para cada variável identificada, crie uma descrição concisa que explique o seu significado no contexto do documento.
+  prompt: `### PERSONA
+Você é um Especialista em Processamento de Linguagem Natural e Automação de Documentos Jurídicos. Sua tarefa é extrair dados de documentos de texto e mapeá-los para variáveis específicas de um modelo de contrato.
 
-Os documentos para análise são:
+### PROCESSO DE PENSAMENTO (Mental Cleanup)
+Antes de extrair qualquer dado, siga estas etapas:
+1. **Identificação de Ruído:** Identifique tags de formatação HTML (ex: <em>, <li>, <p>, <span>, <div>).
+2. **Filtro de Fechamento:** Descarte imediatamente qualquer termo que comece com "/" (ex: </li>, </em>, /EM, /LI), pois são apenas fechamentos de estilo ou ruídos de formatação.
+3. **Isolamento de Variáveis:** Foque apenas no que está entre \`< >\` e descreve dados de negócio (ex: <título do projeto>, <nome do coordenador>, <objeto>).
+4. **Extração Pura:** Ignore as tags de estilo ao redor dos dados e extraia apenas a informação semântica contida nos documentos.
+
+### OBJETIVO
+Identificar e extrair todas as informações que correspondem a potenciais variáveis de um modelo (geralmente indicadas por termos descritivos como "Nome", "Data", "Valor", etc., ou encontradas entre \`< >\` no contexto do usúario).
+
+### DOCUMENTOS PARA ANÁLISE
 {{#each documents}}
 - {{media url=this.url}}
 {{/each}}
 
-Output esperado:
-Um único objeto JSON que contenha duas chaves principais: "entities" e "schema".
+### DIRETRIZES DE EXTRAÇÃO
+1. **Identificação de Variáveis:** O modelo utiliza o padrão \`<nome da variável>\` para indicar onde os dados devem ser inseridos. Tente antecipar essas variáveis extraindo as informações chave do documento.
+2. **Eliminação de Ruído (CRÍTICO):** Ignore COMPLETAMENTE qualquer tag que pareça formatação HTML.
+   - NÃO extraia termos como: \`EM\`, \`LI\`, \`OL\`, \`P\`, \`STRONG\`, \`SPAN\`, \`DIV\`, \`BR\`.
+   - NÃO extraia nada que comece com \`/\`.
+3. **Extração Semântica:** Busque nos documentos fornecidos a informação que melhor se encaixe no contexto de um contrato administrativo.
 
-1.  "entities": Um objeto contendo os pares de chave-valor das informações extraídas.
-    *   As chaves devem ser em MAIÚSCULAS e com underscores (ex: "NOME_DO_REITOR").
-    *   Os valores devem ser strings, mantendo o formato original do documento.
+### REGRAS DE FORMATAÇÃO
+- **Chaves (Keys):** Use \`SNAKE_CASE_MAIÚSCULO\` (ex: \`VALOR_TOTAL_CONTRATO\`). Evite nomes de tags HTML.
+- **Valores (Values):** Extraia o texto exatamente como aparece no documento. Se for data, mantenha o formato original.
+- **Descrições (Schema):** Crie explicações técnicas para cada campo.
 
-2.  "schema": Um objeto JSON Schema que descreve a estrutura de "entities".
-    *   Deve ter "type": "object".
-    *   A chave "properties" deve conter um objeto onde cada chave corresponde a uma chave em "entities".
-    *   Cada propriedade dentro de "properties" deve ser um objeto com "type": "string" e uma "description" que explica o que aquela variável representa.
-
-Exemplo de Output:
+### FORMATO DE SAÍDA (JSON)
+Retorne estritamente um JSON com a seguinte estrutura:
 {
-  "entities": {
-    "NOME_DO_REITOR": "Alfredo Macedo Gomes",
-    "NOME_DA_UNIVERSIDADE": "Universidade Federal de Pernambuco",
-    "NUMERO_DO_PROCESSO": "23076.xxxxx/yyyy-yy"
-  },
+  "entities": { "CHAVE": "Valor" },
   "schema": {
     "type": "object",
     "properties": {
-      "NOME_DO_REITOR": {
-        "type": "string",
-        "description": "O nome completo do reitor da universidade."
-      },
-      "NOME_DA_UNIVERSIDADE": {
-        "type": "string",
-        "description": "O nome oficial da universidade mencionada no documento."
-      },
-      "NUMERO_DO_PROCESSO": {
-        "type": "string",
-        "description": "O número de identificação único do processo administrativo."
-      }
+      "CHAVE": { "type": "string", "description": "Explicação concisa" }
     }
   }
 }
 
-Regras de saída:
-- O resultado deve ser APENAS o JSON, sem comentários ou explicações extras.
-- Se nenhum campo for encontrado, retorne um objeto com "entities" e "schema" vazios.
+### REGRAS CRÍTICAS
+- Não invente informações. Se não houver dados, retorne objetos vazios.
+- Nunca retorne tags HTML (como EM, LI, P) como chaves de entidades.
+- Agrupe endereços em uma única string coerente se estiverem espalhados.
 `,
 });
 

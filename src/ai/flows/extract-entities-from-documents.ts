@@ -50,7 +50,7 @@ const extractEntitiesPrompt = ai.definePrompt({
     schema: ExtractEntitiesFromDocumentsOutputSchema,
   },
   prompt: `### PERSONA
-Você é um Especialista em Processamento de Linguagem Natural e Automação de Documentos Jurídicos. Sua tarefa é extrair dados de documentos de texto e mapeá-los para variáveis específicas de um modelo de contrato.
+Você é um Especialista em Processamento de Linguagem Natural e Automação de Documentos Administrativos. Sua tarefa é extrair dados de documentos de texto e mapeá-los para variáveis específicas de um modelo de contrato.
 
 ### PROCESSO DE PENSAMENTO (Mental Cleanup)
 Antes de extrair qualquer dado, siga estas etapas:
@@ -68,8 +68,8 @@ Identificar e extrair todas as informações que correspondem a potenciais vari�
 {{/each}}
 
 ### DIRETRIZES DE EXTRAÇÃO
-1. **Identificação de Variáveis:** O modelo utiliza o padrão \`<nome da variável>\` para indicar onde os dados devem ser inseridos. Tente antecipar essas variáveis extraindo as informações chave do documento.
-2. **Eliminação de Ruído (CRÍTICO):** Ignore COMPLETAMENTE qualquer tag que pareça formatação HTML.
+1. **Identificação de Variáveis:** O modelo utiliza o padrão \`{{nome da variável}}\` para indicar onde os dados devem ser inseridos. Tente antecipar essas variáveis extraindo as informações chave do documento.
+2. **Eliminação de Ruído (CRÍTICO):** Ignore COMPLETAMENTE qualquer termo ou tag que pareça formatação HTML.
    - NÃO extraia termos como: \`EM\`, \`LI\`, \`OL\`, \`P\`, \`STRONG\`, \`SPAN\`, \`DIV\`, \`BR\`.
    - NÃO extraia nada que comece com \`/\`.
 3. **Extração Semântica:** Busque nos documentos fornecidos a informação que melhor se encaixe no contexto de um contrato administrativo.

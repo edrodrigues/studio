@@ -13,17 +13,10 @@ export function initializeFirebase() {
     // populate the FirebaseOptions in production. It is critical that we attempt to call initializeApp()
     // without arguments.
     let firebaseApp;
-    try {
-      // Attempt to initialize via Firebase App Hosting environment variables
-      firebaseApp = initializeApp();
-    } catch (e) {
-      // Only warn in production because it's normal to use the firebaseConfig to initialize
-      // during development
-      if (process.env.NODE_ENV === "production") {
-        console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
-      }
-      firebaseApp = initializeApp(firebaseConfig);
-    }
+    // We use the local firebaseConfig directly to ensure consistency across environments
+    // and avoid the "app/no-options" error in environments like Vercel.
+    firebaseApp = initializeApp(firebaseConfig);
+
 
     // Anonymous login removed to support mandatory auth
     // const auth = getAuth(firebaseApp);

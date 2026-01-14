@@ -19,7 +19,7 @@ const FeedbackModal = dynamic(() => import('@/components/app/feedback-modal').th
 const ConsistencyAnalysisModal = dynamic(() => import('@/components/app/consistency-analysis-modal').then(mod => mod.ConsistencyAnalysisModal), { ssr: false });
 const EntitiesPreviewModal = dynamic(() => import('@/components/app/entities-preview-modal').then(mod => mod.EntitiesPreviewModal), { ssr: false });
 import useLocalStorage from '@/hooks/use-local-storage';
-
+import { ClearEntitiesButton } from '@/components/app/clear-entities-button';
 
 
 export default function DocumentosIniciaisPage() {
@@ -122,6 +122,9 @@ export default function DocumentosIniciaisPage() {
           <p className="mt-4 max-w-xl text-muted-foreground sm:text-lg">
             Analise os documentos iniciais com a IA e depois clique em "Extrair Entidades" para que as variáveis sejam identificadas e usadas de contexto para os demais documentos.
           </p>
+          <div className="mt-4">
+            <ClearEntitiesButton />
+          </div>
         </section>
 
         <section className="mx-auto max-w-5xl mb-8">

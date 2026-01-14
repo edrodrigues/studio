@@ -116,7 +116,7 @@ export function ContractPreviewModal({ contract, isOpen, onClose, onSave, initia
                         <RichTextEditor
                             value={editedContent}
                             onChange={setEditedContent}
-                            className="h-full [&_.ql-container]:!h-[calc(90vh-16rem)] [&_.ql-editor]:!h-[calc(90vh-16rem)]"
+                            className="h-full"
                         />
                     ) : (
                         <ScrollArea className="h-full rounded-md border">

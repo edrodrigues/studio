@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
     Dialog,
     DialogContent,
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertTriangle, CheckCircle2, Wand2, Loader2, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Wand2, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { type Template } from "@/lib/types";
 import { matchEntitiesToPlaceholders } from "@/ai/flows/match-entities-to-placeholders";
 
@@ -41,14 +41,27 @@ export function EntityEditModal({
 
     const requiredPlaceholders = useMemo(() => {
         const placeholdersSet = new Set<string>();
+        // Lista de tags HTML comuns para ignorar
+        const BLOCKED_TAGS = new Set([
+            'P', 'BR', 'STRONG', 'EM', 'U', 'UL', 'OL', 'LI', 'DIV', 'SPAN',
+            'TABLE', 'TR', 'TD', 'TH', 'THEAD', 'TBODY',
+            'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HR',
+            'A', 'IMG', 'IFRAME', 'SCRIPT', 'STYLE', 'LINK', 'META', 'HEAD', 'BODY', 'HTML'
+        ]);
 
         selectedTemplates.forEach(template => {
             if (template.markdownContent) {
                 const matches = template.markdownContent.match(/{{(.*?)}}|<(.*?)>/g) || [];
                 matches.forEach(match => {
                     const key = match.replace(/{{|}}|<|>/g, '').trim().toUpperCase();
-                    if (key) {
-                        placeholdersSet.add(key);
+                    // Ignora chaves vazias, tags de fechamento (começam com /) e tags HTML conhecidas
+                    if (key && !key.startsWith('/') && !BLOCKED_TAGS.has(key) && !key.startsWith('!DOCTYPE')) {
+                        // Também ignora se parecer uma abertura de tag com atributos (ex: "DIV CLASS=...")
+                        // Assumindo que placeholders reais não costumam ter "=" (a menos que seja um valor default, mas por segurança vamos filtrar o padrão de tag HTML)
+                        const firstWord = key.split(' ')[0];
+                        if (!BLOCKED_TAGS.has(firstWord)) {
+                            placeholdersSet.add(key);
+                        }
                     }
                 });
             }
@@ -57,62 +70,65 @@ export function EntityEditModal({
         return Array.from(placeholdersSet).sort();
     }, [selectedTemplates]);
 
+    const normalizeKey = (key: string) => key.toUpperCase().replace(/[\s_]+/g, '_').trim();
+
+    const performMatching = useCallback(async () => {
+        setIsMatching(true);
+        const initialEntities: Record<string, string> = {};
+        const aiMatched = new Set<string>();
+
+        try {
+            const normalizedExtracted = Object.entries(extractedEntities).reduce((acc, [key, value]) => {
+                acc[normalizeKey(key)] = String(value);
+                return acc;
+            }, {} as Record<string, string>);
+
+            const unmatchedPlaceholders: string[] = [];
+
+            requiredPlaceholders.forEach(placeholder => {
+                const normPlaceholder = normalizeKey(placeholder);
+                if (normalizedExtracted[normPlaceholder]) {
+                    initialEntities[placeholder] = normalizedExtracted[normPlaceholder];
+                } else {
+                    unmatchedPlaceholders.push(placeholder);
+                    initialEntities[placeholder] = "";
+                }
+            });
+
+            if (unmatchedPlaceholders.length > 0 && Object.keys(extractedEntities).length > 0) {
+                const aiMatchResult = await matchEntitiesToPlaceholders({
+                    placeholders: unmatchedPlaceholders,
+                    entities: extractedEntities,
+                    entityDescriptions,
+                });
+
+                aiMatchResult.matches.forEach(({ placeholder, entityKey }) => {
+                    if (extractedEntities[entityKey] !== undefined) {
+                        initialEntities[placeholder] = String(extractedEntities[entityKey]);
+                        aiMatched.add(placeholder);
+                    }
+                });
+            }
+
+            setMatchedByAI(aiMatched);
+            setEditableEntities(initialEntities);
+        } catch (error) {
+            console.error('Error during AI matching:', error);
+            const fallbackEntities: Record<string, string> = {};
+            requiredPlaceholders.forEach(placeholder => {
+                fallbackEntities[placeholder] = "";
+            });
+            setEditableEntities(fallbackEntities);
+        } finally {
+            setIsMatching(false);
+        }
+    }, [extractedEntities, entityDescriptions, requiredPlaceholders]);
+
     useEffect(() => {
         if (isOpen) {
-            const performMatching = async () => {
-                setIsMatching(true);
-                const initialEntities: Record<string, string> = {};
-                const aiMatched = new Set<string>();
-
-                try {
-                    const caseInsensitiveExtracted = Object.entries(extractedEntities).reduce((acc, [key, value]) => {
-                        acc[key.toUpperCase()] = String(value);
-                        return acc;
-                    }, {} as Record<string, string>);
-
-                    const unmatchedPlaceholders: string[] = [];
-
-                    requiredPlaceholders.forEach(placeholder => {
-                        if (caseInsensitiveExtracted[placeholder]) {
-                            initialEntities[placeholder] = caseInsensitiveExtracted[placeholder];
-                        } else {
-                            unmatchedPlaceholders.push(placeholder);
-                            initialEntities[placeholder] = "";
-                        }
-                    });
-
-                    if (unmatchedPlaceholders.length > 0 && Object.keys(extractedEntities).length > 0) {
-                        const aiMatchResult = await matchEntitiesToPlaceholders({
-                            placeholders: unmatchedPlaceholders,
-                            entities: extractedEntities,
-                            entityDescriptions,
-                        });
-
-                        aiMatchResult.matches.forEach(({ placeholder, entityKey }) => {
-                            if (extractedEntities[entityKey] !== undefined) {
-                                initialEntities[placeholder] = String(extractedEntities[entityKey]);
-                                aiMatched.add(placeholder);
-                            }
-                        });
-                    }
-
-                    setMatchedByAI(aiMatched);
-                    setEditableEntities(initialEntities);
-                } catch (error) {
-                    console.error('Error during AI matching:', error);
-                    const fallbackEntities: Record<string, string> = {};
-                    requiredPlaceholders.forEach(placeholder => {
-                        fallbackEntities[placeholder] = "";
-                    });
-                    setEditableEntities(fallbackEntities);
-                } finally {
-                    setIsMatching(false);
-                }
-            };
-
             performMatching();
         }
-    }, [isOpen, requiredPlaceholders, extractedEntities, entityDescriptions]);
+    }, [isOpen, performMatching]);
 
     const handleEntityChange = (key: string, value: string) => {
         setEditableEntities(prev => ({
@@ -138,11 +154,23 @@ export function EntityEditModal({
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-4xl h-[85vh] flex flex-col">
-                <DialogHeader>
-                    <DialogTitle>Revisar e Editar Entidades</DialogTitle>
-                    <DialogDescription>
-                        Revise as entidades extraídasе preencha manualmente os campos que estão faltando.
-                    </DialogDescription>
+                <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <div className="space-y-1">
+                        <DialogTitle>Revisar e Editar Entidades</DialogTitle>
+                        <DialogDescription>
+                            Revise as entidades extraídas e preencha manualmente os campos que estão faltando.
+                        </DialogDescription>
+                    </div>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={performMatching}
+                        disabled={isMatching}
+                        className="gap-2"
+                    >
+                        <RefreshCw className={`h-3 w-3 ${isMatching ? 'animate-spin' : ''}`} />
+                        {isMatching ? 'Processando...' : 'Re-processar com IA'}
+                    </Button>
                 </DialogHeader>
 
                 {isMatching ? (

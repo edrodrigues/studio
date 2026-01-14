@@ -44,6 +44,43 @@ const matchEntitiesPrompt = ai.definePrompt({
         format: 'json',
         schema: MatchEntitiesToPlaceholdersOutputSchema,
     },
+    config: {
+        // Pre-format the data to avoid Handlebars interpreting placeholder content
+        inputTransform: (input: MatchEntitiesToPlaceholdersInput) => {
+            // Helper function to escape strings that might be interpreted as Handlebars syntax
+            // We need to be very aggressive with escaping because Genkit uses Handlebars
+            const escapeHandlebars = (str: any): string => {
+                if (str === null || str === undefined) return '';
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/{{/g, '&#123;&#123;')
+                    .replace(/}}/g, '&#125;&#125;');
+            };
+
+            const placeholdersList = input.placeholders
+                .map(p => `- ${escapeHandlebars(p)}`)
+                .join('\n');
+
+            const entitiesList = Object.entries(input.entities)
+                .map(([key, value]) => `- Key: "${escapeHandlebars(key)}", Valor: "${escapeHandlebars(value)}"`)
+                .join('\n');
+
+            const descriptionsList = input.entityDescriptions
+                ? Object.entries(input.entityDescriptions)
+                    .map(([key, desc]) => `- ${escapeHandlebars(key)}: ${escapeHandlebars(desc)}`)
+                    .join('\n')
+                : '';
+
+            return {
+                placeholdersList,
+                entitiesList,
+                descriptionsList,
+                hasDescriptions: !!input.entityDescriptions && Object.keys(input.entityDescriptions).length > 0,
+            };
+        },
+    },
     prompt: `Tarefa:
 Você é um assistente especialista em análise de contratos. Sua tarefa é vincular "Placeholders" (variáveis de um modelo) a "Entidades" (valores extraídos de um documento).
 
@@ -53,37 +90,36 @@ Para cada Placeholder, encontre a Entidade que melhor o preenche. O Placeholder 
 Dados de Entrada:
 -----------------
 1. Placeholders (do template):
-{{#each placeholders}}
-- {{this}}
-{{/each}}
+{{placeholdersList}}
 
 2. Entidades Disponíveis (extraídas):
-{{#each entities}}
-- Key: "{{@key}}", Valor: "{{this}}"
-{{/each}}
+{{entitiesList}}
 
+{{#if hasDescriptions}}
 3. Descrições (opcional):
-{{#if entityDescriptions}}
-{{#each entityDescriptions}}
-- {{@key}}: {{this}}
-{{/each}}
+{{descriptionsList}}
 {{/if}}
 
-Lógica de Correspondência e Limpeza:
-1. **Limpeza de Placeholders:** Se um placeholder estiver envolto em sinais de double curly braces (ex: "{{nome}}"), considere apenas o texto interno ("nome") para o match semântico.
-2. **Ignorar Ruído:** Se um placeholder for uma tag HTML (ex: "EM", "LI", "P", "/EM", "/LI") ou começar com "/", IGNORE-O. Não faça match.
+Lógica de Análise e Correspondência:
+1. **Classificação Inicial (FILTRO DE RUÍDO):** Para cada Placeholder, determine se ele representa um dado de negócio (ex: Nome, CPF, Data, Valor, Objeto, Unidade, Cargo) ou um ruído técnico/estilo (ex: EM, LI, P, STRONG, OL, UL, BR, SPAN, u, ou qualquer termo que comece com "/").
+   - **CRÍTICO:** Se for identificado como ruído de estilo/formatacão, IGNORE-O IMEDIATAMENTE.
+2. **Normalização de Busca:** Ao comparar, ignore a diferença entre espaços e underscores. "NOME_DO_PROJETO" é o mesmo que "NOME DO PROJETO".
+3. **Análise Semântica:** Encontre a Entidade que melhor preenche o Placeholder, mesmo que os nomes sejam bem diferentes, desde que o conceito seja o mesmo (ex: "INSTITUIÇÃO" -> "UPE", "VALOR" -> "R$ 10.000,00").
+4. **Validação de Negócio:** Somente faça o vínculo se a "Entidade" extraída preencher semanticamente a lacuna do "Placeholder".
 
 Regras de Matching (Prioridade Descrescente):
-1. Correspondência Exata ou Normalizada: "{{NOME_PARCEIRO}}" ou "NOME_PARCEIRO" == "Nome Parceiro"
-2. Semântica/Sinônimos: "{{Contratada}}" pode ser preenchido por "RAZAO_SOCIAL", "NOME_DA_EMPRESA", "INSTITUICAO_PARCEIRA".
-3. Conteúdo/Valor: Se o placeholder é "{{Data de Início}}" e a única entidade com formato de data (24/11/2025) é "DATA_ASSINATURA", faça o match.
+1. Correspondência Exata ou Normalizada: "<NOME_PARCEIRO>" ou "NOME_PARCEIRO" == "NOME PARCEIRO" or "NOME_PARCEIRO"
+2. Semântica/Sinônimos: "<Contratada>" pode ser preenchido por "RAZAO_SOCIAL", "NOME_DA_EMPRESA", "INSTITUICAO_PARCEIRA", "UNIDADE_EXECUTORA".
+3. Conteúdo/Valor: Se o placeholder pede uma data e temos uma entidade com valor de data, avalie se é a data correta para aquele contexto.
 4. Inferência Lógica Baseada no Contexto:
-    - "GESTor" pode ser "COORDENADOR_DO_PROJETO".
-    - "UFPE" geralmente é a "INSTITUICAO_EXECUTORA" ou apenas "INSTITUICAO".
+    - "GESTOR" pode ser "COORDENADOR_DO_PROJETO".
+    - "UFPE" ou "UPE" geralmente é a "INSTITUICAO_EXECUTORA" ou apenas "INSTITUICAO".
+    - "TÍTULO" pode ser "OBJETO" ou "NOME_DO_PROJETO".
 
 Instruções Finais:
 - Retorne APENAS o JSON válido.
-- Se não houver match confiável ou se o placeholder for ruído HTML, NÃO inclua o placeholder na lista de matches.
+- Se não houver match confiável ou se o placeholder for ruído HTML/estilo, NÃO inclua o placeholder na lista de matches.
+- Seja conservador. É melhor não fazer um match do que fazer um match errado.
 `,
 });
 

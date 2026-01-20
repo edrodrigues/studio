@@ -21,9 +21,11 @@ export type MatchEntitiesToPlaceholdersInput = z.infer<
 >;
 
 const MatchEntitiesToPlaceholdersOutputSchema = z.object({
+    reasoning: z.string().describe('Explain your thought process for the matches. Analyze potential ambiguity and explain why you rejected false positives.'),
     matches: z.array(z.object({
         placeholder: z.string().describe('The placeholder name from the template'),
         entityKey: z.string().describe('The entity key that should fill this placeholder'),
+        confidence: z.enum(['HIGH', 'MEDIUM', 'LOW']).describe('Confidence level of the match'),
     })).describe('Array of placeholder-to-entity mappings. Only include placeholders that have a clear match.'),
 });
 
@@ -81,45 +83,71 @@ const matchEntitiesPrompt = ai.definePrompt({
             };
         },
     },
-    prompt: `Tarefa:
-Você é um assistente especialista em análise de contratos. Sua tarefa é vincular "Placeholders" (variáveis de um modelo) a "Entidades" (valores extraídos de um documento).
+    prompt: `### TAREFA
+Atue como um Especialista Sênior em Contratos e Análise de Dados. Sua missão é conectar **Placeholders** (lacunas de um modelo de contrato) às **Entidades** (dados extraídos de documentos) correspondentes.
 
-Objetivo:
-Para cada Placeholder, encontre a Entidade que melhor o preenche. O Placeholder pode vir no formato "<nome da variável>" ou apenas "nome da variável".
+### OBJETIVO PRINCIPAL
+Para cada Placeholder, encontre a Entidade que melhor o preenche.
+- **Prioridade:** Match Exato > Match Semântico/Sinônimo > Match por Contexto/Valor.
+- **Evite:** Alucinações (inventar conexões sem lógica) e conexões com tipos de dados incompatíveis.
 
-Dados de Entrada:
+### DADOS DE ENTRADA
 -----------------
-1. Placeholders (do template):
+**Placeholders (O que precisa ser preenchido):**
 {{placeholdersList}}
 
-2. Entidades Disponíveis (extraídas):
+**Entidades Disponíveis (Dados que temos):**
 {{entitiesList}}
 
 {{#if hasDescriptions}}
-3. Descrições (opcional):
+**Dicionário de Entidades (O que significa cada campo):**
 {{descriptionsList}}
 {{/if}}
+-----------------
 
-Lógica de Análise e Correspondência:
-1. **Classificação Inicial (FILTRO DE RUÍDO):** Para cada Placeholder, determine se ele representa um dado de negócio (ex: Nome, CPF, Data, Valor, Objeto, Unidade, Cargo) ou um ruído técnico/estilo (ex: EM, LI, P, STRONG, OL, UL, BR, SPAN, u, ou qualquer termo que comece com "/").
-   - **CRÍTICO:** Se for identificado como ruído de estilo/formatacão, IGNORE-O IMEDIATAMENTE.
-2. **Normalização de Busca:** Ao comparar, ignore a diferença entre espaços e underscores. "NOME_DO_PROJETO" é o mesmo que "NOME DO PROJETO".
-3. **Análise Semântica:** Encontre a Entidade que melhor preenche o Placeholder, mesmo que os nomes sejam bem diferentes, desde que o conceito seja o mesmo (ex: "INSTITUIÇÃO" -> "UPE", "VALOR" -> "R$ 10.000,00").
-4. **Validação de Negócio:** Somente faça o vínculo se a "Entidade" extraída preencher semanticamente a lacuna do "Placeholder".
+### PROCESSO DE PENSAMENTO (CoT)
+Use o campo "reasoning" para documentar sua análise passo a passo:
 
-Regras de Matching (Prioridade Descrescente):
-1. Correspondência Exata ou Normalizada: "<NOME_PARCEIRO>" ou "NOME_PARCEIRO" == "NOME PARCEIRO" or "NOME_PARCEIRO"
-2. Semântica/Sinônimos: "<Contratada>" pode ser preenchido por "RAZAO_SOCIAL", "NOME_DA_EMPRESA", "INSTITUICAO_PARCEIRA", "UNIDADE_EXECUTORA".
-3. Conteúdo/Valor: Se o placeholder pede uma data e temos uma entidade com valor de data, avalie se é a data correta para aquele contexto.
-4. Inferência Lógica Baseada no Contexto:
-    - "GESTOR" pode ser "COORDENADOR_DO_PROJETO".
-    - "UFPE" ou "UPE" geralmente é a "INSTITUICAO_EXECUTORA" ou apenas "INSTITUICAO".
-    - "TÍTULO" pode ser "OBJETO" ou "NOME_DO_PROJETO".
+1.  **Filtro de Ruído (CRÍTICO):** O placeholder parece uma tag HTML ou sujeira de formatação?
+    *   IGNORAR: "STRONG", "BR", "LI", "DIV", "SPAN", "P", "UL", "OL", "EM", "NBSP", "CLASS", "STYLE".
+    *   IGNORAR: Placeholders com caracteres estranhos ou muito curtos (ex: "A", "B").
 
-Instruções Finais:
-- Retorne APENAS o JSON válido.
-- Se não houver match confiável ou se o placeholder for ruído HTML/estilo, NÃO inclua o placeholder na lista de matches.
-- Seja conservador. É melhor não fazer um match do que fazer um match errado.
+2.  **Compatibilidade de Tipos (Validação de Valor):**
+    *   O placeholder pede uma **DATA**? A entidade tem formato de data? (Não ligue "DATA_ASSINATURA" a "João Silva").
+    *   O placeholder pede um **VALOR/DINHEIRO**? A entidade tem números/moeda?
+    *   O placeholder pede **DOCUMENTO** (CPF/CNPJ)? A entidade tem dígitos suficientes?
+
+3.  **Análise Semântica e Sinônimos:**
+    *   "CONTRATADA" = "LOCATÁRIA" = "COMPRADORA" = "PRESTADORA" (dependendo do contexto).
+    *   "CONTRATANTE" = "LOCADOR" = "VENDEDOR" = "TOMADOR".
+    *   "OBJETO" = "DESCRICAO_SERVICO".
+
+4.  **Pontuação de Confiança (Confidence Score):**
+    *   **HIGH:** Nome quase idêntico ou sinônimo óbvio E tipos compatíveis.
+    *   **MEDIUM:** Nome diferente, mas contexto e valores sugerem fortemente a conexão (Ex: Placeholder "VENCIMENTO" e Entidade "DATA_FINAL" com valor de data).
+    *   **LOW:** Apenas um palpite vago. (Prefira não retornar match se for muito baixo, a menos que seja a única opção viável para algo obrigatório).
+
+### EXEMPLOS (FEW-SHOT)
+
+**Exemplo 1: Match por Sinônimo e Contexto**
+*   Placeholder: "NOME_LOCATARIO"
+*   Entidade: "RAZAO_SOCIAL" (Valor: "Empresa X Ltda") / Descrição: "Empresa que está alugando o imóvel"
+*   *Decisão:* MATCH (HIGH). Embora os nomes sejam diferentes, o contexto (Ltda = empresa) e a semântica de contrato de locação validam.
+
+**Exemplo 2: Match por Tipo de Dado**
+*   Placeholder: "VIGENCIA_CONTRATO"
+*   Entidades: "NOME" ("Carlos"), "DATA_INICIO" ("01/01/2024")
+*   *Decisão:* MATCH (MEDIUM) com "DATA_INICIO". "NOME" é descartado por tipo incompatível.
+
+**Exemplo 3: Ruído HTML**
+*   Placeholder: "STRONG"
+*   Entidade: "QUALQUER_COISA"
+*   *Decisão:* IGNORAR. É tag HTML.
+
+### FORMATO DE SAÍDA
+Retorne um JSON com:
+- "reasoning": Explicação breve das decisões tomadas.
+- "matches": Array com os matches encontrados.
 `,
 });
 
@@ -142,6 +170,7 @@ const matchEntitiesFlow = ai.defineFlow(
         }
 
         return {
+            reasoning: output.reasoning,
             matches: output.matches,
         };
     }

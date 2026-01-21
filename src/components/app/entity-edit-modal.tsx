@@ -73,6 +73,13 @@ export function EntityEditModal({
     const normalizeKey = (key: string) => key.toUpperCase().replace(/[\s_]+/g, '_').trim();
 
     const performMatching = useCallback(async () => {
+        console.log('Entity Modal - Received extractedEntities from "Entidades para Preenchimento":', {
+            extractedEntities,
+            entityKeys: Object.keys(extractedEntities),
+            entityCount: Object.keys(extractedEntities).length,
+            sampleEntities: Object.entries(extractedEntities).slice(0, 3)
+        });
+
         setIsMatching(true);
         const initialEntities: Record<string, string> = {};
         const aiMatched = new Set<string>();
@@ -214,10 +221,14 @@ export function EntityEditModal({
                                         <Label htmlFor={`entity-${placeholder}`} className="font-mono text-xs text-muted-foreground flex items-center justify-end gap-2">
                                             {placeholder}
                                             {wasExtractedExact && (
-                                                <CheckCircle2 className="h-3 w-3 text-green-600" title="Extraída automaticamente (match exato)" />
+                                                <span title="Extraída automaticamente (match exato)">
+                                                    <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                                </span>
                                             )}
                                             {wasMatchedByAI && (
-                                                <Sparkles className="h-3 w-3 text-blue-600" title="Correspondida pela IA" />
+                                                <span title="Correspondida pela IA">
+                                                    <Sparkles className="h-3 w-3 text-blue-600" />
+                                                </span>
                                             )}
                                         </Label>
                                     </div>

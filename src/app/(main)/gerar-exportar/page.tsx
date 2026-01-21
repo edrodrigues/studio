@@ -101,7 +101,7 @@ function ContractsTable({
                 onCheckedChange={() => onSelectionChange(contract.id)}
               />
             </TableCell>
-            <TableCell className="font-medium">{contract.name}</TableCell>
+            <TableCell className="font-medium">{contract.name.replace(/^Contrato de\s+/i, '')}</TableCell>
             <TableCell>
               {contract.createdAt ? format(new Date(contract.createdAt), "dd 'de' MMMM 'de' yyyy, 'às' HH:mm", { locale: ptBR }) : 'Data indisponível'}
             </TableCell>

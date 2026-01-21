@@ -216,6 +216,14 @@ export default function GerarNovoContratoPage() {
             return;
         }
 
+        // Log entities to verify data flow
+        console.log('Opening entity modal with entities from "Entidades para Preenchimento":', {
+            storedEntitiesRaw: storedEntities,
+            entitiesForModal: storedEntities?.entities,
+            entityKeys: Object.keys(storedEntities?.entities || {}),
+            entityCount: Object.keys(storedEntities?.entities || {}).length
+        });
+
         // Open the entity edit modal instead of generating immediately
         setIsEntityModalOpen(true);
     };

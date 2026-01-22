@@ -75,20 +75,20 @@ Busque por termos descritivos como "Nome", "Data", "Valor", "Objeto", "Vigência
 2. **Extração Semântica:** Busque nos documentos fornecidos a informação que melhor se encaixe no contexto de um contrato administrativo, independente da formatação. Extraia nomes de partes, datas de assinatura, valores contratuais, e descrições de objeto, inferindo o significado pelo texto ao redor (rótulos).
 
 ### REGRAS DE FORMATAÇÃO
-- **Chaves (Keys):** Use SNAKE_CASE_MAIÚSCULO (ex: VALOR_TOTAL_CONTRATO). 
+- **Chaves (Keys):** Use MAIÚSCULAS com espaços (ex: VALOR TOTAL DO CONTRATO, NOME DO COORDENADOR). 
   - **DICA**: Remova símbolos como <, >, {, }, [, ], @, # das chaves.
-  - Extraia apenas o significado semântico (ex: se vir "<<nome do coordenador>>", use a chave "NOME_COORDENADOR").
+  - Mantenha a legibilidade humana (ex: se vir "<<nome do coordenador>>", use a chave "NOME DO COORDENADOR").
 - **Valores (Values):** Extraia o texto exatamente como aparece no documento. Se for data, mantenha o formato original.
 - **Descrições (Schema):** Crie explicações técnicas para cada campo.
 
 ### FORMATO DE SAÍDA (JSON)
 Retorne estritamente um JSON com a seguinte estrutura:
 {
-  "entities": { "CHAVE": "Valor" },
+  "entities": { "NOME DA CHAVE": "Valor" },
   "schema": {
     "type": "object",
     "properties": {
-      "CHAVE": { "type": "string", "description": "Explicação concisa" }
+      "NOME DA CHAVE": { "type": "string", "description": "Explicação concisa" }
     }
   }
 }
@@ -122,7 +122,8 @@ const extractEntitiesFlow = ai.defineFlow(
     if (output.extractedJson.entities) {
       Object.entries(output.extractedJson.entities).forEach(([key, value]) => {
         // Remove angle brackets, curly braces, and forward slashes from keys
-        const cleanKey = key.replace(/[<>{} \/]/g, '').trim().toUpperCase().replace(/\s+/g, '_');
+        // Convert to UPPERCASE to match how placeholders are extracted from templates
+        const cleanKey = key.replace(/[<>{}]/g, ' ').trim().replace(/\s+/g, ' ').toUpperCase();
         if (cleanKey) { // Only add if key is not empty after cleaning
           sanitizedEntities[cleanKey] = value;
         }
@@ -131,7 +132,7 @@ const extractEntitiesFlow = ai.defineFlow(
 
     if (output.extractedJson.schema?.properties) {
       Object.entries(output.extractedJson.schema.properties).forEach(([key, value]) => {
-        const cleanKey = key.replace(/[<>{} \/]/g, '').trim().toUpperCase().replace(/\s+/g, '_');
+        const cleanKey = key.replace(/[<>{} ]/g, ' ').trim().replace(/\s+/g, ' ');
         if (cleanKey) {
           sanitizedProperties[cleanKey] = value;
         }

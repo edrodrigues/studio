@@ -42,48 +42,20 @@ export async function matchEntitiesToPlaceholders(
 const matchEntitiesPrompt = ai.definePrompt({
     name: 'matchEntitiesPrompt',
     model: 'googleai/gemini-3-pro-preview',
-    input: { schema: MatchEntitiesToPlaceholdersInputSchema },
+    input: {
+        schema: z.object({
+            placeholdersList: z.string(),
+            entitiesList: z.string(),
+            descriptionsList: z.string(),
+            hasDescriptions: z.boolean()
+        })
+    },
     output: {
         format: 'json',
         schema: MatchEntitiesToPlaceholdersOutputSchema,
     },
-    config: {
-        // Pre-format the data to avoid Handlebars interpreting placeholder content
-        inputTransform: (input: MatchEntitiesToPlaceholdersInput) => {
-            // Helper function to escape strings that might be interpreted as Handlebars syntax
-            // We need to be very aggressive with escaping because Genkit uses Handlebars
-            const escapeHandlebars = (str: any): string => {
-                if (str === null || str === undefined) return '';
-                return String(str)
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/{{/g, '&#123;&#123;')
-                    .replace(/}}/g, '&#125;&#125;');
-            };
-
-            const placeholdersList = input.placeholders
-                .map(p => `- ${escapeHandlebars(p)}`)
-                .join('\n');
-
-            const entitiesList = Object.entries(input.entities)
-                .map(([key, value]) => `- Key: "${escapeHandlebars(key)}", Valor: "${escapeHandlebars(value)}"`)
-                .join('\n');
-
-            const descriptionsList = input.entityDescriptions
-                ? Object.entries(input.entityDescriptions)
-                    .map(([key, desc]) => `- ${escapeHandlebars(key)}: ${escapeHandlebars(desc)}`)
-                    .join('\n')
-                : '';
-
-            return {
-                placeholdersList,
-                entitiesList,
-                descriptionsList,
-                hasDescriptions: !!input.entityDescriptions && Object.keys(input.entityDescriptions).length > 0,
-            };
-        },
-    },
+    // Config removed as inputTransform is not reliable in prompt config
+    config: {},
     prompt: `Você é um especialista em contratos administrativos brasileiros. Conecte cada Placeholder à Entidade correspondente.
 
 ## REGRAS
@@ -91,15 +63,20 @@ const matchEntitiesPrompt = ai.definePrompt({
 2. Se 2+ palavras coincidem (ex: UNIDADE + DESCENTRALIZ), faça o match.
 3. Ignore tags HTML. Evite apenas conexões obviamente erradas.
 
+O formato de entrada das entidades é:
+'''
+"entities": { "NOME DA CHAVE": "Valor" }
+'''
+
 ## DADOS
-**Placeholders:**
+**Placeholders (JSON):**
 {{placeholdersList}}
 
-**Entidades:**
+**Entidades (JSON):**
 {{entitiesList}}
 {{#if hasDescriptions}}
 
-**Descrições:**
+**Descrições (JSON):**
 {{descriptionsList}}
 {{/if}}
 
@@ -115,7 +92,7 @@ const matchEntitiesPrompt = ai.definePrompt({
 - **MEDIUM:** 2 palavras ou sinônimo claro
 - **LOW:** 1 palavra com contexto válido
 
-Retorne JSON com "reasoning" (breve) e "matches" (inclua MEDIUM ou superior).
+Retorne JSON com "reasoning" (breve) e "matches" (inclua LOW ou superior).
 `,
 });
 
@@ -131,7 +108,21 @@ const matchEntitiesFlow = ai.defineFlow(
         console.log('Entities:', JSON.stringify(input.entities));
 
         try {
-            const llmResponse = await matchEntitiesPrompt(input);
+            const placeholdersList = JSON.stringify(input.placeholders, null, 2);
+            const entitiesList = JSON.stringify(input.entities, null, 2);
+
+            const descriptionsList = input.entityDescriptions
+                ? JSON.stringify(input.entityDescriptions, null, 2)
+                : '{}';
+
+            const promptInput = {
+                placeholdersList,
+                entitiesList,
+                descriptionsList,
+                hasDescriptions: !!input.entityDescriptions && Object.keys(input.entityDescriptions).length > 0,
+            };
+
+            const llmResponse = await matchEntitiesPrompt(promptInput);
             const output = llmResponse.output;
 
             // Handle null or undefined responses from AI

@@ -103,15 +103,27 @@ export function EntityEditModal({
             });
 
             if (unmatchedPlaceholders.length > 0 && Object.keys(extractedEntities).length > 0) {
+                // Option C: Normalize entities to UPPERCASE for AI matching safety net
+                // This ensures AI sees keys in the same format as placeholders (UPPERCASE)
+                const entitiesForAI = Object.entries(extractedEntities).reduce((acc, [key, value]) => {
+                    const upperKey = key.toUpperCase();
+                    // Prioritize existing values if duplicates occur (though unlikely with unique extraction)
+                    if (!acc[upperKey]) {
+                        acc[upperKey] = value;
+                    }
+                    return acc;
+                }, {} as Record<string, any>);
+
                 const aiMatchResult = await matchEntitiesToPlaceholders({
                     placeholders: unmatchedPlaceholders,
-                    entities: extractedEntities,
+                    entities: entitiesForAI,
                     entityDescriptions,
                 });
 
                 aiMatchResult.matches.forEach(({ placeholder, entityKey }) => {
-                    if (extractedEntities[entityKey] !== undefined) {
-                        initialEntities[placeholder] = String(extractedEntities[entityKey]);
+                    // Look up value in entitiesForAI since entityKey will be uppercase
+                    if (entitiesForAI[entityKey] !== undefined) {
+                        initialEntities[placeholder] = String(entitiesForAI[entityKey]);
                         aiMatched.add(placeholder);
                     }
                 });
@@ -172,11 +184,12 @@ export function EntityEditModal({
                         variant="outline"
                         size="sm"
                         onClick={performMatching}
-                        disabled={isMatching}
+                        disabled={isMatching || Object.keys(extractedEntities).length === 0}
                         className="gap-2"
+                        title={Object.keys(extractedEntities).length === 0 ? "Nenhuma entidade extraída dos documentos iniciais para comparar." : "Tentar novas correspondências com IA"}
                     >
                         <RefreshCw className={`h-3 w-3 ${isMatching ? 'animate-spin' : ''}`} />
-                        {isMatching ? 'Processando...' : 'Re-processar com IA'}
+                        {isMatching ? 'Processando...' : Object.keys(extractedEntities).length === 0 ? 'Sem entidades extraídas' : 'Re-processar com IA'}
                     </Button>
                 </DialogHeader>
 

@@ -107,8 +107,26 @@ export async function handleGetFeedback(input: {
       url: doc.dataUri,
     }));
 
+    // Inject Playbook Content
+    let systemPromptToUse = validatedData.data.systemPrompt;
+    try {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const playbookPath = path.join(process.cwd(), 'docs', 'Playbook - Contratos V-LAB.md');
+
+      if (fs.existsSync(playbookPath)) {
+        const playbookContent = fs.readFileSync(playbookPath, 'utf-8');
+        systemPromptToUse = `${systemPromptToUse}\n\n### REFERÊNCIA OBRIGATÓRIA (PLAYBOOK DE CONTRATOS):\nUse as diretrizes abaixo para avaliar os documentos. Se houver divergência entre o conhecimento geral e este playbook, siga o playbook.\n\n${playbookContent}`;
+      } else {
+        console.warn('Playbook file not found at:', playbookPath);
+      }
+    } catch (error) {
+      console.error('Error reading playbook:', error);
+      // Continue with original prompt if playbook fails
+    }
+
     const result = await getDocumentFeedback({
-      systemPrompt: validatedData.data.systemPrompt,
+      systemPrompt: systemPromptToUse,
       documents: documentsForFlow,
     });
 

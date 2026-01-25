@@ -192,6 +192,7 @@ export default function DocumentosIniciaisPage() {
             handleFileSelect={handleFileSelect('planOfWork')}
             handleFeedback={() => handleFeedbackClick(files.planOfWork)}
             name="planOfWork"
+            disabled={!contractType}
           />
           <FileUploader
             icon={<Clock size={24} />}
@@ -200,6 +201,7 @@ export default function DocumentosIniciaisPage() {
             handleFileSelect={handleFileSelect('termOfExecution')}
             handleFeedback={() => handleFeedbackClick(files.termOfExecution)}
             name="termOfExecution"
+            disabled={!contractType}
           />
           <FileUploader
             icon={<CircleDollarSign size={24} />}
@@ -208,6 +210,7 @@ export default function DocumentosIniciaisPage() {
             handleFileSelect={handleFileSelect('budgetSpreadsheet')}
             handleFeedback={() => handleFeedbackClick(files.budgetSpreadsheet)}
             name="budgetSpreadsheet"
+            disabled={!contractType}
           />
         </section>
 

@@ -62,7 +62,7 @@ function ContractsTable({
     return (
       <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 border border-dashed rounded-lg">
         <FilePlus2 className="h-8 w-8 mb-4" />
-        <p className="font-semibold">Nenhum contrato gerado ainda</p>
+        <p className="font-semibold">Nenhum documento gerado ainda</p>
         <p className="text-sm">Vá para a aba "Gerar Documentos" para começar.</p>
       </div>
     )
@@ -87,7 +87,7 @@ function ContractsTable({
               }}
             />
           </TableHead>
-          <TableHead>Nome do Contrato</TableHead>
+          <TableHead>Nome do Documento</TableHead>
           <TableHead>Data de Criação</TableHead>
           <TableHead className="w-[50px]"></TableHead>
         </TableRow>
@@ -182,16 +182,16 @@ export default function GerarExportarPage() {
       try {
         await deleteDoc(contractRef);
         toast({
-          title: "Contrato excluído",
-          description: "O contrato foi removido com sucesso.",
+          title: "Documento excluído",
+          description: "O documento foi removido com sucesso.",
         });
         setSelectedForComparison(prev => prev.filter(cid => cid !== id));
       } catch (error) {
-        console.error("Erro ao excluir o contrato:", error);
+        console.error("Erro ao excluir o documento:", error);
         toast({
           variant: "destructive",
           title: "Erro ao excluir",
-          description: "Não foi possível remover o contrato. Tente novamente.",
+          description: "Não foi possível remover o documento. Tente novamente.",
         });
       }
     }
@@ -207,8 +207,8 @@ export default function GerarExportarPage() {
     if (selectedForComparison.length === 0 || !sortedContracts) {
       toast({
         variant: "destructive",
-        title: "Nenhum contrato selecionado",
-        description: "Por favor, selecione pelo menos um contrato para exportar."
+        title: "Nenhum documento selecionado",
+        description: "Por favor, selecione pelo menos um documento para exportar."
       });
       return;
     }
@@ -217,7 +217,7 @@ export default function GerarExportarPage() {
 
     selectedContractsData.forEach(contract => {
       if (!contract.markdownContent) {
-        console.warn(`Contrato '${contract.name}' (ID: ${contract.id}) ignorado por não ter conteúdo.`);
+        console.warn(`Documento '${contract.name}' (ID: ${contract.id}) ignorado por não ter conteúdo.`);
         return;
       }
 
@@ -230,7 +230,7 @@ export default function GerarExportarPage() {
 
     toast({
       title: "Exportação iniciada!",
-      description: `${selectedContractsData.length} contrato(s) estão sendo baixados.`
+      description: `${selectedContractsData.length} documento(s) estão sendo baixados.`
     });
   };
 
@@ -246,10 +246,10 @@ export default function GerarExportarPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold leading-tight tracking-tighter md:text-4xl">
-              Revisar Contratos
+              Revisar Documentos
             </h1>
             <p className="mt-2 text-muted-foreground">
-              Visualize, edite, exporte ou compare os contratos que você já gerou.
+              Visualize, edite, exporte ou compare os documentos que você já gerou.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -263,7 +263,7 @@ export default function GerarExportarPage() {
             </Button>
             <Button size="lg" onClick={handleExportSelected} disabled={selectedForComparison.length === 0}>
               <FilePlus2 className="mr-2 h-5 w-5" />
-              Exportar Contratos ({selectedForComparison.length})
+              Exportar Documentos ({selectedForComparison.length})
             </Button>
           </div>
         </div>
@@ -295,7 +295,7 @@ export default function GerarExportarPage() {
             setSelectedContract(prev => prev ? { ...prev, markdownContent: newContent } : null);
 
             toast({
-              title: "Contrato salvo",
+              title: "Documento salvo",
               description: "As alterações foram salvas com sucesso.",
             });
           }}

@@ -10,7 +10,7 @@ const steps = [
   { href: "/", label: "Comece Aqui", icon: Home },
   { href: "/documentos-iniciais", label: "Documentos Iniciais", icon: FileUp },
   { href: "/gerar-novo", label: "Gerar Documentos", icon: FilePlus },
-  { href: "/gerar-exportar", label: "Revisar Contratos", icon: CheckCircle },
+  { href: "/gerar-exportar", label: "Revisar Documentos", icon: CheckCircle },
 ];
 
 function Step({
@@ -32,8 +32,8 @@ function Step({
           isActive
             ? "border-primary bg-primary text-primary-foreground"
             : isCompleted
-            ? "border-primary bg-primary/20 text-primary"
-            : "border-border bg-card text-muted-foreground"
+              ? "border-primary bg-primary/20 text-primary"
+              : "border-border bg-card text-muted-foreground"
         )}
       >
         <Icon className="h-5 w-5" />
@@ -51,24 +51,24 @@ function Step({
 }
 
 function StepIndicatorSkeleton() {
-    return (
-      <div className="border-b bg-background">
-        <div className="container py-4">
-          <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-            <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-96px)] -translate-x-1/2 bg-border" />
-            {steps.map((step) => (
-              <Step
-                key={step.href}
-                icon={step.icon}
-                label={step.label}
-                isActive={false}
-                isCompleted={false}
-              />
-            ))}
-          </div>
+  return (
+    <div className="border-b bg-background">
+      <div className="container py-4">
+        <div className="relative mx-auto flex max-w-4xl items-start justify-between">
+          <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-96px)] -translate-x-1/2 bg-border" />
+          {steps.map((step) => (
+            <Step
+              key={step.href}
+              icon={step.icon}
+              label={step.label}
+              isActive={false}
+              isCompleted={false}
+            />
+          ))}
         </div>
       </div>
-    );
+    </div>
+  );
 }
 
 
@@ -83,25 +83,25 @@ export function StepIndicator() {
   if (!isMounted) {
     return <StepIndicatorSkeleton />;
   }
-  
+
   // A rota /modelos é uma rota "paralela" e não parte do fluxo principal.
   // Vamos ignorá-la para a determinação do passo ativo.
   if (pathname.startsWith('/modelos')) {
     return null;
   }
-      
-   const getActiveIndex = () => {
-      // Tratar a página de edição de contrato (/preencher) como parte da última etapa
-      if(pathname.startsWith("/preencher")) return steps.length -1;
 
-      const currentIndex = steps.findIndex((step) =>
-          (step.href !== "/" && pathname.startsWith(step.href)) ||
-          (step.href === "/" && pathname === "/")
-        );
-      return currentIndex > -1 ? currentIndex : 0;
-   }
-   
-   const currentActiveIndex = getActiveIndex();
+  const getActiveIndex = () => {
+    // Tratar a página de edição de contrato (/preencher) como parte da última etapa
+    if (pathname.startsWith("/preencher")) return steps.length - 1;
+
+    const currentIndex = steps.findIndex((step) =>
+      (step.href !== "/" && pathname.startsWith(step.href)) ||
+      (step.href === "/" && pathname === "/")
+    );
+    return currentIndex > -1 ? currentIndex : 0;
+  }
+
+  const currentActiveIndex = getActiveIndex();
 
   return (
     <div className="border-b bg-background">
@@ -111,10 +111,10 @@ export function StepIndicator() {
             {Array.from({ length: steps.length - 1 }).map((_, index) => (
               <div key={`line-bg-${index}`} className="relative h-full flex-1 bg-border">
                 <div
-                    className={cn(
-                        "absolute h-full w-full origin-left bg-primary transition-transform duration-500",
-                        index < currentActiveIndex ? "scale-x-100" : "scale-x-0"
-                    )}
+                  className={cn(
+                    "absolute h-full w-full origin-left bg-primary transition-transform duration-500",
+                    index < currentActiveIndex ? "scale-x-100" : "scale-x-0"
+                  )}
                 />
               </div>
             ))}

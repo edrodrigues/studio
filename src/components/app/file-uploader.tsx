@@ -13,9 +13,10 @@ interface FileUploaderProps {
   handleFileSelect: (file: File | null) => void;
   handleFeedback: () => void;
   name: string;
+  disabled?: boolean;
 }
 
-export function FileUploader({ icon, title, description, handleFileSelect, handleFeedback, name }: FileUploaderProps) {
+export function FileUploader({ icon, title, description, handleFileSelect, handleFeedback, name, disabled = false }: FileUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -26,11 +27,13 @@ export function FileUploader({ icon, title, description, handleFileSelect, handl
   };
 
   const handleButtonClick = () => {
-    fileInputRef.current?.click();
+    if (!disabled) {
+        fileInputRef.current?.click();
+    }
   };
 
   return (
-    <Card className="text-center">
+    <Card className={cn("text-center transition-opacity", disabled && "opacity-50 grayscale")}>
       <CardHeader>
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-secondary/10 text-secondary">
           {icon}
@@ -46,8 +49,9 @@ export function FileUploader({ icon, title, description, handleFileSelect, handl
           onChange={handleFileChange}
           className="hidden"
           accept=".pdf,.doc,.docx,.txt,.md,.xlsx,.xls"
+          disabled={disabled}
         />
-        <Button onClick={handleButtonClick} variant={file ? "secondary" : "default"} className="w-full">
+        <Button onClick={handleButtonClick} variant={file ? "secondary" : "default"} className="w-full" disabled={disabled}>
           {file ? (
             <>
               <Check className="mr-2 h-4 w-4" />
@@ -58,7 +62,8 @@ export function FileUploader({ icon, title, description, handleFileSelect, handl
               <UploadCloud className="mr-2 h-4 w-4" />
               Carregar Arquivo
             </>
-          )}
+          )} 
+
         </Button>
         <Button onClick={handleFeedback} variant="outline" className="w-full" disabled={!file}>
           <Bot className="mr-2 h-4 w-4" />

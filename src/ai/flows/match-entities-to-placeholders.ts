@@ -26,7 +26,7 @@ const MatchEntitiesToPlaceholdersOutputSchema = z.object({
         placeholder: z.string().describe('The placeholder name from the template'),
         entityKey: z.string().describe('The entity key that should fill this placeholder'),
         confidence: z.enum(['HIGH', 'MEDIUM', 'LOW']).describe('Confidence level of the match'),
-    })).describe('Array of placeholder-to-entity mappings. Only include placeholders that have a clear match.'),
+    })).describe('Array of placeholder-to-entity mappings. Include all best-effort matches, even if confidence is low.'),
 });
 
 export type MatchEntitiesToPlaceholdersOutput = z.infer<

@@ -1,4 +1,4 @@
-✅ API Key found (ends with ...2QTw)
+✅ API Key found (ends with ...pfnc)
 
 --- Test 1: List Models ---
 ✅ Found 50 models.

@@ -10,10 +10,12 @@ export default function MainLayout({
 }) {
   return (
     <ProtectedRoute>
-      <div className="relative flex min-h-screen flex-col">
+      <div className="flex min-h-screen flex-col">
         <Header />
         <StepIndicator />
-        <main className="flex-1">{children}</main>
+        <main className="flex-1 flex flex-col w-full">
+          {children}
+        </main>
         <Footer />
       </div>
     </ProtectedRoute>

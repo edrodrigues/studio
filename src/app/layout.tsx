@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { cn } from '@/lib/utils';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { AuthProvider } from '@/context/auth-context';
+import { PlaybookChatWidget } from '@/components/app/playbook-chat-widget';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -27,6 +28,7 @@ export default function RootLayout({
         <FirebaseClientProvider>
           <AuthProvider>
             {children}
+            <PlaybookChatWidget />
           </AuthProvider>
         </FirebaseClientProvider>
         <Toaster />

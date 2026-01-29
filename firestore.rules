@@ -153,5 +153,16 @@ service cloud.firestore {
       allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
+
+    /**
+     * @description Rules for developer_feedback collection.
+     * @path /developer_feedback/{feedbackId}
+     * @allow (create) Authenticated users can create feedback if they set valid userId.
+     * @allow (read) Authenticated users can read their own feedback.
+     */
+    match /developer_feedback/{feedbackId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
   }
 }

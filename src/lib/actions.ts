@@ -139,55 +139,7 @@ export async function handleGetAlexFeedback() {
   }
 }
 
-const developerFeedbackSchema = z.object({
-  message: z.string().min(5, "Mensagem muito curta"),
-  userEmail: z.string().email().optional(),
-});
 
-export async function handleSubmitDeveloperFeedback(input: {
-  message: string;
-  userEmail?: string;
-}) {
-  try {
-    const validatedData = developerFeedbackSchema.safeParse(input);
-    if (!validatedData.success) {
-      return { success: false, error: validatedData.error.errors[0].message };
-    }
-
-    await addDoc(collection(db, 'developer_feedback'), {
-      ...validatedData.data,
-      userName: validatedData.data.userEmail?.split('@')[0] || 'Usuário',
-      status: 'Em análise',
-      timestamp: serverTimestamp(),
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error saving developer feedback:', error);
-    return { success: false, error: 'Falha ao enviar feedback ao desenvolvedor.' };
-  }
-}
-
-export async function handleGetDeveloperFeedbacks() {
-  try {
-    const { getDocs, query, collection, orderBy, limit } = await import('firebase/firestore');
-    const q = query(
-      collection(db, 'developer_feedback'),
-      orderBy('timestamp', 'desc'),
-      limit(50)
-    );
-    const querySnapshot = await getDocs(q);
-    const feedbacks = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp?.toDate()?.toISOString() || new Date().toISOString(),
-    }));
-    return { success: true, data: feedbacks };
-  } catch (error) {
-    console.error('Error getting developer feedbacks:', error);
-    return { success: false, error: 'Falha ao carregar feedbacks enviados.' };
-  }
-}
 
 export async function handleGetAssistance(input: {
   query: string;

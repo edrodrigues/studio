@@ -17,9 +17,15 @@ import {
     Bot,
     User,
     Loader2,
-    CheckCircle2
+    CheckCircle2,
+    Loader
 } from "lucide-react";
-import { handleGetAlexFeedback, handleGetDeveloperFeedbacks, handleSubmitDeveloperFeedback } from "@/lib/actions";
+import { db } from "@/lib/firebase-server"; // Ensure this exports the client SDK instance if possible, or init it here.
+// Actually, firebase-server exports `db` from getFirestore(app). That's fine for client if 'firebase-server' is client safe? 
+// Wait, `firebase-server.ts` uses `getApps`, `getApp`, `initializeApp` from `firebase/app`. That IS the client SDK.
+// The file name is misleading but the code is client SDK.
+// But to be safe and use client-side auth correctly, we should use standard client side patterns.
+import { collection, addDoc, serverTimestamp, query, where, orderBy, getDocs, onSnapshot, limit } from "firebase/firestore";
 import { useAuthContext } from "@/context/auth-context";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -38,6 +44,7 @@ interface DeveloperFeedback {
     id: string;
     message: string;
     userName: string;
+    userId: string;
     status: 'Em análise' | 'Em implementação' | 'Implementado' | 'Negado';
     timestamp: string;
 }
@@ -52,52 +59,83 @@ export default function FeedbackPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [submitted, setSubmitted] = useState(false);
 
-    const fetchFeedbacks = async () => {
-        setIsLoading(true);
-        const [alexRes, devRes] = await Promise.all([
-            handleGetAlexFeedback(),
-            handleGetDeveloperFeedbacks()
-        ]);
-
-        if (alexRes.success && alexRes.data) {
-            setAlexFeedbacks(alexRes.data as AlexFeedback[]);
-        }
-        if (devRes.success && devRes.data) {
-            setDevFeedbacks(devRes.data as DeveloperFeedback[]);
-        }
-        setIsLoading(false);
-    };
-
     useEffect(() => {
-        fetchFeedbacks();
-    }, []);
+        // Alex Feedback Listener
+        const qAlex = query(
+            collection(db, "playbook_feedback"),
+            orderBy("timestamp", "desc"),
+            limit(50)
+        );
 
-    const handleDevSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!devMessage.trim() || isPending) return;
+        const unsubscribeAlex = onSnapshot(qAlex, (snapshot) => {
+            const feedbacks = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                timestamp: doc.data().timestamp?.toDate()?.toISOString() || new Date().toISOString(),
+            })) as AlexFeedback[];
+            setAlexFeedbacks(feedbacks);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching alex feedbacks:", error);
+            setIsLoading(false);
+        });
 
-        startTransition(async () => {
-            const res = await handleSubmitDeveloperFeedback({
-                message: devMessage,
-                userEmail: user?.email || undefined,
+        // Developer Feedback Listener
+        if (user) {
+            const qDev = query(
+                collection(db, "developer_feedback"),
+                where("userId", "==", user.uid),
+                orderBy("timestamp", "desc")
+            );
+
+            const unsubscribeDev = onSnapshot(qDev, (snapshot) => {
+                const feedbacks = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    timestamp: doc.data().timestamp?.toDate()?.toISOString() || new Date().toISOString(),
+                })) as DeveloperFeedback[];
+                setDevFeedbacks(feedbacks);
+            }, (error) => {
+                console.error("Error fetching dev feedbacks:", error);
             });
 
-            if (res.success) {
-                setSubmitted(true);
-                setDevMessage("");
-                fetchFeedbacks(); // Refresh list
-                toast({
-                    title: "Feedback enviado!",
-                    description: "Obrigado por nos ajudar a melhorar o sistema.",
-                });
-            } else {
-                toast({
-                    title: "Erro ao enviar",
-                    description: res.error,
-                    variant: "destructive",
-                });
-            }
-        });
+            return () => {
+                unsubscribeAlex();
+                unsubscribeDev();
+            };
+        }
+
+        return () => unsubscribeAlex();
+    }, [user]);
+
+    const handleDevSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!devMessage.trim() || !user) return;
+
+        try {
+            await addDoc(collection(db, "developer_feedback"), {
+                message: devMessage,
+                userId: user.uid,
+                userName: user.email?.split('@')[0] || 'Usuário',
+                userEmail: user.email,
+                status: 'Em análise',
+                timestamp: serverTimestamp(),
+            });
+
+            setSubmitted(true);
+            setDevMessage("");
+            toast({
+                title: "Feedback enviado!",
+                description: "Obrigado por nos ajudar a melhorar o sistema.",
+            });
+        } catch (error) {
+            console.error("Error submitting feedback:", error);
+            toast({
+                title: "Erro ao enviar",
+                description: "Falha ao enviar feedback. Tente novamente.",
+                variant: "destructive",
+            });
+        }
     };
 
     const getFeedbackIcon = (type: string) => {

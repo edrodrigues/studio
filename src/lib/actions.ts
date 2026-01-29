@@ -7,7 +7,10 @@ import { getAssistanceFromGemini } from '@/ai/flows/get-assistance-from-gemini';
 import { getDocumentFeedback } from '@/ai/flows/get-document-feedback';
 import { extractEntitiesFromDocuments } from '@/ai/flows/extract-entities-from-documents';
 import { analyzeDocumentConsistency } from '@/ai/flows/analyze-document-consistency';
+import { getPlaybookAssistance } from '@/ai/flows/get-playbook-assistance';
 import { convertDocumentsToSupportedFormats, convertBufferToSupportedDataUri } from '@/lib/document-converter';
+import { db } from '@/lib/firebase-server';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { z } from 'zod';
 
 const fileSchema = z.string().refine(s => s.startsWith('data:'), {
@@ -60,6 +63,131 @@ const getAssistanceSchema = z.object({
   contractContent: z.string(),
   clauseContent: z.string().optional(),
 });
+
+const getPlaybookChatSchema = z.object({
+  query: z.string(),
+  history: z.array(z.object({
+    role: z.enum(['user', 'model']),
+    content: z.string(),
+  })).optional(),
+});
+
+export async function handleGetPlaybookAssistance(input: {
+  query: string;
+  history?: { role: 'user' | 'model'; content: string }[];
+}) {
+  try {
+    const validatedData = getPlaybookChatSchema.safeParse(input);
+    if (!validatedData.success) {
+      return { success: false, error: 'Dados de entrada inválidos.' };
+    }
+    const result = await getPlaybookAssistance(validatedData.data);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error getting playbook assistance:', error);
+    return { success: false, error: 'Falha ao obter resposta do Playbook.' };
+  }
+}
+
+const saveFeedbackSchema = z.object({
+  query: z.string(),
+  answer: z.string(),
+  feedback: z.enum(['positive', 'neutral', 'negative']),
+});
+
+export async function handleSavePlaybookFeedback(input: {
+  query: string;
+  answer: string;
+  feedback: 'positive' | 'neutral' | 'negative';
+}) {
+  try {
+    const validatedData = saveFeedbackSchema.safeParse(input);
+    if (!validatedData.success) {
+      return { success: false, error: 'Dados de feedback inválidos.' };
+    }
+
+    await addDoc(collection(db, 'playbook_feedback'), {
+      ...validatedData.data,
+      timestamp: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error saving feedback:', error);
+    return { success: false, error: 'Falha ao salvar o feedback.' };
+  }
+}
+
+export async function handleGetAlexFeedback() {
+  try {
+    const { getDocs, query, collection, orderBy, limit } = await import('firebase/firestore');
+    const q = query(
+      collection(db, 'playbook_feedback'),
+      orderBy('timestamp', 'desc'),
+      limit(50)
+    );
+    const querySnapshot = await getDocs(q);
+    const feedbacks = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toDate()?.toISOString() || new Date().toISOString(),
+    }));
+    return { success: true, data: feedbacks };
+  } catch (error) {
+    console.error('Error getting alex feedback:', error);
+    return { success: false, error: 'Falha ao carregar feedbacks do Alex.' };
+  }
+}
+
+const developerFeedbackSchema = z.object({
+  message: z.string().min(5, "Mensagem muito curta"),
+  userEmail: z.string().email().optional(),
+});
+
+export async function handleSubmitDeveloperFeedback(input: {
+  message: string;
+  userEmail?: string;
+}) {
+  try {
+    const validatedData = developerFeedbackSchema.safeParse(input);
+    if (!validatedData.success) {
+      return { success: false, error: validatedData.error.errors[0].message };
+    }
+
+    await addDoc(collection(db, 'developer_feedback'), {
+      ...validatedData.data,
+      userName: validatedData.data.userEmail?.split('@')[0] || 'Usuário',
+      status: 'Em análise',
+      timestamp: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error saving developer feedback:', error);
+    return { success: false, error: 'Falha ao enviar feedback ao desenvolvedor.' };
+  }
+}
+
+export async function handleGetDeveloperFeedbacks() {
+  try {
+    const { getDocs, query, collection, orderBy, limit } = await import('firebase/firestore');
+    const q = query(
+      collection(db, 'developer_feedback'),
+      orderBy('timestamp', 'desc'),
+      limit(50)
+    );
+    const querySnapshot = await getDocs(q);
+    const feedbacks = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toDate()?.toISOString() || new Date().toISOString(),
+    }));
+    return { success: true, data: feedbacks };
+  } catch (error) {
+    console.error('Error getting developer feedbacks:', error);
+    return { success: false, error: 'Falha ao carregar feedbacks enviados.' };
+  }
+}
 
 export async function handleGetAssistance(input: {
   query: string;

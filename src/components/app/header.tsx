@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { LogOut, User as UserIcon } from "lucide-react"
+import { LogOut, MessageSquare, User as UserIcon } from "lucide-react"
 import { useAuthContext } from "@/context/auth-context"
 
 const navLinks = [
@@ -77,6 +77,13 @@ function UserAccountNav() {
             </p>
           </div>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/feedback" className="flex items-center w-full">
+            <MessageSquare className="mr-2 h-4 w-4" />
+            <span>Feedback</span>
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => logout()} className="text-red-600 focus:text-red-600">
           <LogOut className="mr-2 h-4 w-4" />

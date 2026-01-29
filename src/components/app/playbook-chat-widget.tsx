@@ -22,6 +22,7 @@ import { handleGetPlaybookAssistance, handleSavePlaybookFeedback } from "@/lib/a
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { useAuthContext } from "@/context/auth-context";
 
 interface Message {
     role: "user" | "model";
@@ -31,6 +32,7 @@ interface Message {
 }
 
 export function PlaybookChatWidget() {
+    const { user } = useAuthContext();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
         {
@@ -110,6 +112,8 @@ export function PlaybookChatWidget() {
                 query,
                 answer: message.content,
                 feedback: type,
+                userId: user?.uid,
+                userName: user?.displayName || user?.email?.split('@')[0],
             });
         });
     };

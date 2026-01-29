@@ -20,6 +20,7 @@ import {
     CheckCircle2,
     Loader
 } from "lucide-react";
+import { handleSaveDeveloperFeedback } from "@/lib/actions";
 import { db } from "@/lib/firebase-server"; // Ensure this exports the client SDK instance if possible, or init it here.
 // Actually, firebase-server exports `db` from getFirestore(app). That's fine for client if 'firebase-server' is client safe? 
 // Wait, `firebase-server.ts` uses `getApps`, `getApp`, `initializeApp` from `firebase/app`. That IS the client SDK.
@@ -113,14 +114,16 @@ export default function FeedbackPage() {
         if (!devMessage.trim() || !user) return;
 
         try {
-            await addDoc(collection(db, "developer_feedback"), {
+            const result = await handleSaveDeveloperFeedback({
                 message: devMessage,
                 userId: user.uid,
                 userName: user.email?.split('@')[0] || 'Usuário',
-                userEmail: user.email,
-                status: 'Em análise',
-                timestamp: serverTimestamp(),
+                userEmail: user.email || undefined,
             });
+
+            if (!result.success) {
+                throw new Error(result.error);
+            }
 
             setSubmitted(true);
             setDevMessage("");

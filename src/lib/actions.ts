@@ -93,12 +93,16 @@ const saveFeedbackSchema = z.object({
   query: z.string(),
   answer: z.string(),
   feedback: z.enum(['positive', 'neutral', 'negative']),
+  userId: z.string().optional(),
+  userName: z.string().optional(),
 });
 
 export async function handleSavePlaybookFeedback(input: {
   query: string;
   answer: string;
   feedback: 'positive' | 'neutral' | 'negative';
+  userId?: string;
+  userName?: string;
 }) {
   try {
     const validatedData = saveFeedbackSchema.safeParse(input);
@@ -115,6 +119,38 @@ export async function handleSavePlaybookFeedback(input: {
   } catch (error) {
     console.error('Error saving feedback:', error);
     return { success: false, error: 'Falha ao salvar o feedback.' };
+  }
+}
+
+const saveDeveloperFeedbackSchema = z.object({
+  message: z.string().min(1, "A mensagem não pode estar vazia"),
+  userId: z.string(),
+  userName: z.string(),
+  userEmail: z.string().email().optional(),
+});
+
+export async function handleSaveDeveloperFeedback(input: {
+  message: string;
+  userId: string;
+  userName: string;
+  userEmail?: string;
+}) {
+  try {
+    const validatedData = saveDeveloperFeedbackSchema.safeParse(input);
+    if (!validatedData.success) {
+      return { success: false, error: 'Dados de entrada inválidos.' };
+    }
+
+    await addDoc(collection(db, 'developer_feedback'), {
+      ...validatedData.data,
+      status: 'Em análise',
+      timestamp: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('SERVER ACTION ERROR (Developer Feedback):', error);
+    return { success: false, error: 'Falha ao salvar o feedback do desenvolvedor.' };
   }
 }
 

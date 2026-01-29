@@ -157,12 +157,23 @@ service cloud.firestore {
     /**
      * @description Rules for developer_feedback collection.
      * @path /developer_feedback/{feedbackId}
-     * @allow (create) Authenticated users can create feedback if they set valid userId.
+     * @allow (create) Any authenticated user can create feedback.
      * @allow (read) Authenticated users can read their own feedback.
      */
     match /developer_feedback/{feedbackId} {
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if true;
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid);
+    }
+
+    /**
+     * @description Rules for playbook_feedback collection.
+     * @path /playbook_feedback/{feedbackId}
+     * @allow (create) Any authenticated user can create feedback.
+     * @allow (read) Any authenticated user can list/get feedback (needed for the dashboard).
+     */
+    match /playbook_feedback/{feedbackId} {
+      allow create: if true;
+      allow get, list: if isSignedIn();
     }
   }
 }

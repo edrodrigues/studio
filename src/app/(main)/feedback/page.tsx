@@ -216,7 +216,7 @@ export default function FeedbackPage() {
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Feedback</h1>
                     <p className="text-muted-foreground mt-1">
-                        Veja as avaliações do Alex e envie sugestões diretamente para os desenvolvedores.
+                        Veja as avaliações do Alex e sugestões de todos os usuários para o time de desenvolvimento.
                     </p>
                 </div>
 
@@ -246,7 +246,7 @@ export default function FeedbackPage() {
                                     </div>
                                 </div>
                                 <CardDescription>
-                                    Resumo das interações avaliadas no chat do Playbook.
+                                    Resumo global das interações avaliadas no chat do Playbook.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="flex-1 p-0">
@@ -331,7 +331,7 @@ export default function FeedbackPage() {
                                     Feedbacks enviados
                                 </CardTitle>
                                 <CardDescription>
-                                    Acompanhe o status das suas sugestões enviadas ao time de desenvolvimento.
+                                    Acompanhe o status de todas as sugestões enviadas ao time de desenvolvimento.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="flex-1 p-0">
@@ -342,7 +342,7 @@ export default function FeedbackPage() {
                                         </div>
                                     ) : devFeedbacks.length === 0 ? (
                                         <div className="text-center py-20 text-muted-foreground text-sm italic">
-                                            Você ainda não enviou feedbacks ao desenvolvedor.
+                                            Nenhum feedback foi enviado ainda.
                                         </div>
                                     ) : (
                                         <div className="space-y-4 pb-6">

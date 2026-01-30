@@ -44,6 +44,9 @@ interface AlexFeedback {
     query: string;
     answer: string;
     feedback: 'positive' | 'neutral' | 'negative';
+    status: DeveloperFeedback['status'];
+    userName?: string;
+    userEmail?: string;
     timestamp: string;
 }
 
@@ -84,6 +87,7 @@ export default function FeedbackPage() {
             const feedbacks = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
+                status: doc.data().status || 'Em análise',
                 timestamp: doc.data().timestamp?.toDate()?.toISOString() || new Date().toISOString(),
             })) as AlexFeedback[];
             setAlexFeedbacks(feedbacks);
@@ -94,36 +98,31 @@ export default function FeedbackPage() {
         });
 
         // Developer Feedback Listener
-        if (user) {
-            const qDev = query(
-                collection(db, "developer_feedback"),
-                where("userId", "==", user.uid),
-                orderBy("timestamp", "desc")
-            );
+        const qDev = query(
+            collection(db, "developer_feedback"),
+            orderBy("timestamp", "desc")
+        );
+        const unsubscribeDev = onSnapshot(qDev, (snapshot) => {
+            const feedbacks = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                timestamp: doc.data().timestamp?.toDate()?.toISOString() || new Date().toISOString(),
+            })) as DeveloperFeedback[];
+            setDevFeedbacks(feedbacks);
+        }, (error) => {
+            console.error("Error fetching dev feedbacks:", error);
+        });
 
-            const unsubscribeDev = onSnapshot(qDev, (snapshot) => {
-                const feedbacks = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    timestamp: doc.data().timestamp?.toDate()?.toISOString() || new Date().toISOString(),
-                })) as DeveloperFeedback[];
-                setDevFeedbacks(feedbacks);
-            }, (error) => {
-                console.error("Error fetching dev feedbacks:", error);
-            });
-
-            return () => {
-                unsubscribeAlex();
-                unsubscribeDev();
-            };
-        }
-
-        return () => unsubscribeAlex();
+        return () => {
+            unsubscribeAlex();
+            unsubscribeDev();
+        };
     }, [user]);
 
-    const handleUpdateStatus = async (feedbackId: string, newStatus: DeveloperFeedback['status']) => {
+    const handleUpdateStatus = async (feedbackId: string, newStatus: DeveloperFeedback['status'], type: 'alex' | 'dev') => {
         try {
-            const feedbackRef = doc(db, 'developer_feedback', feedbackId);
+            const collectionName = type === 'alex' ? 'playbook_feedback' : 'developer_feedback';
+            const feedbackRef = doc(db, collectionName, feedbackId);
             await updateDoc(feedbackRef, {
                 status: newStatus
             });
@@ -265,13 +264,40 @@ export default function FeedbackPage() {
                                             {alexFeedbacks.map((f) => (
                                                 <div key={f.id} className="border-b last:border-0 pb-6 last:pb-0">
                                                     <div className="flex items-center justify-between mb-3">
-                                                        <Badge variant="outline" className="flex items-center gap-1.5 py-1 px-3">
-                                                            {getFeedbackIcon(f.feedback)}
-                                                            {getFeedbackLabel(f.feedback)}
-                                                        </Badge>
-                                                        <span className="text-xs text-muted-foreground">
-                                                            {format(new Date(f.timestamp), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
-                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="outline" className="flex items-center gap-1.5 py-1 px-3">
+                                                                {getFeedbackIcon(f.feedback)}
+                                                                {getFeedbackLabel(f.feedback)}
+                                                            </Badge>
+                                                            <DropdownMenu>
+                                                                <DropdownMenuTrigger asChild>
+                                                                    <Badge className={cn("text-[10px] py-0 px-2 font-medium uppercase cursor-pointer hover:opacity-80 transition-opacity", getStatusClass(f.status))}>
+                                                                        {f.status}
+                                                                    </Badge>
+                                                                </DropdownMenuTrigger>
+                                                                <DropdownMenuContent align="end">
+                                                                    {(['Em análise', 'Em implementação', 'Implementado', 'Negado'] as const).map((status) => (
+                                                                        <DropdownMenuItem
+                                                                            key={status}
+                                                                            onClick={() => handleUpdateStatus(f.id, status, 'alex')}
+                                                                            className="text-xs"
+                                                                        >
+                                                                            {status}
+                                                                        </DropdownMenuItem>
+                                                                    ))}
+                                                                </DropdownMenuContent>
+                                                            </DropdownMenu>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            {f.userName && (
+                                                                <span className="text-[10px] font-medium text-muted-foreground block">
+                                                                    Por: {f.userName}
+                                                                </span>
+                                                            )}
+                                                            <span className="text-[10px] text-muted-foreground block">
+                                                                {format(new Date(f.timestamp), "dd/MM/yyyy 'às' HH:mm")}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                     <div className="space-y-3">
                                                         <div className="flex gap-3">
@@ -339,7 +365,7 @@ export default function FeedbackPage() {
                                                                 {(['Em análise', 'Em implementação', 'Implementado', 'Negado'] as const).map((status) => (
                                                                     <DropdownMenuItem
                                                                         key={status}
-                                                                        onClick={() => handleUpdateStatus(f.id, status)}
+                                                                        onClick={() => handleUpdateStatus(f.id, status, 'dev')}
                                                                         className="text-xs"
                                                                     >
                                                                         {status}

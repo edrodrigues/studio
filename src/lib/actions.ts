@@ -112,6 +112,7 @@ export async function handleSavePlaybookFeedback(input: {
 
     await addDoc(collection(db, 'playbook_feedback'), {
       ...validatedData.data,
+      status: 'Em análise',
       timestamp: serverTimestamp(),
     });
 

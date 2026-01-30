@@ -20,13 +20,19 @@ import {
     CheckCircle2,
     Loader
 } from "lucide-react";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { handleSaveDeveloperFeedback } from "@/lib/actions";
 import { db } from "@/lib/firebase-server"; // Ensure this exports the client SDK instance if possible, or init it here.
 // Actually, firebase-server exports `db` from getFirestore(app). That's fine for client if 'firebase-server' is client safe? 
 // Wait, `firebase-server.ts` uses `getApps`, `getApp`, `initializeApp` from `firebase/app`. That IS the client SDK.
 // The file name is misleading but the code is client SDK.
 // But to be safe and use client-side auth correctly, we should use standard client side patterns.
-import { collection, addDoc, serverTimestamp, query, where, orderBy, getDocs, onSnapshot, limit } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, where, orderBy, getDocs, onSnapshot, limit, doc, updateDoc } from "firebase/firestore";
 import { useAuthContext } from "@/context/auth-context";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -59,6 +65,12 @@ export default function FeedbackPage() {
     const [isPending, startTransition] = useTransition();
     const [isLoading, setIsLoading] = useState(true);
     const [submitted, setSubmitted] = useState(false);
+
+    const alexStats = {
+        positive: alexFeedbacks.filter(f => f.feedback === 'positive').length,
+        neutral: alexFeedbacks.filter(f => f.feedback === 'neutral').length,
+        negative: alexFeedbacks.filter(f => f.feedback === 'negative').length,
+    };
 
     useEffect(() => {
         // Alex Feedback Listener
@@ -108,6 +120,27 @@ export default function FeedbackPage() {
 
         return () => unsubscribeAlex();
     }, [user]);
+
+    const handleUpdateStatus = async (feedbackId: string, newStatus: DeveloperFeedback['status']) => {
+        try {
+            const feedbackRef = doc(db, 'developer_feedback', feedbackId);
+            await updateDoc(feedbackRef, {
+                status: newStatus
+            });
+
+            toast({
+                title: "Status atualizado",
+                description: `O status foi alterado para "${newStatus}".`,
+            });
+        } catch (error) {
+            console.error("Error updating status:", error);
+            toast({
+                title: "Erro ao atualizar",
+                description: "Não foi possível alterar o status. Verifique suas permissões.",
+                variant: "destructive",
+            });
+        }
+    };
 
     const handleDevSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -191,18 +224,34 @@ export default function FeedbackPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* ALEX Feedback List */}
                     <div className="lg:col-span-2 space-y-4">
-                        <Card className="h-full flex flex-col">
+                        <Card className="flex flex-col">
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Bot className="h-5 w-5 text-primary" />
-                                    Avaliações do ALEX
-                                </CardTitle>
+                                <div className="flex items-center justify-between">
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Bot className="h-5 w-5 text-primary" />
+                                        Avaliações do ALEX
+                                    </CardTitle>
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-1 text-sm font-medium text-green-600">
+                                            <Smile className="h-4 w-4" />
+                                            <span>{alexStats.positive}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-sm font-medium text-yellow-600">
+                                            <Meh className="h-4 w-4" />
+                                            <span>{alexStats.neutral}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-sm font-medium text-red-600">
+                                            <Frown className="h-4 w-4" />
+                                            <span>{alexStats.negative}</span>
+                                        </div>
+                                    </div>
+                                </div>
                                 <CardDescription>
                                     Resumo das interações avaliadas no chat do Playbook.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="flex-1 p-0">
-                                <ScrollArea className="h-[500px] px-6">
+                                <ScrollArea className="px-6">
                                     {isLoading ? (
                                         <div className="flex items-center justify-center py-20">
                                             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -260,7 +309,7 @@ export default function FeedbackPage() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="flex-1 p-0">
-                                <ScrollArea className="h-[400px] px-6">
+                                <ScrollArea className="px-6">
                                     {isLoading ? (
                                         <div className="flex items-center justify-center py-20">
                                             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -280,9 +329,24 @@ export default function FeedbackPage() {
                                                             </div>
                                                             <span className="text-sm font-semibold">{f.userName}</span>
                                                         </div>
-                                                        <Badge className={cn("text-[10px] py-0 px-2 font-medium uppercase", getStatusClass(f.status))}>
-                                                            {f.status}
-                                                        </Badge>
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Badge className={cn("text-[10px] py-0 px-2 font-medium uppercase cursor-pointer hover:opacity-80 transition-opacity", getStatusClass(f.status))}>
+                                                                    {f.status}
+                                                                </Badge>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end">
+                                                                {(['Em análise', 'Em implementação', 'Implementado', 'Negado'] as const).map((status) => (
+                                                                    <DropdownMenuItem
+                                                                        key={status}
+                                                                        onClick={() => handleUpdateStatus(f.id, status)}
+                                                                        className="text-xs"
+                                                                    >
+                                                                        {status}
+                                                                    </DropdownMenuItem>
+                                                                ))}
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
                                                     </div>
                                                     <p className="text-sm text-muted-foreground leading-relaxed italic">
                                                         "{f.message}"

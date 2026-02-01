@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/app/logo";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 import {
   DropdownMenu,
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { LogOut, MessageSquare, User as UserIcon } from "lucide-react"
+import { LogOut, MessageSquare, User as UserIcon, Sparkles } from "lucide-react"
 import { useAuthContext } from "@/context/auth-context"
 
 const navLinks = [
@@ -32,15 +33,23 @@ function NavLink({ href, label }: { href: string; label: string }) {
   const isActive = (href === "/" && pathname === "/") ||
     (href !== "/" && pathname.startsWith(href));
 
-
   return (
     <Link
       href={href}
       className={cn(
-        "transition-colors hover:text-foreground text-sm px-3 py-2 rounded-md",
-        isActive ? "text-primary font-semibold bg-primary/10" : "text-muted-foreground"
+        "relative transition-all duration-300 px-4 py-2 rounded-xl text-sm font-outfit font-medium flex items-center gap-2",
+        isActive
+          ? "text-primary bg-primary/10 shadow-inner"
+          : "text-muted-foreground hover:text-primary hover:bg-primary/5"
       )}
     >
+      {isActive && (
+        <motion.div
+          layoutId="active-nav"
+          className="absolute inset-0 bg-primary/5 rounded-xl -z-10"
+          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+        />
+      )}
       {label}
     </Link>
   );
@@ -61,33 +70,33 @@ function UserAccountNav() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8">
+        <Button variant="ghost" className="relative h-10 w-10 rounded-2xl hover:bg-primary/5 transition-colors">
+          <Avatar className="h-9 w-9 border-2 border-primary/10">
             <AvatarImage src={user.photoURL || ""} alt={user.displayName || "User"} />
-            <AvatarFallback>{initials}</AvatarFallback>
+            <AvatarFallback className="bg-primary/5 text-primary font-bold">{initials}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end" forceMount>
-        <DropdownMenuLabel className="font-normal">
+      <DropdownMenuContent className="w-64 rounded-2xl p-2 glass dark:glass-dark border-border/50 shadow-2xl" align="end">
+        <DropdownMenuLabel className="font-normal p-4">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user.displayName}</p>
-            <p className="text-xs leading-none text-muted-foreground">
+            <p className="text-sm font-bold font-serif text-primary leading-none">{user.displayName}</p>
+            <p className="text-xs leading-none text-muted-foreground mt-1">
               {user.email}
             </p>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/feedback" className="flex items-center w-full">
-            <MessageSquare className="mr-2 h-4 w-4" />
-            <span>Feedback</span>
+        <DropdownMenuSeparator className="bg-border/50" />
+        <DropdownMenuItem asChild className="rounded-xl focus:bg-primary/5 focus:text-primary p-3">
+          <Link href="/feedback" className="flex items-center w-full cursor-pointer">
+            <MessageSquare className="mr-3 h-4 w-4" />
+            <span className="font-outfit font-medium">Feedback</span>
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => logout()} className="text-red-600 focus:text-red-600">
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Sair</span>
+        <DropdownMenuSeparator className="bg-border/50" />
+        <DropdownMenuItem onClick={() => logout()} className="rounded-xl text-red-600 focus:text-red-700 focus:bg-red-50 p-3 cursor-pointer">
+          <LogOut className="mr-3 h-4 w-4" />
+          <span className="font-outfit font-medium">Sair</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -96,27 +105,26 @@ function UserAccountNav() {
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-40 w-full border-b bg-background">
-      <div className="container flex h-16 items-center">
-        <div className="flex items-center gap-6 md:gap-10">
-          <Link href="/" className="flex items-center space-x-2">
+    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/70 backdrop-blur-xl">
+      <div className="container flex h-20 items-center justify-between">
+        <div className="flex items-center gap-10">
+          <Link href="/" className="flex items-center gap-3 group">
             <Logo />
-            <span className="hidden font-bold sm:inline-block">Assistente de Contratos V-Lab</span>
+            <span className="hidden font-serif font-bold text-lg text-primary tracking-tight leading-none group-hover:text-foreground transition-colors sm:inline-block">Assistente de Contratos V-Lab</span>
           </Link>
         </div>
 
-        <nav className="ml-auto hidden md:flex items-center gap-4">
-          <ul className="flex justify-end gap-1 lg:gap-2">
+        <div className="flex items-center gap-6">
+          <nav className="hidden lg:flex items-center gap-2 bg-muted/30 p-1.5 rounded-2xl border border-border/40">
             {navLinks.map((link) => (
-              <li key={link.href}>
-                <NavLink href={link.href} label={link.label} />
-              </li>
+              <NavLink key={link.href} href={link.href} label={link.label} />
             ))}
-          </ul>
-          <div className="border-l pl-4 ml-2">
+          </nav>
+          <div className="h-8 w-[1px] bg-border/40 mx-2 hidden lg:block" />
+          <div className="flex items-center gap-3">
             <UserAccountNav />
           </div>
-        </nav>
+        </div>
       </div>
     </header>
   );

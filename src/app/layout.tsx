@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Outfit, Cardo } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { cn } from '@/lib/utils';
@@ -7,9 +7,15 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { AuthProvider } from '@/context/auth-context';
 import { PlaybookChatWidget } from '@/components/app/playbook-chat-widget';
 
-const inter = Inter({
+const outfit = Outfit({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-outfit',
+});
+
+const cardo = Cardo({
+  weight: ['400', '700'],
+  subsets: ['latin'],
+  variable: '--font-cardo',
 });
 
 export const metadata: Metadata = {
@@ -24,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className={cn("min-h-screen bg-background font-sans antialiased", inter.variable)} suppressHydrationWarning>
+      <body className={cn("min-h-screen bg-background font-sans antialiased", outfit.variable, cardo.variable)} suppressHydrationWarning>
         <FirebaseClientProvider>
           <AuthProvider>
             {children}

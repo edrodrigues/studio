@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function AuthenticationPage() {
     return (
-        <div className="container relative min-h-screen flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0">
+        <main id="main" className="container relative min-h-screen flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0">
             <div className="relative hidden h-full flex-col bg-[#1A1A1A] text-white lg:flex dark:border-r">
                 <div className="absolute inset-0 bg-[#1A1A1A]" />
 
@@ -76,6 +76,6 @@ export default function AuthenticationPage() {
                     </p>
                 </div>
             </div>
-        </div>
+        </main>
     )
 }

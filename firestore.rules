@@ -162,7 +162,7 @@ service cloud.firestore {
      */
     match /developer_feedback/{feedbackId} {
       allow create: if true;
-      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid);
+      allow read: if isSignedIn();
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
@@ -174,7 +174,7 @@ service cloud.firestore {
      */
     match /playbook_feedback/{feedbackId} {
       allow create: if true;
-      allow get, list: if isSignedIn();
+      allow read, update: if isSignedIn();
     }
   }
 }

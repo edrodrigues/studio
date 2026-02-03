@@ -70,8 +70,7 @@ export default function FeedbackPage() {
     useEffect(() => {
         const qAlex = query(
             collection(db, "playbook_feedback"),
-            orderBy("timestamp", "desc"),
-            limit(50)
+            orderBy("timestamp", "desc")
         );
 
         const unsubscribeAlex = onSnapshot(qAlex, (snapshot) => {
@@ -139,7 +138,7 @@ export default function FeedbackPage() {
             const result = await handleSaveDeveloperFeedback({
                 message: devMessage,
                 userId: user.uid,
-                userName: user.email?.split('@')[0] || 'Usuário',
+                userName: user.displayName || user.email?.split('@')[0] || 'Usuário',
                 userEmail: user.email || undefined,
             });
 

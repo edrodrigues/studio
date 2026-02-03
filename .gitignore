@@ -47,3 +47,7 @@ firestore-debug.log
 
 .env.local
 .env.local.utf8
+
+# agent
+.agent
+    

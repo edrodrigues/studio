@@ -31,6 +31,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={cn("min-h-screen bg-background font-sans antialiased", outfit.variable, cardo.variable)} suppressHydrationWarning>
+        <a href="#main" className="absolute left-4 top-4 z-50 -translate-y-[150%] rounded-xl bg-background p-4 text-sm font-bold text-primary shadow-xl transition-transform focus:translate-y-0">
+          Pular para o conteúdo principal
+        </a>
         <FirebaseClientProvider>
           <AuthProvider>
             {children}

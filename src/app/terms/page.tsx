@@ -6,7 +6,7 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
     return (
-        <div className="container mx-auto py-10 px-4 max-w-4xl">
+        <main id="main" className="container mx-auto py-10 px-4 max-w-4xl">
             <h1 className="text-3xl font-bold mb-6">Termos de Serviço</h1>
             <p className="mb-4 text-muted-foreground">Última atualização: 7 de janeiro de 2026</p>
 
@@ -23,6 +23,6 @@ export default function TermsPage() {
                 <h2 className="text-xl font-semibold">4. Limitação de Responsabilidade</h2>
                 <p>O V-Lab não se responsabiliza por quaisquer danos resultantes do uso ou da incapacidade de usar este serviço, ou por quaisquer erros no conteúdo gerado.</p>
             </section>
-        </div>
+        </main>
     )
 }

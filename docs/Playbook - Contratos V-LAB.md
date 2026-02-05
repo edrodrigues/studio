@@ -686,3 +686,20 @@ Ao elaborar a declaração, o time de contratos deve seguir as diretrizes abaixo
   * É importante saber que, durante a tramitação do processo no SIPAC, este documento deverá ser assinado eletronicamente pelo Reitor da UFPE.
 
 Este documento segue o mesmo raciocínio da Declaração de Compatibilidade de Custos, sendo um dos mais rápidos de preparar. A atenção principal deve ser dada ao preenchimento correto do nome do parceiro e à gestão da ausência do número do TED, utilizando o título do projeto como substituto.
+
+### **Documentação FADE**
+
+**Projeto Base:**  
+ Contempla essencialmente as mesmas informações do TED e do Plano de Trabalho do TED, já pontuado. No entanto, neste documento não é considerado o valor total do TED, apenas o subtotal, uma vez que a fundação ainda será definida. Assim, o valor utilizado corresponde ao valor total menos as despesas da UFPE e da fundação.
+
+No cronograma de desembolso do Projeto Base e do Plano de Trabalho, considera-se como referência o mês inicial das metas e etapas.
+
+**Plano de Trabalho FADE:**  
+ Também contém as mesmas informações do TED e do Plano de Trabalho do TED. Entretanto, o quadro da equipe é apresentado especificamente na Seção 9 — Equipe do Projeto.
+
+**Orçamento FADE:**  
+ Possui os mesmos valores e estrutura do orçamento do TED.
+
+**Orçamento do Projeto Básico:**  
+ Segue a mesma estrutura dos demais orçamentos, porém não considera a taxa da fundação nem o ressarcimento da UFPE.
+

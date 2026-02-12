@@ -6,54 +6,107 @@ import { cn } from "@/lib/utils";
 
 interface AIFeedbackProps {
     className?: string;
+    disabled?: boolean;
+    onFeedbackSubmitted?: () => void;
 }
 
-export function AIFeedback({ className }: AIFeedbackProps) {
+export function AIFeedback({ className, disabled = false, onFeedbackSubmitted }: AIFeedbackProps) {
     const { toast } = useToast();
 
     const handleFeedback = (type: "positive" | "neutral" | "negative") => {
-        // In a real application, you would send this to your backend/analytics
+        if (disabled) return;
+        
         console.log(`AI Feedback received: ${type}`);
 
         toast({
             title: "Feedback recebido!",
             description: "Obrigado por nos ajudar a melhorar as análises da IA.",
         });
+        
+        onFeedbackSubmitted?.();
     };
 
     return (
-        <div className={cn("flex flex-col items-center gap-4 py-6", className)}>
-            <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground/70 font-bold">
+        <div className={cn("flex items-center gap-3", className)}>
+            <span className={cn(
+                "text-[11px] uppercase tracking-[0.15em] font-bold",
+                disabled ? "text-muted-foreground/30" : "text-muted-foreground/70"
+            )}>
                 Feedback
             </span>
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-2">
                 <button
                     onClick={() => handleFeedback("negative")}
-                    className="group flex flex-col items-center gap-2 transition-transform hover:scale-110 active:scale-95"
-                    title="Não gostei"
+                    disabled={disabled}
+                    className={cn(
+                        "group flex flex-col items-center gap-1 transition-all",
+                        disabled 
+                            ? "cursor-not-allowed opacity-30" 
+                            : "hover:scale-110 active:scale-95 cursor-pointer"
+                    )}
+                    title={disabled ? "Aguarde o resultado" : "Não gostei"}
                 >
-                    <div className="p-2 rounded-full transition-colors group-hover:bg-red-50 dark:group-hover:bg-red-950/20">
-                        <Frown className="h-8 w-8 text-red-400 group-hover:text-red-500 transition-colors" strokeWidth={1.5} />
+                    <div className={cn(
+                        "p-1.5 rounded-full transition-colors",
+                        !disabled && "group-hover:bg-red-50 dark:group-hover:bg-red-950/20"
+                    )}>
+                        <Frown 
+                            className={cn(
+                                "h-5 w-5 transition-colors",
+                                disabled ? "text-red-300" : "text-red-400 group-hover:text-red-500"
+                            )} 
+                            strokeWidth={1.5} 
+                        />
                     </div>
                 </button>
 
                 <button
                     onClick={() => handleFeedback("neutral")}
-                    className="group flex flex-col items-center gap-2 transition-transform hover:scale-110 active:scale-95"
-                    title="Neutro"
+                    disabled={disabled}
+                    className={cn(
+                        "group flex flex-col items-center gap-1 transition-all",
+                        disabled 
+                            ? "cursor-not-allowed opacity-30" 
+                            : "hover:scale-110 active:scale-95 cursor-pointer"
+                    )}
+                    title={disabled ? "Aguarde o resultado" : "Neutro"}
                 >
-                    <div className="p-2 rounded-full transition-colors group-hover:bg-amber-50 dark:group-hover:bg-amber-950/20">
-                        <Meh className="h-8 w-8 text-amber-400 group-hover:text-amber-500 transition-colors" strokeWidth={1.5} />
+                    <div className={cn(
+                        "p-1.5 rounded-full transition-colors",
+                        !disabled && "group-hover:bg-amber-50 dark:group-hover:bg-amber-950/20"
+                    )}>
+                        <Meh 
+                            className={cn(
+                                "h-5 w-5 transition-colors",
+                                disabled ? "text-amber-300" : "text-amber-400 group-hover:text-amber-500"
+                            )} 
+                            strokeWidth={1.5} 
+                        />
                     </div>
                 </button>
 
                 <button
                     onClick={() => handleFeedback("positive")}
-                    className="group flex flex-col items-center gap-2 transition-transform hover:scale-110 active:scale-95"
-                    title="Gostei"
+                    disabled={disabled}
+                    className={cn(
+                        "group flex flex-col items-center gap-1 transition-all",
+                        disabled 
+                            ? "cursor-not-allowed opacity-30" 
+                            : "hover:scale-110 active:scale-95 cursor-pointer"
+                    )}
+                    title={disabled ? "Aguarde o resultado" : "Gostei"}
                 >
-                    <div className="p-2 rounded-full transition-colors group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/20">
-                        <Smile className="h-8 w-8 text-emerald-400 group-hover:text-emerald-500 transition-colors" strokeWidth={1.5} />
+                    <div className={cn(
+                        "p-1.5 rounded-full transition-colors",
+                        !disabled && "group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/20"
+                    )}>
+                        <Smile 
+                            className={cn(
+                                "h-5 w-5 transition-colors",
+                                disabled ? "text-emerald-300" : "text-emerald-400 group-hover:text-emerald-500"
+                            )} 
+                            strokeWidth={1.5} 
+                        />
                     </div>
                 </button>
             </div>

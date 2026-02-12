@@ -180,12 +180,9 @@ export function FeedbackModal({ isOpen, onOpenChange, files }: FeedbackModalProp
                   </div>
                 )}
                 {feedback ? (
-                  <>
-                    <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none">
-                      {feedback}
-                    </ReactMarkdown>
-                    <AIFeedback className="border-t mt-8" />
-                  </>
+                  <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none">
+                    {feedback}
+                  </ReactMarkdown>
                 ) : !isPending && (
                   <div className="flex items-center justify-center h-full text-center text-muted-foreground p-8">
                     <p>O feedback da IA aparecerá aqui.</p>
@@ -196,7 +193,8 @@ export function FeedbackModal({ isOpen, onOpenChange, files }: FeedbackModalProp
           </div>
         </div>
 
-        <DialogFooter className="mt-4">
+        <DialogFooter className="mt-4 flex justify-between items-center">
+          <AIFeedback disabled={!feedback} />
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
             Fechar
           </Button>

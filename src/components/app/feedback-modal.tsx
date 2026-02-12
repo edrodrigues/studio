@@ -20,6 +20,7 @@ import { fileToDataURI } from "@/lib/utils";
 import { type UploadedFile } from "@/lib/types";
 import ReactMarkdown from "react-markdown";
 import { useToast } from "@/hooks/use-toast";
+import { AIFeedback } from "./ai-feedback";
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -179,9 +180,12 @@ export function FeedbackModal({ isOpen, onOpenChange, files }: FeedbackModalProp
                   </div>
                 )}
                 {feedback ? (
-                  <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none">
-                    {feedback}
-                  </ReactMarkdown>
+                  <>
+                    <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none">
+                      {feedback}
+                    </ReactMarkdown>
+                    <AIFeedback className="border-t mt-8" />
+                  </>
                 ) : !isPending && (
                   <div className="flex items-center justify-center h-full text-center text-muted-foreground p-8">
                     <p>O feedback da IA aparecerá aqui.</p>

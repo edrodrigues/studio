@@ -30,7 +30,7 @@ import {
     List
 } from "lucide-react";
 import { handleSaveDeveloperFeedback } from "@/lib/actions";
-import { db } from "@/lib/firebase-server";
+import { useFirestore } from "@/firebase/provider";
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, where } from "firebase/firestore";
 import { useAuthContext } from "@/context/auth-context";
 import { format } from "date-fns";
@@ -109,6 +109,7 @@ const STATUS_OPTIONS: FeedbackStatus[] = ['Em análise', 'Em implementação', '
 export default function FeedbackPage() {
     const { user } = useAuthContext();
     const { toast } = useToast();
+    const db = useFirestore();
     const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
     const [devFeedbacks, setDevFeedbacks] = useState<DeveloperFeedback[]>([]);
     const [devMessage, setDevMessage] = useState("");

@@ -6,9 +6,6 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
     },
-    outputFileTracingIncludes: {
-      '/**/*': ['./docs/**/*'],
-    },
   },
   typescript: {
     ignoreBuildErrors: true,

@@ -10,7 +10,6 @@ import { analyzeDocumentConsistency } from '@/ai/flows/analyze-document-consiste
 import { getPlaybookAssistance } from '@/ai/flows/get-playbook-assistance';
 import { convertDocumentsToSupportedFormats, convertBufferToSupportedDataUri } from '@/lib/document-converter';
 import { db } from '@/lib/firebase-server';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { z } from 'zod';
 
 const fileSchema = z.string().refine(s => s.startsWith('data:'), {
@@ -110,10 +109,10 @@ export async function handleSavePlaybookFeedback(input: {
       return { success: false, error: 'Dados de feedback inválidos.' };
     }
 
-    await addDoc(collection(db, 'playbook_feedback'), {
+    await db.collection('playbook_feedback').add({
       ...validatedData.data,
       status: 'Em análise',
-      timestamp: serverTimestamp(),
+      timestamp: new Date(),
     });
 
     return { success: true };
@@ -142,10 +141,10 @@ export async function handleSaveDeveloperFeedback(input: {
       return { success: false, error: 'Dados de entrada inválidos.' };
     }
 
-    await addDoc(collection(db, 'developer_feedback'), {
+    await db.collection('developer_feedback').add({
       ...validatedData.data,
       status: 'Em análise',
-      timestamp: serverTimestamp(),
+      timestamp: new Date(),
     });
 
     return { success: true };
@@ -157,17 +156,15 @@ export async function handleSaveDeveloperFeedback(input: {
 
 export async function handleGetAlexFeedback() {
   try {
-    const { getDocs, query, collection, orderBy, limit } = await import('firebase/firestore');
-    const q = query(
-      collection(db, 'playbook_feedback'),
-      orderBy('timestamp', 'desc'),
-      limit(50)
-    );
-    const querySnapshot = await getDocs(q);
-    const feedbacks = querySnapshot.docs.map(doc => ({
+    const snapshot = await db.collection('playbook_feedback')
+      .orderBy('timestamp', 'desc')
+      .limit(50)
+      .get();
+    
+    const feedbacks = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
-      timestamp: doc.data().timestamp?.toDate()?.toISOString() || new Date().toISOString(),
+      timestamp: doc.data().timestamp?.toDate?.()?.toISOString() || doc.data().timestamp?.toISOString?.() || new Date().toISOString(),
     }));
     return { success: true, data: feedbacks };
   } catch (error) {

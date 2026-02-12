@@ -156,21 +156,7 @@ service cloud.firestore {
                        isProjectMember(resource.data.projectId)
                      );
 
-      allow list: if isSignedIn() &&
-                    (
-                      // User can list their own memberships
-                      request.query.where.size() == 1 &&
-                      request.query.where[0].fieldPath == 'userId' &&
-                      request.query.where[0].op == '==' &&
-                      request.query.where[0].value == getUserId()
-                    ) ||
-                    (
-                      // User can list members of projects they're in
-                      request.query.where.size() == 1 &&
-                      request.query.where[0].fieldPath == 'projectId' &&
-                      request.query.where[0].op == '==' &&
-                      isProjectMember(request.query.where[0].value)
-                    );
+      allow list: if isSignedIn();
 
       allow update: if isSignedIn() &&
                      (
@@ -321,12 +307,18 @@ service cloud.firestore {
                      hasProjectRole(request.resource.data.projectId, 'editor') &&
                      isValidEmail(request.resource.data.email);
 
-      allow read: if isSignedIn() &&
+      allow get: if isSignedIn() &&
                      (
                        // Invited user can see their invites
                        resource.data.email == getUserEmail() ||
                        // Project owners can see all invites
                        hasProjectRole(resource.data.projectId, 'owner')
+                     );
+
+      allow list: if isSignedIn() &&
+                     (
+                       // Invited user can see their invites
+                       resource.data.email == getUserEmail()
                      );
 
       allow update: if isSignedIn() &&

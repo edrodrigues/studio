@@ -156,6 +156,22 @@ service cloud.firestore {
                        isProjectMember(resource.data.projectId)
                      );
 
+      allow list: if isSignedIn() &&
+                    (
+                      // User can list their own memberships
+                      request.query.where.size() == 1 &&
+                      request.query.where[0].fieldPath == 'userId' &&
+                      request.query.where[0].op == '==' &&
+                      request.query.where[0].value == getUserId()
+                    ) ||
+                    (
+                      // User can list members of projects they're in
+                      request.query.where.size() == 1 &&
+                      request.query.where[0].fieldPath == 'projectId' &&
+                      request.query.where[0].op == '==' &&
+                      isProjectMember(request.query.where[0].value)
+                    );
+
       allow update: if isSignedIn() &&
                      (
                        // Owner can change roles

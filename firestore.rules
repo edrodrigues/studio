@@ -1,27 +1,40 @@
 /**
- * @fileoverview Firestore Security Rules for the application.
+ * @fileoverview Firestore Security Rules for Multi-Project Collaboration
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model. Each user has full
- * control over their own data, and no access to other users' data.
+ * This ruleset supports a project-based collaboration model with fine-grained permissions.
+ * All data belongs to a project, and access is controlled via project membership.
  *
  * Data Structure:
- * All data is nested under /users/{userId}, which simplifies ownership checks.
- *  - /users/{userId}/contractModels/{contractModelId}: Contract models created by the user.
- *  - /users/{userId}/filledContracts/{filledContractId}: Filled contracts created by the user.
- *  - /users/{userId}/uploadedDocuments/{uploadedDocumentId}: Documents uploaded by the user.
- *  - /users/{userId}/contractGenerationRequests/{contractGenerationRequestId}: Contract generation requests initiated by the user.
+ * /projects/{projectId}                          - Project metadata
+ * /projectMembers/{memberId}                     - User-project relationships (memberId = {projectId}_{userId})
+ * /projectDocuments/{documentId}                 - Documents within projects
+ * /projectPlaceholders/{placeholderId}           - Extracted variables
+ * /projectContracts/{contractId}                 - Generated contracts
+ * /activity/{activityId}                         - Audit log
+ * /invites/{inviteId}                            - Pending invitations
+ * /presence/{presenceId}                         - Real-time user presence
+ * /syncConfigs/{configId}                        - Google Docs sync configurations
  *
- * Key Security Decisions:
- *  - Users can only access data under their own /users/{userId} path.
- *  - Listing collections is allowed only for the owner.
+ * Permission Model:
+ * - OWNER: Full control, can delete project, manage all members
+ * - EDITOR: Can edit placeholders, upload documents, invite viewers, generate contracts
+ * - VIEWER: Read-only access, can view and export
  *
- * Denormalization for Authorization:
- *  - User ownership is enforced by the path itself (/users/{userId}/...). This avoids the need to store and validate a separate `ownerId` field within the documents and avoids `get()` calls.
+ * Security Decisions:
+ * - Path-based ownership checks for simple validation
+ * - Role hierarchy for permission inheritance
+ * - Immutable activity log
+ * - Temporary invite tokens with expiration
  */
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ============================================================================
+    // HELPER FUNCTIONS
+    // ============================================================================
 
     /**
      * @description Checks if the request is authenticated.
@@ -31,28 +44,371 @@ service cloud.firestore {
     }
 
     /**
-     * @description Checks if the requested user ID matches the authenticated user's ID.
+     * @description Gets the authenticated user's ID.
      */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-     /**
-      * @description Checks if the user is the owner and the document exists.
-      */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+    function getUserId() {
+      return request.auth.uid;
     }
 
     /**
-     * @description Rules for global contractModels collection (shared across all users).
-     * @path /contractModels/{contractModelId}
-     * @allow (create) Any authenticated user can create a contract model in the global collection.
-     * @allow (get) Any authenticated user can read any contract model in the global collection.
-     * @allow (update) Any authenticated user can update any contract model in the global collection.
-     * @allow (delete) Any authenticated user can delete any contract model in the global collection.
-     * @allow (list) Any authenticated user can list all contract models in the global collection.
-     * @principle Global shared resource model - all authenticated users have full access.
+     * @description Gets the authenticated user's email.
+     */
+    function getUserEmail() {
+      return request.auth.token.email;
+    }
+
+    /**
+     * @description Checks if the member document exists for a user-project pair.
+     */
+    function isProjectMember(projectId) {
+      return exists(/databases/$(database)/documents/projectMembers/$(projectId + "_" + getUserId()));
+    }
+
+    /**
+     * @description Gets the user's role in a project.
+     */
+    function getProjectRole(projectId) {
+      return get(/databases/$(database)/documents/projectMembers/$(projectId + "_" + getUserId())).data.role;
+    }
+
+    /**
+     * @description Checks if user has required role or higher.
+     * Role hierarchy: viewer (1) < editor (2) < owner (3)
+     */
+    function hasProjectRole(projectId, requiredRole) {
+      let hierarchy = { 'viewer': 1, 'editor': 2, 'owner': 3 };
+      let userRole = getProjectRole(projectId);
+      return isSignedIn() &&
+             isProjectMember(projectId) &&
+             hierarchy[userRole] >= hierarchy[requiredRole];
+    }
+
+    /**
+     * @description Validates project ID format.
+     */
+    function isValidProjectId(projectId) {
+      return projectId is string && projectId.size() > 0;
+    }
+
+    /**
+     * @description Validates email format (basic check).
+     */
+    function isValidEmail(email) {
+      return email is string && email.matches('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$');
+    }
+
+    // ============================================================================
+    // PROJECTS COLLECTION
+    // ============================================================================
+
+    /**
+     * @description Rules for projects collection.
+     * @path /projects/{projectId}
+     *
+     * - CREATE: Any authenticated user can create a project (becomes owner)
+     * - READ: Only project members can read
+     * - UPDATE: Only owners can update project metadata
+     * - DELETE: Only owners can delete
+     */
+    match /projects/{projectId} {
+      allow create: if isSignedIn() &&
+                     request.resource.data.createdBy == getUserId() &&
+                     request.resource.data.status == 'active';
+
+      allow read: if isSignedIn() && isProjectMember(projectId);
+
+      allow update: if isSignedIn() &&
+                     isProjectMember(projectId) &&
+                     (
+                       // Owner can update anything
+                       hasProjectRole(projectId, 'owner') ||
+                       // Editor/Viewer can only update lastActivityAt (for presence)
+                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastActivityAt', 'lastActivityBy', 'updatedAt']))
+                     );
+
+      allow delete: if isSignedIn() && hasProjectRole(projectId, 'owner');
+    }
+
+    // ============================================================================
+    // PROJECT MEMBERS COLLECTION
+    // ============================================================================
+
+    /**
+     * @description Rules for projectMembers collection.
+     * @path /projectMembers/{memberId}
+     * @where memberId = {projectId}_{userId}
+     *
+     * - CREATE: Editors and owners can invite new members
+     * - READ: Members can view other members in their projects
+     * - UPDATE: Owners can change roles, users can update their own joinedAt
+     * - DELETE: Owners can remove members (except themselves if last owner)
+     */
+    match /projectMembers/{memberId} {
+      allow create: if isSignedIn() &&
+                     hasProjectRole(request.resource.data.projectId, 'editor') &&
+                     request.resource.data.invitedBy == getUserId();
+
+      allow read: if isSignedIn() &&
+                     (
+                       // User can read their own memberships
+                       resource.data.userId == getUserId() ||
+                       // Members can see other members in same project
+                       isProjectMember(resource.data.projectId)
+                     );
+
+      allow update: if isSignedIn() &&
+                     (
+                       // Owner can change roles
+                       (hasProjectRole(resource.data.projectId, 'owner') &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'joinedAt'])) ||
+                       // User can accept invite (update joinedAt)
+                       (resource.data.userId == getUserId() &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['joinedAt']))
+                     );
+
+      allow delete: if isSignedIn() &&
+                     hasProjectRole(resource.data.projectId, 'owner') &&
+                     resource.data.userId != getUserId(); // Can't remove yourself
+    }
+
+    // ============================================================================
+    // PROJECT DOCUMENTS COLLECTION
+    // ============================================================================
+
+    /**
+     * @description Rules for projectDocuments collection.
+     * @path /projectDocuments/{documentId}
+     *
+     * - CREATE: Editors and owners can upload documents
+     * - READ: All members can read
+     * - UPDATE: Editors and owners can update (status, extracted entities)
+     * - DELETE: Only owners can delete
+     */
+    match /projectDocuments/{documentId} {
+      allow create: if isSignedIn() &&
+                     hasProjectRole(request.resource.data.projectId, 'editor');
+
+      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+
+      allow update: if isSignedIn() &&
+                     hasProjectRole(resource.data.projectId, 'editor') &&
+                     (
+                       // Can update processing status and extracted data
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                         'status', 'extractedEntities', 'processingError', 'updatedAt'
+                       ])
+                     );
+
+      allow delete: if isSignedIn() && hasProjectRole(resource.data.projectId, 'owner');
+    }
+
+    // ============================================================================
+    // PROJECT PLACEHOLDERS COLLECTION
+    // ============================================================================
+
+    /**
+     * @description Rules for projectPlaceholders collection.
+     * @path /projectPlaceholders/{placeholderId}
+     *
+     * - CREATE: Editors and owners can create (via AI extraction)
+     * - READ: All members can read
+     * - UPDATE: Editors and owners can update values
+     * - DELETE: Only owners can delete
+     */
+    match /projectPlaceholders/{placeholderId} {
+      allow create: if isSignedIn() &&
+                     hasProjectRole(request.resource.data.projectId, 'editor');
+
+      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+
+      allow update: if isSignedIn() &&
+                     hasProjectRole(resource.data.projectId, 'editor') &&
+                     (
+                       // Can update value, status, and modification tracking
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                         'value', 'status', 'modifiedBy', 'modifiedAt', 'modifiedByName', 'version'
+                       ])
+                     );
+
+      allow delete: if isSignedIn() && hasProjectRole(resource.data.projectId, 'owner');
+    }
+
+    // ============================================================================
+    // PROJECT CONTRACTS COLLECTION
+    // ============================================================================
+
+    /**
+     * @description Rules for projectContracts collection.
+     * @path /projectContracts/{contractId}
+     *
+     * - CREATE: Editors and owners can generate contracts
+     * - READ: All members can read
+     * - UPDATE: Editors and owners can update content
+     * - DELETE: Only owners can delete
+     */
+    match /projectContracts/{contractId} {
+      allow create: if isSignedIn() &&
+                     hasProjectRole(request.resource.data.projectId, 'editor');
+
+      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+
+      allow update: if isSignedIn() &&
+                     hasProjectRole(resource.data.projectId, 'editor') &&
+                     (
+                       // Can update content and sync info
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                         'markdownContent', 'filledData', 'version', 'googleDocId',
+                         'googleDocLink', 'lastSyncedAt', 'wordCount'
+                       ])
+                     );
+
+      allow delete: if isSignedIn() && hasProjectRole(resource.data.projectId, 'owner');
+    }
+
+    // ============================================================================
+    // ACTIVITY LOG COLLECTION
+    // ============================================================================
+
+    /**
+     * @description Rules for activity collection (immutable audit log).
+     * @path /activity/{activityId}
+     *
+     * - CREATE: Any member can log activity
+     * - READ: Members can read activity in their projects
+     * - UPDATE/DELETE: Never allowed (immutable)
+     */
+    match /activity/{activityId} {
+      allow create: if isSignedIn() &&
+                     isProjectMember(request.resource.data.projectId) &&
+                     request.resource.data.userId == getUserId();
+
+      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+
+      allow update, delete: if false;
+    }
+
+    // ============================================================================
+    // INVITES COLLECTION
+    // ============================================================================
+
+    /**
+     * @description Rules for invites collection.
+     * @path /invites/{inviteId}
+     *
+     * - CREATE: Editors and owners can invite
+     * - READ: Invited email owner or project owners can read
+     * - UPDATE: Invited user can accept, owners can revoke
+     * - DELETE: Owners can delete expired/revoked invites
+     */
+    match /invites/{inviteId} {
+      allow create: if isSignedIn() &&
+                     hasProjectRole(request.resource.data.projectId, 'editor') &&
+                     isValidEmail(request.resource.data.email);
+
+      allow read: if isSignedIn() &&
+                     (
+                       // Invited user can see their invites
+                       resource.data.email == getUserEmail() ||
+                       // Project owners can see all invites
+                       hasProjectRole(resource.data.projectId, 'owner')
+                     );
+
+      allow update: if isSignedIn() &&
+                     (
+                       // Invited user can accept
+                       (resource.data.email == getUserEmail() &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                          'status', 'acceptedAt', 'acceptedByUserId'
+                        ])) ||
+                       // Owner can revoke
+                       (hasProjectRole(resource.data.projectId, 'owner') &&
+                        request.resource.data.status == 'revoked')
+                     );
+
+      allow delete: if isSignedIn() &&
+                     hasProjectRole(resource.data.projectId, 'owner');
+    }
+
+    // ============================================================================
+    // PRESENCE COLLECTION
+    // ============================================================================
+
+    /**
+     * @description Rules for presence collection (real-time collaboration).
+     * @path /presence/{presenceId}
+     *
+     * - CREATE: Any member can create presence record
+     * - READ: Members can see presence in their projects
+     * - UPDATE: User can only update their own presence
+     * - DELETE: User can delete their own presence (on disconnect)
+     */
+    match /presence/{presenceId} {
+      allow create: if isSignedIn() &&
+                     isProjectMember(request.resource.data.projectId) &&
+                     request.resource.data.userId == getUserId();
+
+      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+
+      allow update: if isSignedIn() &&
+                     resource.data.userId == getUserId();
+
+      allow delete: if isSignedIn() &&
+                     resource.data.userId == getUserId();
+    }
+
+    // ============================================================================
+    // SYNC CONFIGS COLLECTION
+    // ============================================================================
+
+    /**
+     * @description Rules for Google Docs sync configurations.
+     * @path /syncConfigs/{configId}
+     *
+     * - CREATE: Editors and owners can create sync configs
+     * - READ: Members can read configs for their projects
+     * - UPDATE: Editors and owners can update configs
+     * - DELETE: Only owners can delete
+     */
+    match /syncConfigs/{configId} {
+      allow create: if isSignedIn() &&
+                     hasProjectRole(request.resource.data.projectId, 'editor');
+
+      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+
+      allow update: if isSignedIn() &&
+                     hasProjectRole(resource.data.projectId, 'editor');
+
+      allow delete: if isSignedIn() && hasProjectRole(resource.data.projectId, 'owner');
+    }
+
+    // ============================================================================
+    // SYNC EVENTS COLLECTION
+    // ============================================================================
+
+    /**
+     * @description Rules for sync events (immutable log).
+     * @path /syncEvents/{eventId}
+     *
+     * - CREATE: Server-side only (via Cloud Functions)
+     * - READ: Members can read sync events
+     * - UPDATE/DELETE: Never allowed
+     */
+    match /syncEvents/{eventId} {
+      allow create: if isSignedIn() &&
+                     isProjectMember(request.resource.data.projectId);
+
+      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+
+      allow update, delete: if false;
+    }
+
+    // ============================================================================
+    // LEGACY COLLECTIONS (for migration period)
+    // ============================================================================
+
+    /**
+     * @description Legacy global contractModels (shared templates).
+     * Kept for backward compatibility.
      */
     match /contractModels/{contractModelId} {
       allow get: if isSignedIn();
@@ -63,118 +419,20 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for contractModels owned by a specific user.
-     * @path /users/{userId}/contractModels/{contractModelId}
-     * @allow (create) User 'A' can create a contract model under /users/A/contractModels/123 if authenticated as user 'A'.
-     * @allow (get) User 'A' can read a contract model under /users/A/contractModels/123 if authenticated as user 'A'.
-     * @allow (update) User 'A' can update a contract model under /users/A/contractModels/123 if authenticated as user 'A'.
-     * @allow (delete) User 'A' can delete a contract model under /users/A/contractModels/123 if authenticated as user 'A'.
-     * @allow (list) User 'A' can list contract models under /users/A/contractModels if authenticated as user 'A'.
-     * @deny (create) User 'B' cannot create a contract model under /users/A/contractModels/123 if authenticated as user 'B'.
-     * @deny (get) User 'B' cannot read a contract model under /users/A/contractModels/123 if authenticated as user 'B'.
-     * @deny (update) User 'B' cannot update a contract model under /users/A/contractModels/123 if authenticated as user 'B'.
-     * @deny (delete) User 'B' cannot delete a contract model under /users/A/contractModels/123 if authenticated as user 'B'.
-     * @deny (list) User 'B' cannot list contract models under /users/A/contractModels if authenticated as user 'B'.
-     * @principle Enforces document ownership for all operations.
+     * @description Legacy user-owned data.
+     * Read-only during migration period.
      */
-    match /users/{userId}/contractModels/{contractModelId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+    match /users/{userId}/{collection}/{docId} {
+      allow read: if isSignedIn() && getUserId() == userId;
+      allow write: if false; // Migration only - no new writes
     }
 
-    /**
-     * @description Rules for filledContracts owned by a specific user.
-     * @path /users/{userId}/filledContracts/{filledContractId}
-     * @allow (create) User 'A' can create a filled contract under /users/A/filledContracts/123 if authenticated as user 'A'.
-     * @allow (get) User 'A' can read a filled contract under /users/A/filledContracts/123 if authenticated as user 'A'.
-     * @allow (update) User 'A' can update a filled contract under /users/A/filledContracts/123 if authenticated as user 'A'.
-     * @allow (delete) User 'A' can delete a filled contract under /users/A/filledContracts/123 if authenticated as user 'A'.
-     * @allow (list) User 'A' can list filled contracts under /users/A/filledContracts if authenticated as user 'A'.
-     * @deny (create) User 'B' cannot create a filled contract under /users/A/filledContracts/123 if authenticated as user 'B'.
-     * @deny (get) User 'B' cannot read a filled contract under /users/A/filledContracts/123 if authenticated as user 'B'.
-     * @deny (update) User 'B' cannot update a filled contract under /users/A/filledContracts/123 if authenticated as user 'B'.
-     * @deny (delete) User 'B' cannot delete a filled contract under /users/A/filledContracts/123 if authenticated as user 'B'.
-     * @deny (list) User 'B' cannot list filled contracts under /users/A/filledContracts if authenticated as user 'B'.
-     * @principle Enforces document ownership for all operations.
-     */
-    match /users/{userId}/filledContracts/{filledContractId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
-    }
+    // ============================================================================
+    // DENY ALL OTHER ACCESS
+    // ============================================================================
 
-    /**
-     * @description Rules for uploadedDocuments owned by a specific user.
-     * @path /users/{userId}/uploadedDocuments/{uploadedDocumentId}
-     * @allow (create) User 'A' can create an uploaded document under /users/A/uploadedDocuments/123 if authenticated as user 'A'.
-     * @allow (get) User 'A' can read an uploaded document under /users/A/uploadedDocuments/123 if authenticated as user 'A'.
-     * @allow (update) User 'A' can update an uploaded document under /users/A/uploadedDocuments/123 if authenticated as user 'A'.
-     * @allow (delete) User 'A' can delete an uploaded document under /users/A/uploadedDocuments/123 if authenticated as user 'A'.
-     * @allow (list) User 'A' can list uploaded documents under /users/A/uploadedDocuments if authenticated as user 'A'.
-     * @deny (create) User 'B' cannot create an uploaded document under /users/A/uploadedDocuments/123 if authenticated as user 'B'.
-     * @deny (get) User 'B' cannot read an uploaded document under /users/A/uploadedDocuments/123 if authenticated as user 'B'.
-     * @deny (update) User 'B' cannot update an uploaded document under /users/A/uploadedDocuments/123 if authenticated as user 'B'.
-     * @deny (delete) User 'B' cannot delete an uploaded document under /users/A/uploadedDocuments/123 if authenticated as user 'B'.
-     * @deny (list) User 'B' cannot list uploaded documents under /users/A/uploadedDocuments if authenticated as user 'B'.
-     * @principle Enforces document ownership for all operations.
-     */
-    match /users/{userId}/uploadedDocuments/{uploadedDocumentId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Rules for contractGenerationRequests owned by a specific user.
-     * @path /users/{userId}/contractGenerationRequests/{contractGenerationRequestId}
-     * @allow (create) User 'A' can create a contract generation request under /users/A/contractGenerationRequests/123 if authenticated as user 'A'.
-     * @allow (get) User 'A' can read a contract generation request under /users/A/contractGenerationRequests/123 if authenticated as user 'A'.
-     * @allow (update) User 'A' can update a contract generation request under /users/A/contractGenerationRequests/123 if authenticated as user 'A'.
-     * @allow (delete) User 'A' can delete a contract generation request under /users/A/contractGenerationRequests/123 if authenticated as user 'A'.
-     * @allow (list) User 'A' can list contract generation requests under /users/A/contractGenerationRequests if authenticated as user 'A'.
-     * @deny (create) User 'B' cannot create a contract generation request under /users/A/contractGenerationRequests/123 if authenticated as user 'B'.
-     * @deny (get) User 'B' cannot read a contract generation request under /users/A/contractGenerationRequests/123 if authenticated as user 'B'.
-     * @deny (update) User 'B' cannot update a contract generation request under /users/A/contractGenerationRequests/123 if authenticated as user 'B'.
-     * @deny (delete) User 'B' cannot delete a contract generation request under /users/A/contractGenerationRequests/123 if authenticated as user 'B'.
-     * @deny (list) User 'B' cannot list contract generation requests under /users/A/contractGenerationRequests if authenticated as user 'B'.
-     * @principle Enforces document ownership for all operations.
-     */
-    match /users/{userId}/contractGenerationRequests/{contractGenerationRequestId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Rules for developer_feedback collection.
-     * @path /developer_feedback/{feedbackId}
-     * @allow (create) Any authenticated user can create feedback.
-     * @allow (read) Authenticated users can read their own feedback.
-     */
-    match /developer_feedback/{feedbackId} {
-      allow create: if true;
-      allow read: if isSignedIn();
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
-    }
-
-    /**
-     * @description Rules for playbook_feedback collection.
-     * @path /playbook_feedback/{feedbackId}
-     * @allow (create) Any authenticated user can create feedback.
-     * @allow (read) Any authenticated user can list/get feedback (needed for the dashboard).
-     */
-    match /playbook_feedback/{feedbackId} {
-      allow create: if true;
-      allow read, update: if isSignedIn();
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

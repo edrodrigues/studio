@@ -14,8 +14,6 @@ export default function ComeceAquiPage() {
     const [clientName, setClientName] = useLocalStorage("clientName", "");
     const [yourName, setYourName] = useLocalStorage("yourName", "");
 
-    const areFieldsFilled = clientName.trim() !== "" && yourName.trim() !== "";
-
     return (
         <main id="main" className="relative w-full overflow-hidden">
             {/* Background Decoration - Full Width Persistence */}
@@ -60,27 +58,25 @@ export default function ComeceAquiPage() {
                     >
                         <div className="space-y-6">
                             <div className="grid w-full items-center gap-2.5 text-left">
-                                <Label htmlFor="client-name" className="text-[10px] font-bold uppercase tracking-widest text-primary/60 ml-2">Cliente</Label>
+                                <Label htmlFor="client-name" className="text-[10px] font-bold uppercase tracking-widest text-primary/60 ml-2">Nome do Projeto (Opcional)</Label>
                                 <Input
                                     type="text"
                                     id="client-name"
-                                    placeholder="Nome do cliente"
+                                    placeholder="Ex: Contrato de Prestação de Serviços"
                                     className="h-14 rounded-2xl bg-white/50 dark:bg-black/20 border-border/50 focus:ring-primary/20 font-outfit text-base px-5"
                                     value={clientName}
                                     onChange={(e) => setClientName(e.target.value)}
-                                    required
                                 />
                             </div>
                             <div className="grid w-full items-center gap-2.5 text-left">
-                                <Label htmlFor="your-name" className="text-[10px] font-bold uppercase tracking-widest text-primary/60 ml-2">Seu nome</Label>
+                                <Label htmlFor="your-name" className="text-[10px] font-bold uppercase tracking-widest text-primary/60 ml-2">Nome do Cliente (Opcional)</Label>
                                 <Input
                                     type="text"
                                     id="your-name"
-                                    placeholder="Pessoa preenchendo o projeto"
+                                    placeholder="Nome da empresa ou cliente"
                                     className="h-14 rounded-2xl bg-white/50 dark:bg-black/20 border-border/50 focus:ring-primary/20 font-outfit text-base px-5"
                                     value={yourName}
                                     onChange={(e) => setYourName(e.target.value)}
-                                    required
                                 />
                             </div>
                         </div>
@@ -89,15 +85,14 @@ export default function ComeceAquiPage() {
                             <Button
                                 size="lg"
                                 className="h-16 text-lg font-bold rounded-2xl shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 transition-all active:scale-95"
-                                asChild={areFieldsFilled}
-                                disabled={!areFieldsFilled}
+                                asChild
                             >
-                                <Link href="/documentos-iniciais">
-                                    Começar a Gerar um Contrato <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
+                                <Link href="/projects/new">
+                                    Começar a Gerar um Projeto <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
                                 </Link>
                             </Button>
-                            <Button variant="ghost" className="h-12 text-muted-foreground hover:text-primary rounded-xl font-bold" asChild>
-                                <Link href="/modelos">Gerenciar Meus Modelos</Link>
+                            <Button variant="outline" size="lg" className="h-14 text-base font-bold rounded-2xl border-2 hover:bg-primary/5 transition-all" asChild>
+                                <Link href="/projects">Visualizar Projetos</Link>
                             </Button>
                         </div>
                     </motion.div>

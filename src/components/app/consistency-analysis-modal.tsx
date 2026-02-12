@@ -21,6 +21,7 @@ import { handleAnalyzeDocumentConsistency } from "@/lib/actions";
 import { type UploadedFile } from "@/lib/types";
 import ReactMarkdown from "react-markdown";
 import { useToast } from "@/hooks/use-toast";
+import { AIFeedback } from "./ai-feedback";
 
 interface ConsistencyAnalysisModalProps {
     isOpen: boolean;
@@ -215,7 +216,7 @@ export function ConsistencyAnalysisModal({ isOpen, onOpenChange, files }: Consis
                                 )}
 
                                 {suggestions.length > 0 && (
-                                    <div>
+                                    <div className="mb-8">
                                         <h3 className="text-sm font-semibold mb-2">Sugestões de Melhoria</h3>
                                         <ul className="list-disc list-inside space-y-1 text-sm">
                                             {suggestions.map((suggestion, index) => (
@@ -224,6 +225,8 @@ export function ConsistencyAnalysisModal({ isOpen, onOpenChange, files }: Consis
                                         </ul>
                                     </div>
                                 )}
+
+                                {analysis && <AIFeedback className="border-t" />}
 
                                 {!isPending && !analysis && (
                                     <div className="flex items-center justify-center h-full text-center text-muted-foreground p-8">

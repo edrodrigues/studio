@@ -226,8 +226,6 @@ export function ConsistencyAnalysisModal({ isOpen, onOpenChange, files }: Consis
                                     </div>
                                 )}
 
-                                {analysis && <AIFeedback className="border-t" />}
-
                                 {!isPending && !analysis && (
                                     <div className="flex items-center justify-center h-full text-center text-muted-foreground p-8">
                                         <p>A análise de consistência aparecerá aqui.</p>
@@ -238,7 +236,8 @@ export function ConsistencyAnalysisModal({ isOpen, onOpenChange, files }: Consis
                     </div>
                 </div>
 
-                <DialogFooter className="mt-4">
+                <DialogFooter className="mt-4 flex justify-between items-center">
+                    <AIFeedback disabled={!analysis} />
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         Fechar
                     </Button>

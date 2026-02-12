@@ -21,7 +21,7 @@ import {
   updateDoc,
   deleteDoc,
 } from 'firebase/firestore';
-import { useFirebase, useUser, useCollection, useDoc } from '@/firebase';
+import { useFirebase, useUser, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import type {
   Project,
   ProjectMember,
@@ -54,7 +54,7 @@ export function useProject(projectId: string | null): UseProjectReturn {
   const { firestore } = useFirebase();
   const { user } = useUser();
 
-  const projectRef = useMemo(() => {
+  const projectRef = useMemoFirebase(() => {
     if (!firestore || !projectId) return null;
     return doc(firestore, 'projects', projectId) as DocumentReference<Project>;
   }, [firestore, projectId]);
@@ -117,7 +117,7 @@ export function useUserProjects(): UseUserProjectsReturn {
   const { user } = useUser();
 
   // First, get all memberships for the current user
-  const membershipsQuery = useMemo(() => {
+  const membershipsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
       collection(firestore, 'projectMembers'),
@@ -143,7 +143,7 @@ export function useUserProjects(): UseUserProjectsReturn {
   }, [memberships]);
 
   // Query for active projects - need to handle Firestore limitation of 10 items in 'in' clause
-  const projectsQuery = useMemo(() => {
+  const projectsQuery = useMemoFirebase(() => {
     if (!firestore || projectIds.length === 0) return null;
     // For now, query without 'in' to avoid limitation, filter client-side
     return query(
@@ -192,7 +192,7 @@ export function useProjectMembers(projectId: string | null): UseProjectMembersRe
   const { firestore } = useFirebase();
   const { user } = useUser();
 
-  const membersQuery = useMemo(() => {
+  const membersQuery = useMemoFirebase(() => {
     if (!firestore || !projectId) return null;
     return query(
       collection(firestore, 'projectMembers'),
@@ -266,7 +266,7 @@ export function useProjectRole(projectId: string | null): UseProjectRoleReturn {
   const { firestore } = useFirebase();
   const { user } = useUser();
 
-  const memberRef = useMemo(() => {
+  const memberRef = useMemoFirebase(() => {
     if (!firestore || !projectId || !user) return null;
     return doc(firestore, 'projectMembers', `${projectId}_${user.uid}`) as DocumentReference<ProjectMember>;
   }, [firestore, projectId, user]);
@@ -335,7 +335,7 @@ interface UseProjectDocumentsReturn {
 export function useProjectDocuments(projectId: string | null): UseProjectDocumentsReturn {
   const { firestore } = useFirebase();
 
-  const documentsQuery = useMemo(() => {
+  const documentsQuery = useMemoFirebase(() => {
     if (!firestore || !projectId) return null;
     return query(
       collection(firestore, 'projectDocuments'),
@@ -405,7 +405,7 @@ export function useProjectPlaceholders(projectId: string | null): UseProjectPlac
   const { firestore } = useFirebase();
   const { user } = useUser();
 
-  const placeholdersQuery = useMemo(() => {
+  const placeholdersQuery = useMemoFirebase(() => {
     if (!firestore || !projectId) return null;
     return query(
       collection(firestore, 'projectPlaceholders'),
@@ -490,7 +490,7 @@ interface UseProjectContractsReturn {
 export function useProjectContracts(projectId: string | null): UseProjectContractsReturn {
   const { firestore } = useFirebase();
 
-  const contractsQuery = useMemo(() => {
+  const contractsQuery = useMemoFirebase(() => {
     if (!firestore || !projectId) return null;
     return query(
       collection(firestore, 'projectContracts'),
@@ -555,7 +555,7 @@ export function useActivity(projectId: string | null, pageSize: number = 50): Us
   const { firestore } = useFirebase();
   const { user } = useUser();
 
-  const activityQuery = useMemo(() => {
+  const activityQuery = useMemoFirebase(() => {
     if (!firestore || !projectId) return null;
     return query(
       collection(firestore, 'activity'),
@@ -604,7 +604,7 @@ export function useInvites(): UseInvitesReturn {
   const { firestore } = useFirebase();
   const { user } = useUser();
 
-  const invitesQuery = useMemo(() => {
+  const invitesQuery = useMemoFirebase(() => {
     if (!firestore || !user?.email) return null;
     return query(
       collection(firestore, 'invites'),
@@ -685,7 +685,7 @@ export function usePresence(projectId: string | null): UsePresenceReturn {
   const { firestore } = useFirebase();
   const { user } = useUser();
 
-  const presenceQuery = useMemo(() => {
+  const presenceQuery = useMemoFirebase(() => {
     if (!firestore || !projectId) return null;
     // Only show users active in last 5 minutes
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
@@ -750,7 +750,7 @@ export function useLegacyContracts() {
   const { firestore } = useFirebase();
   const { user } = useUser();
 
-  const contractsQuery = useMemo(() => {
+  const contractsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return collection(firestore, 'users', user.uid, 'filledContracts');
   }, [firestore, user]);

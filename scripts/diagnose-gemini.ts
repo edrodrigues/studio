@@ -11,9 +11,10 @@ if (fs.existsSync(envLocalPath)) {
     config(); // Fallback
 }
 // Helper to log to file
-function log(msg: string) {
-    console.log(msg);
-    fs.appendFileSync('diagnose_log.txt', msg + '\n');
+function log(msg: string, ...args: any[]) {
+    const fullMsg = args.length > 0 ? `${msg} ${args.join(' ')}` : msg;
+    console.log(fullMsg);
+    fs.appendFileSync('diagnose_log.txt', fullMsg + '\n');
 }
 function error(msg: string) {
     console.error(msg);

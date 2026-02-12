@@ -53,3 +53,7 @@ firestore-debug.log
 # agent
 .agent
     google-*.json
+
+# Secrets
+google-service-account.json
+google-oauth-credentials.json

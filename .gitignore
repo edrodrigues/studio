@@ -52,4 +52,4 @@ firestore-debug.log
 
 # agent
 .agent
-    
+    google-*.json

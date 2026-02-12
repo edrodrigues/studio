@@ -126,14 +126,14 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     throw new Error('Firebase core services not available. Check FirebaseProvider props.');
   }
 
-  return {
+  return useMemo(() => ({
     firebaseApp: context.firebaseApp,
     firestore: context.firestore,
     auth: context.auth,
     user: context.user,
     isUserLoading: context.isUserLoading,
     userError: context.userError,
-  };
+  }), [context.firebaseApp, context.firestore, context.auth, context.user, context.isUserLoading, context.userError]);
 };
 
 /** Hook to access Firebase Auth instance. */

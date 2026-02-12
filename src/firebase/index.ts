@@ -17,16 +17,22 @@ export function initializeFirebase() {
     // and avoid the "app/no-options" error in environments like Vercel.
     firebaseApp = initializeApp(firebaseConfig);
 
+    const sdks = getSdks(firebaseApp);
 
-    // Anonymous login removed to support mandatory auth
-    // const auth = getAuth(firebaseApp);
-    // onAuthStateChanged(auth, user => {
-    //   if (!user) {
-    //     signInAnonymously(auth);
-    //   }
-    // });
+    // Enable offline persistence ONLY on first initialization
+    if (typeof window !== 'undefined') {
+      enableIndexedDbPersistence(sdks.firestore).catch((err) => {
+        if (err.code === 'failed-precondition') {
+          // Multiple tabs open, persistence can only be enabled in one tab at a time
+          console.warn('Firebase persistence failed: Multiple tabs open');
+        } else if (err.code === 'unimplemented') {
+          // The browser doesn't support IndexedDB
+          console.warn('Firebase persistence not supported in this browser');
+        }
+      });
+    }
 
-    return getSdks(firebaseApp);
+    return sdks;
   }
 
   // If already initialized, return the SDKs with the already initialized App
@@ -35,20 +41,7 @@ export function initializeFirebase() {
 
 export function getSdks(firebaseApp: FirebaseApp) {
   const firestore = getFirestore(firebaseApp);
-  
-  // Enable offline persistence
-  if (typeof window !== 'undefined') {
-    enableIndexedDbPersistence(firestore).catch((err) => {
-      if (err.code === 'failed-precondition') {
-        // Multiple tabs open, persistence can only be enabled in one tab at a time
-        console.warn('Firebase persistence failed: Multiple tabs open');
-      } else if (err.code === 'unimplemented') {
-        // The browser doesn't support IndexedDB
-        console.warn('Firebase persistence not supported in this browser');
-      }
-    });
-  }
-  
+
   return {
     firebaseApp,
     auth: getAuth(firebaseApp),

@@ -317,8 +317,8 @@ service cloud.firestore {
 
       allow list: if isSignedIn() &&
                      (
-                       // Invited user can see their invites
-                       resource.data.email == getUserEmail()
+                       // Invited user can see their invites (case-insensitive)
+                       resource.data.email.lower() == getUserEmail().lower()
                      );
 
       allow update: if isSignedIn() &&

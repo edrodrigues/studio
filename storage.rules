@@ -1,0 +1,60 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserId() {
+      return request.auth.uid;
+    }
+    
+    function isProjectMember(projectId) {
+      // Check if user is a member of the project via Firestore
+      // This requires the user to have a membership document
+      return firestore.exists(/databases/(default)/documents/projectMembers/$(projectId + "_" + getUserId()));
+    }
+    
+    function hasProjectRole(projectId, requiredRole) {
+      let membership = firestore.get(/databases/(default)/documents/projectMembers/$(projectId + "_" + getUserId()));
+      let hierarchy = { 'viewer': 1, 'editor': 2, 'owner': 3 };
+      return isSignedIn() && 
+             isProjectMember(projectId) && 
+             hierarchy[membership.data.role] >= hierarchy[requiredRole];
+    }
+    
+    // Project documents storage
+    // Path: projects/{projectId}/documents/{documentId}/{filename}
+    match /projects/{projectId}/documents/{documentId}/{allPaths=**} {
+      allow read: if isSignedIn() && isProjectMember(projectId);
+      allow write: if isSignedIn() && hasProjectRole(projectId, 'editor');
+    }
+    
+    // Project exports storage
+    // Path: projects/{projectId}/exports/{contractId}/{filename}
+    match /projects/{projectId}/exports/{contractId}/{allPaths=**} {
+      allow read: if isSignedIn() && isProjectMember(projectId);
+      allow write: if isSignedIn() && hasProjectRole(projectId, 'editor');
+    }
+    
+    // Temporary processing files
+    // Path: projects/{projectId}/temp/{allPaths=**}
+    match /projects/{projectId}/temp/{allPaths=**} {
+      allow read: if isSignedIn() && isProjectMember(projectId);
+      allow write: if isSignedIn() && hasProjectRole(projectId, 'editor');
+      // Auto-delete after 24 hours via Cloud Function lifecycle policy
+    }
+    
+    // User avatars (if needed)
+    match /users/{userId}/avatar/{filename} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && getUserId() == userId;
+    }
+    
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

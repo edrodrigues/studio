@@ -47,7 +47,9 @@ firestore-debug.log
 
 .env.local
 .env.local.utf8
+ google-oauth-credentials.json
+ google-service-account.json
 
 # agent
 .agent
-    
+    google-*.json

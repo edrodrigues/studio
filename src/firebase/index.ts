@@ -2,8 +2,8 @@
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore'
+import { getAuth } from 'firebase/auth';
+import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore'
 
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
 export function initializeFirebase() {
@@ -34,10 +34,25 @@ export function initializeFirebase() {
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
+  const firestore = getFirestore(firebaseApp);
+  
+  // Enable offline persistence
+  if (typeof window !== 'undefined') {
+    enableIndexedDbPersistence(firestore).catch((err) => {
+      if (err.code === 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one tab at a time
+        console.warn('Firebase persistence failed: Multiple tabs open');
+      } else if (err.code === 'unimplemented') {
+        // The browser doesn't support IndexedDB
+        console.warn('Firebase persistence not supported in this browser');
+      }
+    });
+  }
+  
   return {
     firebaseApp,
     auth: getAuth(firebaseApp),
-    firestore: getFirestore(firebaseApp)
+    firestore
   };
 }
 

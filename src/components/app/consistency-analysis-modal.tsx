@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
     Dialog,
@@ -53,6 +53,16 @@ export function ConsistencyAnalysisModal({ isOpen, onOpenChange, files }: Consis
     const [isPending, startTransition] = useTransition();
     const [hasCopied, setHasCopied] = useState(false);
     const { toast } = useToast();
+    const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (copyTimeoutRef.current) {
+                clearTimeout(copyTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const handleGenerateAnalysis = async () => {
         if (files.length < 2) {
@@ -104,7 +114,12 @@ export function ConsistencyAnalysisModal({ isOpen, onOpenChange, files }: Consis
 
         navigator.clipboard.writeText(fullText).then(() => {
             setHasCopied(true);
-            setTimeout(() => setHasCopied(false), 2000);
+            // Clear any existing timeout
+            if (copyTimeoutRef.current) {
+                clearTimeout(copyTimeoutRef.current);
+            }
+            // Set new timeout and store reference
+            copyTimeoutRef.current = setTimeout(() => setHasCopied(false), 2000);
             toast({ title: "Análise copiada para a área de transferência!" });
         });
     };

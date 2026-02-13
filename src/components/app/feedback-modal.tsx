@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -52,6 +52,16 @@ export function FeedbackModal({ isOpen, onOpenChange, files }: FeedbackModalProp
   const [isPending, startTransition] = useTransition();
   const [hasCopied, setHasCopied] = useState(false);
   const { toast } = useToast();
+  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleGenerateFeedback = async () => {
     if (files.length === 0) {
@@ -100,7 +110,12 @@ export function FeedbackModal({ isOpen, onOpenChange, files }: FeedbackModalProp
     if (!feedback) return;
     navigator.clipboard.writeText(feedback).then(() => {
       setHasCopied(true);
-      setTimeout(() => setHasCopied(false), 2000); // Reset after 2 seconds
+      // Clear any existing timeout
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+      // Set new timeout and store reference
+      copyTimeoutRef.current = setTimeout(() => setHasCopied(false), 2000);
       toast({ title: "Feedback copiado para a área de transferência!" });
     });
   };

@@ -315,11 +315,7 @@ service cloud.firestore {
                        hasProjectRole(resource.data.projectId, 'owner')
                      );
 
-      allow list: if isSignedIn() &&
-                     (
-                       // Invited user can see their invites (case-insensitive)
-                       resource.data.email.lower() == getUserEmail().lower()
-                     );
+      allow list: if isSignedIn();
 
       allow update: if isSignedIn() &&
                      (

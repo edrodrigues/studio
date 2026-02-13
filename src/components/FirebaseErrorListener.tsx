@@ -1,38 +1,55 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useToast } from '@/hooks/use-toast';
 
 /**
- * An invisible component that listens for globally emitted 'permission-error' events.
- * It throws any received error to be caught by Next.js's global-error.tsx.
+ * An invisible component that listens for globally emitted error events.
+ * Displays toast notifications for errors instead of throwing and crashing the app.
  */
 export function FirebaseErrorListener() {
-  // Use the specific error type for the state for type safety.
-  const [error, setError] = useState<FirestorePermissionError | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
-    // The callback now expects a strongly-typed error, matching the event payload.
-    const handleError = (error: FirestorePermissionError) => {
-      // Set error in state to trigger a re-render.
-      setError(error);
+    const handlePermissionError = (error: FirestorePermissionError) => {
+      console.error('Firebase permission error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro de Permissão',
+        description: `Você não tem permissão para ${error.operation} em ${error.path}`,
+      });
     };
 
-    // The typed emitter will enforce that the callback for 'permission-error'
-    // matches the expected payload type (FirestorePermissionError).
-    errorEmitter.on('permission-error', handleError);
+    const handleFirestoreError = (error: any) => {
+      console.error('Firestore error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro de Conexão',
+        description: error.message || 'Erro ao acessar o banco de dados. Tente novamente.',
+      });
+    };
 
-    // Unsubscribe on unmount to prevent memory leaks.
+    const handleAuthError = (error: any) => {
+      console.error('Auth error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro de Autenticação',
+        description: error.message || 'Erro ao fazer login. Verifique suas credenciais.',
+      });
+    };
+
+    errorEmitter.on('permission-error', handlePermissionError);
+    errorEmitter.on('firestore-error', handleFirestoreError);
+    errorEmitter.on('auth-error', handleAuthError);
+
     return () => {
-      errorEmitter.off('permission-error', handleError);
+      errorEmitter.off('permission-error', handlePermissionError);
+      errorEmitter.off('firestore-error', handleFirestoreError);
+      errorEmitter.off('auth-error', handleAuthError);
     };
-  }, []);
-
-  // On re-render, if an error exists in state, throw it.
-  if (error) {
-    throw error;
-  }
+  }, [toast]);
 
   // This component renders nothing.
   return null;

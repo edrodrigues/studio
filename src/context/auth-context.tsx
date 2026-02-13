@@ -48,10 +48,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             router.push("/");
         } catch (error: any) {
             console.error("Google Signin Error", error);
+            let msg = "Não foi possível entrar com Google.";
+            
+            // Map Firebase Auth error codes to user-friendly messages
+            const errorMessages: Record<string, string> = {
+                'auth/network-request-failed': "Erro de conexão. Verifique sua internet e tente novamente.",
+                'auth/popup-closed-by-user': "Login cancelado. Você fechou a janela de login.",
+                'auth/popup-blocked': "Pop-up bloqueado. Permitir pop-ups para este site.",
+                'auth/cancelled-popup-request': "Login cancelado.",
+                'auth/timeout': "Tempo de conexão esgotado. Tente novamente.",
+            };
+            
+            msg = errorMessages[error.code] || msg;
+            
             toast({
                 variant: "destructive",
                 title: "Erro no login",
-                description: error.message || "Não foi possível entrar com Google.",
+                description: msg,
             });
         } finally {
             setActionLoading(false);
@@ -71,9 +84,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (error: any) {
             console.error("Email Login Error", error);
             let msg = "Erro ao fazer login.";
-            if (error.code === 'auth/invalid-credential') msg = "Credenciais inválidas.";
-            if (error.code === 'auth/user-not-found') msg = "Usuário não encontrado.";
-            if (error.code === 'auth/wrong-password') msg = "Senha incorreta.";
+            
+            // Map Firebase Auth error codes to user-friendly messages
+            const errorMessages: Record<string, string> = {
+                'auth/invalid-credential': "Credenciais inválidas.",
+                'auth/user-not-found': "Usuário não encontrado.",
+                'auth/wrong-password': "Senha incorreta.",
+                'auth/network-request-failed': "Erro de conexão. Verifique sua internet e tente novamente.",
+                'auth/too-many-requests': "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+                'auth/invalid-email': "E-mail inválido.",
+                'auth/user-disabled': "Esta conta foi desativada.",
+                'auth/timeout': "Tempo de conexão esgotado. Tente novamente.",
+            };
+            
+            msg = errorMessages[error.code] || msg;
+            
             toast({
                 variant: "destructive",
                 title: "Erro no login",
@@ -102,8 +127,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (error: any) {
             console.error("Signup Error", error);
             let msg = "Erro ao criar conta.";
-            if (error.code === 'auth/email-already-in-use') msg = "Este e-mail já está em uso.";
-            if (error.code === 'auth/weak-password') msg = "A senha é muito fraca.";
+            
+            // Map Firebase Auth error codes to user-friendly messages
+            const errorMessages: Record<string, string> = {
+                'auth/email-already-in-use': "Este e-mail já está em uso.",
+                'auth/weak-password': "A senha é muito fraca.",
+                'auth/network-request-failed': "Erro de conexão. Verifique sua internet e tente novamente.",
+                'auth/too-many-requests': "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+                'auth/invalid-email': "E-mail inválido.",
+                'auth/timeout': "Tempo de conexão esgotado. Tente novamente.",
+            };
+            
+            msg = errorMessages[error.code] || msg;
 
             toast({
                 variant: "destructive",

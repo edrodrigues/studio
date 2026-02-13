@@ -37,8 +37,7 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val
 
   useEffect(() => {
     setStoredValue(readValueFromLocalStorage(key, initialValue));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [key, initialValue]);
 
   return [storedValue, setValue];
 }

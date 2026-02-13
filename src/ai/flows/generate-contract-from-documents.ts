@@ -15,7 +15,7 @@ import {z} from 'genkit';
 const GenerateContractFromDocumentsInputSchema = z.object({
   documents: z.array(
     z.object({
-      url: z.string().describe('The data URI of the document.'),
+      url: z.string().url().describe('The data URI of the document.'),
     })
   ),
 });

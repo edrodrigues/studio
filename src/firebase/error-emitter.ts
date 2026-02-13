@@ -7,6 +7,18 @@ import { FirestorePermissionError } from '@/firebase/errors';
  */
 export interface AppEvents {
   'permission-error': FirestorePermissionError;
+  'firestore-error': {
+    path: string;
+    operation: string;
+    code: string;
+    message: string;
+    originalError: any;
+  };
+  'auth-error': {
+    code: string;
+    message: string;
+    originalError: any;
+  };
 }
 
 // A generic type for a callback function.

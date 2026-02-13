@@ -5,7 +5,7 @@
  * Provides real-time data synchronization with Firestore
  */
 
-import { useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useCallback, useEffect, useState } from 'react';
 import {
   collection,
   doc,
@@ -13,6 +13,7 @@ import {
   where,
   orderBy,
   limit,
+  startAfter,
   DocumentReference,
   writeBatch,
   getDoc,
@@ -20,6 +21,9 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  FirestoreError,
+  QueryDocumentSnapshot,
+  Query,
 } from 'firebase/firestore';
 import { useFirebase, useUser, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import type {
@@ -64,28 +68,43 @@ export function useProject(projectId: string | null): UseProjectReturn {
   const updateProject = useCallback(
     async (updates: Partial<Project>) => {
       if (!projectRef || !user) return;
-      await updateDoc(projectRef, {
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      });
+      try {
+        await updateDoc(projectRef, {
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error('Failed to update project:', error);
+        throw error;
+      }
     },
     [projectRef, user]
   );
 
   const archiveProject = useCallback(async () => {
     if (!projectRef || !user) return;
-    await updateDoc(projectRef, {
-      status: 'archived',
-      updatedAt: new Date().toISOString(),
-    });
+    try {
+      await updateDoc(projectRef, {
+        status: 'archived',
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Failed to archive project:', error);
+      throw error;
+    }
   }, [projectRef, user]);
 
   const deleteProject = useCallback(async () => {
     if (!projectRef || !user) return;
-    await updateDoc(projectRef, {
-      status: 'deleted',
-      updatedAt: new Date().toISOString(),
-    });
+    try {
+      await updateDoc(projectRef, {
+        status: 'deleted',
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Failed to delete project:', error);
+      throw error;
+    }
   }, [projectRef, user]);
 
   return {
@@ -207,19 +226,24 @@ export function useProjectMembers(projectId: string | null): UseProjectMembersRe
     async (email: string, role: ProjectRole) => {
       if (!firestore || !projectId || !user) return;
       
-      const inviteData = {
-        projectId,
-        projectName: '', // Will be filled by Cloud Function
-        email: email.toLowerCase(),
-        role,
-        invitedBy: user.uid,
-        invitedByName: user.displayName || user.email || 'Unknown',
-        invitedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-        status: 'pending' as InviteStatus,
-      };
+      try {
+        const inviteData = {
+          projectId,
+          projectName: '', // Will be filled by Cloud Function
+          email: email.toLowerCase(),
+          role,
+          invitedBy: user.uid,
+          invitedByName: user.displayName || user.email || 'Unknown',
+          invitedAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+          status: 'pending' as InviteStatus,
+        };
 
-      await addDoc(collection(firestore, 'invites'), inviteData);
+        await addDoc(collection(firestore, 'invites'), inviteData);
+      } catch (error) {
+        console.error('Failed to invite member:', error);
+        throw error;
+      }
     },
     [firestore, projectId, user]
   );
@@ -227,8 +251,13 @@ export function useProjectMembers(projectId: string | null): UseProjectMembersRe
   const updateMemberRole = useCallback(
     async (memberId: string, newRole: ProjectRole) => {
       if (!firestore) return;
-      const memberRef = doc(firestore, 'projectMembers', memberId);
-      await updateDoc(memberRef, { role: newRole });
+      try {
+        const memberRef = doc(firestore, 'projectMembers', memberId);
+        await updateDoc(memberRef, { role: newRole });
+      } catch (error) {
+        console.error('Failed to update member role:', error);
+        throw error;
+      }
     },
     [firestore]
   );
@@ -236,8 +265,13 @@ export function useProjectMembers(projectId: string | null): UseProjectMembersRe
   const removeMember = useCallback(
     async (memberId: string) => {
       if (!firestore) return;
-      const memberRef = doc(firestore, 'projectMembers', memberId);
-      await deleteDoc(memberRef);
+      try {
+        const memberRef = doc(firestore, 'projectMembers', memberId);
+        await deleteDoc(memberRef);
+      } catch (error) {
+        console.error('Failed to remove member:', error);
+        throw error;
+      }
     },
     [firestore]
   );
@@ -349,8 +383,13 @@ export function useProjectDocuments(projectId: string | null): UseProjectDocumen
   const addDocument = useCallback(
     async (docData: Omit<ProjectDocument, 'id'>) => {
       if (!firestore) throw new Error('Firestore not initialized');
-      const docRef = await addDoc(collection(firestore, 'projectDocuments'), docData);
-      return docRef.id;
+      try {
+        const docRef = await addDoc(collection(firestore, 'projectDocuments'), docData);
+        return docRef.id;
+      } catch (error) {
+        console.error('Failed to add document:', error);
+        throw error;
+      }
     },
     [firestore]
   );
@@ -358,8 +397,13 @@ export function useProjectDocuments(projectId: string | null): UseProjectDocumen
   const updateDocument = useCallback(
     async (docId: string, updates: Partial<ProjectDocument>) => {
       if (!firestore) return;
-      const docRef = doc(firestore, 'projectDocuments', docId);
-      await updateDoc(docRef, updates);
+      try {
+        const docRef = doc(firestore, 'projectDocuments', docId);
+        await updateDoc(docRef, updates);
+      } catch (error) {
+        console.error('Failed to update document:', error);
+        throw error;
+      }
     },
     [firestore]
   );
@@ -367,8 +411,13 @@ export function useProjectDocuments(projectId: string | null): UseProjectDocumen
   const deleteDocument = useCallback(
     async (docId: string) => {
       if (!firestore) return;
-      const docRef = doc(firestore, 'projectDocuments', docId);
-      await deleteDoc(docRef);
+      try {
+        const docRef = doc(firestore, 'projectDocuments', docId);
+        await deleteDoc(docRef);
+      } catch (error) {
+        console.error('Failed to delete document:', error);
+        throw error;
+      }
     },
     [firestore]
   );
@@ -419,16 +468,21 @@ export function useProjectPlaceholders(projectId: string | null): UseProjectPlac
   const updatePlaceholder = useCallback(
     async (placeholderId: string, value: string) => {
       if (!firestore || !user) return;
-      const placeholderRef = doc(firestore, 'projectPlaceholders', placeholderId);
-      const currentPlaceholder = placeholders?.find((p: ProjectPlaceholder & { id: string }) => p.id === placeholderId);
-      await updateDoc(placeholderRef, {
-        value,
-        modifiedBy: user.uid,
-        modifiedByName: user.displayName || user.email || 'Unknown',
-        modifiedAt: new Date().toISOString(),
-        status: 'reviewed',
-        version: (currentPlaceholder?.version || 0) + 1,
-      });
+      try {
+        const placeholderRef = doc(firestore, 'projectPlaceholders', placeholderId);
+        const currentPlaceholder = placeholders?.find((p: ProjectPlaceholder & { id: string }) => p.id === placeholderId);
+        await updateDoc(placeholderRef, {
+          value,
+          modifiedBy: user.uid,
+          modifiedByName: user.displayName || user.email || 'Unknown',
+          modifiedAt: new Date().toISOString(),
+          status: 'reviewed',
+          version: (currentPlaceholder?.version || 0) + 1,
+        });
+      } catch (error) {
+        console.error('Failed to update placeholder:', error);
+        throw error;
+      }
     },
     [firestore, user, placeholders]
   );
@@ -437,29 +491,50 @@ export function useProjectPlaceholders(projectId: string | null): UseProjectPlac
     async (updates: PlaceholderUpdate[]) => {
       if (!firestore || !user) return;
       
-      const batch = writeBatch(firestore);
-      updates.forEach(({ placeholderId, value }) => {
-        const placeholderRef = doc(firestore, 'projectPlaceholders', placeholderId);
-        const currentPlaceholder = placeholders?.find((p: ProjectPlaceholder & { id: string }) => p.id === placeholderId);
-        batch.update(placeholderRef, {
-          value,
-          modifiedBy: user.uid,
-          modifiedByName: user.displayName || user.email || 'Unknown',
-          modifiedAt: new Date().toISOString(),
-          status: 'reviewed',
-          version: (currentPlaceholder?.version || 0) + 1,
+      try {
+        const batch = writeBatch(firestore);
+        
+        // Fetch current versions to avoid race conditions
+        const currentDocs = await Promise.all(
+          updates.map(({ placeholderId }) =>
+            getDoc(doc(firestore, 'projectPlaceholders', placeholderId))
+          )
+        );
+        
+        updates.forEach(({ placeholderId, value }, index) => {
+          const placeholderRef = doc(firestore, 'projectPlaceholders', placeholderId);
+          const currentDoc = currentDocs[index];
+          const currentVersion = currentDoc.exists() ? (currentDoc.data()?.version || 0) : 0;
+          
+          batch.update(placeholderRef, {
+            value,
+            modifiedBy: user.uid,
+            modifiedByName: user.displayName || user.email || 'Unknown',
+            modifiedAt: new Date().toISOString(),
+            status: 'reviewed',
+            version: currentVersion + 1,
+          });
         });
-      });
-      await batch.commit();
+        
+        await batch.commit();
+      } catch (error) {
+        console.error('Failed to update placeholders batch:', error);
+        throw error;
+      }
     },
-    [firestore, user, placeholders]
+    [firestore, user]
   );
 
   const confirmPlaceholder = useCallback(
     async (placeholderId: string) => {
       if (!firestore) return;
-      const placeholderRef = doc(firestore, 'projectPlaceholders', placeholderId);
-      await updateDoc(placeholderRef, { status: 'confirmed' });
+      try {
+        const placeholderRef = doc(firestore, 'projectPlaceholders', placeholderId);
+        await updateDoc(placeholderRef, { status: 'confirmed' });
+      } catch (error) {
+        console.error('Failed to confirm placeholder:', error);
+        throw error;
+      }
     },
     [firestore]
   );
@@ -504,8 +579,13 @@ export function useProjectContracts(projectId: string | null): UseProjectContrac
   const addContract = useCallback(
     async (contract: Omit<ProjectContract, 'id'>) => {
       if (!firestore) throw new Error('Firestore not initialized');
-      const docRef = await addDoc(collection(firestore, 'projectContracts'), contract);
-      return docRef.id;
+      try {
+        const docRef = await addDoc(collection(firestore, 'projectContracts'), contract);
+        return docRef.id;
+      } catch (error) {
+        console.error('Failed to add contract:', error);
+        throw error;
+      }
     },
     [firestore]
   );
@@ -513,8 +593,13 @@ export function useProjectContracts(projectId: string | null): UseProjectContrac
   const updateContract = useCallback(
     async (contractId: string, updates: Partial<ProjectContract>) => {
       if (!firestore) return;
-      const contractRef = doc(firestore, 'projectContracts', contractId);
-      await updateDoc(contractRef, updates);
+      try {
+        const contractRef = doc(firestore, 'projectContracts', contractId);
+        await updateDoc(contractRef, updates);
+      } catch (error) {
+        console.error('Failed to update contract:', error);
+        throw error;
+      }
     },
     [firestore]
   );
@@ -522,8 +607,13 @@ export function useProjectContracts(projectId: string | null): UseProjectContrac
   const deleteContract = useCallback(
     async (contractId: string) => {
       if (!firestore) return;
-      const contractRef = doc(firestore, 'projectContracts', contractId);
-      await deleteDoc(contractRef);
+      try {
+        const contractRef = doc(firestore, 'projectContracts', contractId);
+        await deleteDoc(contractRef);
+      } catch (error) {
+        console.error('Failed to delete contract:', error);
+        throw error;
+      }
     },
     [firestore]
   );
@@ -554,36 +644,113 @@ interface UseActivityReturn {
 export function useActivity(projectId: string | null, pageSize: number = 50): UseActivityReturn {
   const { firestore } = useFirebase();
   const { user } = useUser();
+  const [allActivities, setAllActivities] = useState<(Activity & { id: string })[] | null>(null);
+  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  const activityQuery = useMemoFirebase(() => {
+  // Build query for pagination
+  const buildQuery = useCallback((startAfterDoc?: QueryDocumentSnapshot | null): Query | null => {
     if (!firestore || !projectId) return null;
-    return query(
+    
+    let baseQuery = query(
       collection(firestore, 'activity'),
       where('projectId', '==', projectId),
       orderBy('timestamp', 'desc'),
       limit(pageSize)
     );
+    
+    if (startAfterDoc) {
+      baseQuery = query(baseQuery, startAfter(startAfterDoc));
+    }
+    
+    return baseQuery;
   }, [firestore, projectId, pageSize]);
 
+  // Initial load
+  const activityQuery = useMemoFirebase(() => buildQuery(null), [buildQuery]);
   const { data: activities, isLoading, error } = useCollection<Activity>(activityQuery);
+
+  // Update allActivities when new data arrives
+  useEffect(() => {
+    if (activities) {
+      setAllActivities(activities);
+      setHasMore(activities.length === pageSize);
+    }
+  }, [activities, pageSize]);
+
+  const loadMore = useCallback(async () => {
+    if (!firestore || !projectId || !allActivities || allActivities.length === 0 || isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const lastDoc = allActivities[allActivities.length - 1];
+      const nextQuery = buildQuery(lastVisible);
+      
+      if (!nextQuery) return;
+      
+      // Get the document reference for the last visible item
+      const lastDocRef = doc(firestore, 'activity', lastDoc.id);
+      const lastDocSnap = await getDoc(lastDocRef);
+      
+      if (!lastDocSnap.exists()) {
+        setHasMore(false);
+        return;
+      }
+      
+      const paginatedQuery = query(
+        collection(firestore, 'activity'),
+        where('projectId', '==', projectId),
+        orderBy('timestamp', 'desc'),
+        startAfter(lastDocSnap),
+        limit(pageSize)
+      );
+      
+      // Manual fetch for pagination
+      const { getDocs } = await import('firebase/firestore');
+      const snapshot = await getDocs(paginatedQuery);
+      
+      const newActivities = snapshot.docs.map(doc => ({
+        ...(doc.data() as Activity),
+        id: doc.id,
+      }));
+      
+      if (newActivities.length > 0) {
+        setAllActivities((prev: (Activity & { id: string })[] | null) => [...(prev || []), ...newActivities]);
+        setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+        setHasMore(newActivities.length === pageSize);
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.error('Error loading more activities:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [firestore, projectId, allActivities, pageSize, lastVisible, isLoadingMore, buildQuery]);
 
   const logActivity = useCallback(
     async (activity: Omit<Activity, 'id' | 'timestamp'>) => {
       if (!firestore || !user) return;
-      await addDoc(collection(firestore, 'activity'), {
-        ...activity,
-        timestamp: new Date().toISOString(),
-      });
+      try {
+        await addDoc(collection(firestore, 'activity'), {
+          ...activity,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error('Failed to log activity:', error);
+        throw error;
+      }
     },
     [firestore, user]
   );
 
   return {
-    activities,
-    isLoading,
+    activities: allActivities,
+    isLoading: isLoading || isLoadingMore,
     error,
-    hasMore: false, // TODO: Implement pagination
-    loadMore: () => {}, // TODO: Implement pagination
+    hasMore,
+    loadMore,
     logActivity,
   };
 }
@@ -618,47 +785,67 @@ export function useInvites(): UseInvitesReturn {
 
   const acceptInvite = useCallback(
     async (inviteId: string) => {
-      if (!firestore || !user) return;
+      if (!firestore || !user) throw new Error('Not authenticated');
       
-      const inviteRef = doc(firestore, 'invites', inviteId);
-      const inviteDoc = await getDoc(inviteRef);
-      
-      if (!inviteDoc.exists()) return;
-      const inviteData = inviteDoc.data() as ProjectInvite;
-      
-      // Create membership
-      const memberRef = doc(firestore, 'projectMembers', `${inviteData.projectId}_${user.uid}`);
-      await setDoc(memberRef, {
-        projectId: inviteData.projectId,
-        userId: user.uid,
-        role: inviteData.role,
-        invitedBy: inviteData.invitedBy,
-        invitedAt: inviteData.invitedAt,
-        joinedAt: new Date().toISOString(),
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-      });
-      
-      // Update invite
-      await updateDoc(inviteRef, {
-        status: 'accepted',
-        acceptedAt: new Date().toISOString(),
-        acceptedByUserId: user.uid,
-      });
+      try {
+        const inviteRef = doc(firestore, 'invites', inviteId);
+        const inviteDoc = await getDoc(inviteRef);
+        
+        if (!inviteDoc.exists()) throw new Error('Invite not found');
+        const inviteData = inviteDoc.data() as ProjectInvite;
+        
+        // Validate invite
+        if (inviteData.status !== 'pending') throw new Error('Invite is not pending');
+        if (new Date(inviteData.expiresAt) < new Date()) throw new Error('Invite has expired');
+        
+        // Use batch for atomic operation
+        const batch = writeBatch(firestore);
+        
+        const memberRef = doc(firestore, 'projectMembers', `${inviteData.projectId}_${user.uid}`);
+        batch.set(memberRef, {
+          projectId: inviteData.projectId,
+          userId: user.uid,
+          role: inviteData.role,
+          invitedBy: inviteData.invitedBy,
+          invitedAt: inviteData.invitedAt,
+          joinedAt: new Date().toISOString(),
+          email: user.email || '',
+          displayName: user.displayName || null,
+          photoURL: user.photoURL || null,
+        });
+        
+        batch.update(inviteRef, {
+          status: 'accepted',
+          acceptedAt: new Date().toISOString(),
+          acceptedByUserId: user.uid,
+        });
+        
+        await batch.commit();
+      } catch (error) {
+        console.error('Failed to accept invite:', error);
+        throw error;
+      }
     },
     [firestore, user]
   );
 
   const declineInvite = useCallback(
     async (inviteId: string) => {
-      if (!firestore) return;
-      const inviteRef = doc(firestore, 'invites', inviteId);
-      await updateDoc(inviteRef, {
-        status: 'revoked',
-      });
+      if (!firestore || !user) throw new Error('Not authenticated');
+      
+      try {
+        const inviteRef = doc(firestore, 'invites', inviteId);
+        await updateDoc(inviteRef, {
+          status: 'declined',
+          declinedAt: new Date().toISOString(),
+          declinedByUserId: user.uid,
+        });
+      } catch (error) {
+        console.error('Failed to decline invite:', error);
+        throw error;
+      }
     },
-    [firestore]
+    [firestore, user]
   );
 
   return {

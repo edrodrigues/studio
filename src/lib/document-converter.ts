@@ -59,35 +59,95 @@ async function extractTextFromXlsxBuffer(buffer: Buffer): Promise<string> {
  * @param filename - The filename (fallback for type detection)
  * @returns The converted text content
  */
+/**
+ * Validates file type by checking magic numbers (file signatures)
+ * @param buffer - The file buffer
+ * @returns Object with detected mime type and extension
+ */
+function detectFileType(buffer: Buffer): { mime: string; ext: string } {
+    // Check magic numbers for common file types
+    const signatures: Record<string, { mime: string; ext: string }> = {
+        // ZIP-based formats (docx, xlsx)
+        '504b0304': { mime: 'application/vnd.openxmlformats-officedocument', ext: 'zip' },
+        // PDF
+        '255044462d': { mime: 'application/pdf', ext: 'pdf' },
+        // Older Office formats (doc, xls)
+        'd0cf11e0a1b11ae1': { mime: 'application/msword', ext: 'doc' },
+    };
+
+    const hexHeader = buffer.slice(0, 8).toString('hex').toLowerCase();
+
+    for (const [sig, info] of Object.entries(signatures)) {
+        if (hexHeader.startsWith(sig)) {
+            return info;
+        }
+    }
+
+    // Try to detect text files
+    const isText = buffer.slice(0, 1024).every(byte => byte === 0x0a || byte === 0x0d || byte === 0x09 || (byte >= 0x20 && byte <= 0x7e));
+    if (isText) {
+        return { mime: 'text/plain', ext: 'txt' };
+    }
+
+    return { mime: 'application/octet-stream', ext: '' };
+}
+
 export async function convertBufferToText(
     buffer: Buffer,
     mimeType: string,
     filename: string
 ): Promise<string> {
-    // Determine extension robustly
-    const extension = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : '';
+    // Detect actual file type from content
+    const detectedType = detectFileType(buffer);
 
-    // Priority 1: Check MIME type for known types
-    if (mimeType.includes('spreadsheet') || extension === 'xlsx' || extension === 'xls') {
+    // Use detected type if mime type is generic or doesn't match
+    const effectiveMimeType = (mimeType === 'application/octet-stream' || !mimeType)
+        ? detectedType.mime
+        : mimeType;
+
+    // Determine extension from filename as fallback
+    const filenameExtension = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : '';
+    const effectiveExtension = filenameExtension || detectedType.ext;
+
+    // Priority 1: Check MIME type for known types (with validation)
+    const isSpreadsheet = effectiveMimeType.includes('spreadsheet') ||
+        effectiveMimeType.includes('excel') ||
+        effectiveMimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        effectiveExtension === 'xlsx' ||
+        effectiveExtension === 'xls';
+
+    if (isSpreadsheet) {
+        // Additional validation: xlsx files should be valid ZIP archives
+        if (detectedType.mime !== 'application/vnd.openxmlformats-officedocument' && effectiveExtension === 'xlsx') {
+            throw new Error('Arquivo .xlsx inválido ou corrompido.');
+        }
         return extractTextFromXlsxBuffer(buffer);
     }
 
-    if (mimeType.includes('wordprocessing') || extension === 'docx') {
+    const isWordDoc = effectiveMimeType.includes('wordprocessing') ||
+        effectiveMimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        effectiveExtension === 'docx';
+
+    if (isWordDoc) {
+        // Additional validation: docx files should be valid ZIP archives
+        if (detectedType.mime !== 'application/vnd.openxmlformats-officedocument' && effectiveExtension === 'docx') {
+            throw new Error('Arquivo .docx inválido ou corrompido.');
+        }
         return extractTextFromDocxBuffer(buffer);
     }
 
     // Priority 2: Handle text-based formats
     if (
-        mimeType === 'text/plain' ||
-        mimeType === 'text/markdown' ||
-        extension === 'txt' ||
-        extension === 'md' ||
-        mimeType.startsWith('text/')
+        effectiveMimeType === 'text/plain' ||
+        effectiveMimeType === 'text/markdown' ||
+        effectiveExtension === 'txt' ||
+        effectiveExtension === 'md' ||
+        effectiveMimeType.startsWith('text/')
     ) {
         return buffer.toString('utf8');
     }
 
-    if (extension === 'doc') {
+    if (effectiveExtension === 'doc' || detectedType.ext === 'doc') {
         throw new Error(
             'Arquivos .doc não são suportados. Por favor, converta para .docx ou .pdf primeiro.'
         );
@@ -95,12 +155,12 @@ export async function convertBufferToText(
 
     // Special case for PDF: convertBufferToText shouldn't be called for PDF if we expect to keep it as PDF,
     // but if it is called, we should warn or handle it.
-    if (mimeType === 'application/pdf' || extension === 'pdf') {
+    if (effectiveMimeType === 'application/pdf' || effectiveExtension === 'pdf' || detectedType.ext === 'pdf') {
         throw new Error('Internal Error: PDF extraction is not supported in convertBufferToText. Use Geminis native PDF support.');
     }
 
     throw new Error(
-        `Formato de arquivo não suportado: ${extension ? '.' + extension : 'sem extensão'}. Use .pdf, .docx, .txt, ou .md`
+        `Formato de arquivo não suportado: ${effectiveExtension ? '.' + effectiveExtension : 'sem extensão'}. Use .pdf, .docx, .txt, ou .md`
     );
 }
 

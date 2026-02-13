@@ -17,7 +17,7 @@ const AnalyzeDocumentConsistencyInputSchema = z.object({
         .describe('The customizable system prompt to guide the AI consistency analysis.'),
     documents: z.array(
         z.object({
-            url: z.string().describe('The data URI of the document.'),
+            url: z.string().url().describe('The data URI of the document.'),
         })
     ),
 });

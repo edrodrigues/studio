@@ -14,20 +14,75 @@ export function FirebaseErrorListener() {
 
   useEffect(() => {
     const handlePermissionError = (error: FirestorePermissionError) => {
-      console.error('Firebase permission error:', error);
+      const operation = error.request?.method || 'unknown';
+      const path = error.request?.path || 'unknown';
+      
+      console.group('🔒 Permission Denied');
+      console.error('Operation:', operation);
+      console.error('Path:', path);
+      console.error('Request:', error.request);
+      console.error('Full error:', error);
+      console.groupEnd();
+      
+      // Also show an alert for visibility during debugging
+      if (typeof window !== 'undefined') {
+        console.log('%c PERMISSION ERROR: Check the console group above for details ', 'background: #ff0000; color: #ffffff; font-size: 16px; padding: 10px;');
+      }
+      
       toast({
         variant: 'destructive',
         title: 'Erro de Permissão',
-        description: `Você não tem permissão para ${error.operation} em ${error.path}`,
+        description: `Você não tem permissão para ${operation} em ${path}`,
       });
     };
 
     const handleFirestoreError = (error: any) => {
-      console.error('Firestore error:', error);
+      // FirestoreError objects have getters that don't serialize properly
+      // Extract properties manually using Object.getOwnPropertyNames
+      const extractProps = (obj: any): any => {
+        if (!obj || typeof obj !== 'object') return obj;
+        const props: any = {};
+        for (const key of Object.getOwnPropertyNames(Object.getPrototypeOf(obj))) {
+          try {
+            const val = (obj as any)[key];
+            if (typeof val !== 'function' && val !== undefined) {
+              props[key] = val;
+            }
+          } catch (e) { /* ignore */ }
+        }
+        // Also try direct property access
+        ['message', 'code', 'name', 'stack'].forEach(key => {
+          try {
+            if ((obj as any)[key] !== undefined && props[key] === undefined) {
+              props[key] = (obj as any)[key];
+            }
+          } catch (e) { /* ignore */ }
+        });
+        return props;
+      };
+      
+      const errorProps = extractProps(error);
+      const originalErrorProps = extractProps(error?.originalError);
+      
+      const errorDetails = {
+        message: errorProps?.message || originalErrorProps?.message || String(error?.message) || 'Erro desconhecido',
+        code: errorProps?.code || originalErrorProps?.code || String(error?.code) || 'unknown',
+        path: error?.path || 'unknown',
+        operation: error?.operation || 'unknown',
+      };
+      
+      console.group('🔥 Firestore Error');
+      console.error('Error details:', errorDetails);
+      console.error('Error object properties:', errorProps);
+      console.error('Original error properties:', originalErrorProps);
+      console.error('Raw error:', error);
+      console.error('Original error:', error?.originalError);
+      console.groupEnd();
+      
       toast({
         variant: 'destructive',
         title: 'Erro de Conexão',
-        description: error.message || 'Erro ao acessar o banco de dados. Tente novamente.',
+        description: errorDetails.message || 'Erro ao acessar o banco de dados. Tente novamente.',
       });
     };
 

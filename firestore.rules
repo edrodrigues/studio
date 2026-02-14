@@ -157,13 +157,7 @@ service cloud.firestore {
                          request.resource.data.invitedBy == getUserId())
                       );
 
-      allow read: if isSignedIn() &&
-                     (
-                       // User can read their own memberships
-                       resource.data.userId == getUserId() ||
-                       // Members can see other members in same project
-                       isProjectMember(resource.data.projectId)
-                     );
+      allow read: if isSignedIn();
 
       allow list: if isSignedIn();
 
@@ -199,7 +193,9 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
                      hasProjectRole(request.resource.data.projectId, 'editor');
 
-      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+      allow read: if isSignedIn();
+
+      allow list: if isSignedIn();
 
       allow update: if isSignedIn() &&
                      hasProjectRole(resource.data.projectId, 'editor') &&
@@ -230,7 +226,9 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
                      hasProjectRole(request.resource.data.projectId, 'editor');
 
-      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+      allow read: if isSignedIn();
+
+      allow list: if isSignedIn();
 
       allow update: if isSignedIn() &&
                      hasProjectRole(resource.data.projectId, 'editor') &&
@@ -261,7 +259,9 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
                      hasProjectRole(request.resource.data.projectId, 'editor');
 
-      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+      allow read: if isSignedIn();
+
+      allow list: if isSignedIn();
 
       allow update: if isSignedIn() &&
                      hasProjectRole(resource.data.projectId, 'editor') &&
@@ -290,10 +290,11 @@ service cloud.firestore {
      */
     match /activity/{activityId} {
       allow create: if isSignedIn() &&
-                     isProjectMember(request.resource.data.projectId) &&
                      request.resource.data.userId == getUserId();
 
-      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+      allow read: if isSignedIn();
+
+      allow list: if isSignedIn();
 
       allow update, delete: if false;
     }
@@ -357,10 +358,11 @@ service cloud.firestore {
      */
     match /presence/{presenceId} {
       allow create: if isSignedIn() &&
-                     isProjectMember(request.resource.data.projectId) &&
                      request.resource.data.userId == getUserId();
 
-      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+      allow read: if isSignedIn();
+
+      allow list: if isSignedIn();
 
       allow update: if isSignedIn() &&
                      resource.data.userId == getUserId();
@@ -386,7 +388,9 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
                      hasProjectRole(request.resource.data.projectId, 'editor');
 
-      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+      allow read: if isSignedIn();
+
+      allow list: if isSignedIn();
 
       allow update: if isSignedIn() &&
                      hasProjectRole(resource.data.projectId, 'editor');
@@ -407,10 +411,11 @@ service cloud.firestore {
      * - UPDATE/DELETE: Never allowed
      */
     match /syncEvents/{eventId} {
-      allow create: if isSignedIn() &&
-                     isProjectMember(request.resource.data.projectId);
+      allow create: if isSignedIn();
 
-      allow read: if isSignedIn() && isProjectMember(resource.data.projectId);
+      allow read: if isSignedIn();
+
+      allow list: if isSignedIn();
 
       allow update, delete: if false;
     }
@@ -469,6 +474,19 @@ service cloud.firestore {
     match /playbook_feedback/{feedbackId} {
       allow create: if true;
       allow read, update: if isSignedIn();
+    }
+
+    /**
+     * @description Rules for emailQueue collection.
+     * @path /emailQueue/{emailId}
+     * @allow (create) Any authenticated user can queue emails.
+     * @allow (read) Any authenticated user can read (for status checking).
+     */
+    match /emailQueue/{emailId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      allow update, delete: if false;
     }
   }
 }

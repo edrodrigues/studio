@@ -324,6 +324,7 @@ interface UsePermissionReturn {
   canManageMembers: boolean;
   canDeleteProject: boolean;
   canChangeRoles: boolean;
+  isOwner: boolean;
   isLoading: boolean;
 }
 
@@ -338,6 +339,7 @@ export function usePermission(projectId: string | null): UsePermissionReturn {
         canManageMembers: false,
         canDeleteProject: false,
         canChangeRoles: false,
+        isOwner: false,
         isLoading,
       };
     }
@@ -348,6 +350,7 @@ export function usePermission(projectId: string | null): UsePermissionReturn {
       canManageMembers: canManageMembers(role),
       canDeleteProject: canDeleteProject(role),
       canChangeRoles: canChangeRoles(role),
+      isOwner: role === 'owner',
       isLoading,
     };
   }, [role, isLoading]);

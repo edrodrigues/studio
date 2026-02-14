@@ -72,12 +72,12 @@ export function useDoc<T = any>(
         setIsLoading(false);
       },
       (error: FirestoreError) => {
-        // Emit the actual error with context
-        const errorWithContext = {
-          ...error,
-          path: memoizedDocRef.path,
-          operation: 'get',
-        };
+        // Create error with context - don't spread FirestoreError as it doesn't work properly
+        const errorWithContext = new Error(error.message);
+        (errorWithContext as any).code = error.code;
+        (errorWithContext as any).path = memoizedDocRef.path;
+        (errorWithContext as any).operation = 'get';
+        (errorWithContext as any).originalError = error;
 
         setError(errorWithContext);
         setData(null);

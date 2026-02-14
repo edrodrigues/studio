@@ -20,10 +20,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useProject, useProjectMembers, useProjectDocuments, useProjectPlaceholders, useProjectContracts, useActivity, usePresence, usePermission } from '@/hooks/use-projects';
+import { useProject, useProjectMembers, useProjectPlaceholders, useProjectContracts, useActivity, usePresence, usePermission } from '@/hooks/use-projects';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { ProjectDocumentsUploader } from './components/ProjectDocumentsUploader';
 
 // Active users indicator
 function ActiveUsersIndicator({ projectId }: { projectId: string }) {
@@ -62,70 +63,7 @@ function ActiveUsersIndicator({ projectId }: { projectId: string }) {
 
 // Documents tab content
 function DocumentsTab({ projectId }: { projectId: string }) {
-  const { documents, isLoading } = useProjectDocuments(projectId);
-  const { canEdit } = usePermission(projectId);
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-20 w-full" />
-        ))}
-      </div>
-    );
-  }
-
-  if (!documents || documents.length === 0) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="py-8 text-center">
-          <FolderOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Nenhum documento</h3>
-          <p className="text-muted-foreground mb-4">
-            Adicione documentos para extrair entidades e gerar contratos.
-          </p>
-          {canEdit && (
-            <Button asChild>
-              <Link href={`/projects/${projectId}/documents`}>
-                <Plus className="mr-2 h-4 w-4" />
-                Adicionar documentos
-              </Link>
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {documents.map((doc) => (
-        <Card key={doc.id}>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <FileText className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">{doc.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatDistanceToNow(new Date(doc.uploadedAt), {
-                      addSuffix: true,
-                      locale: ptBR,
-                    })}
-                  </p>
-                </div>
-              </div>
-              <Badge variant={doc.status === 'indexed' ? 'default' : 'secondary'}>
-                {doc.status === 'indexed' ? 'Indexado' : 'Processando'}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
+  return <ProjectDocumentsUploader projectId={projectId} />;
 }
 
 // Placeholders tab content

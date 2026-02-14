@@ -1,0 +1,22 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "invites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "email", "order": "ASCENDING", "density": "DEFAULT" },
+        { "fieldPath": "status", "order": "ASCENDING", "density": "DEFAULT" },
+        { "fieldPath": "invitedAt", "order": "DESCENDING", "density": "DEFAULT" }
+      ]
+    },
+    {
+      "collectionGroup": "projectMembers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING", "density": "DEFAULT" },
+        { "fieldPath": "joinedAt", "order": "DESCENDING", "density": "DEFAULT" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

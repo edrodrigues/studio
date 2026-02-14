@@ -115,7 +115,9 @@ service cloud.firestore {
                      request.resource.data.createdBy == getUserId() &&
                      request.resource.data.status == 'active';
 
-      allow read: if isSignedIn() && isProjectMember(projectId);
+      allow read: if isSignedIn();
+
+      allow list: if isSignedIn();
 
       allow update: if isSignedIn() &&
                      isProjectMember(projectId) &&
@@ -145,8 +147,15 @@ service cloud.firestore {
      */
     match /projectMembers/{memberId} {
       allow create: if isSignedIn() &&
-                     hasProjectRole(request.resource.data.projectId, 'editor') &&
-                     request.resource.data.invitedBy == getUserId();
+                      (
+                        // User creating their own membership when creating a new project
+                        (request.resource.data.role == 'owner' && 
+                         request.resource.data.userId == getUserId() &&
+                         request.resource.data.invitedBy == getUserId()) ||
+                        // Editors and owners can invite new members
+                        (hasProjectRole(request.resource.data.projectId, 'editor') &&
+                         request.resource.data.invitedBy == getUserId())
+                      );
 
       allow read: if isSignedIn() &&
                      (

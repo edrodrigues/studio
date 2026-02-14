@@ -24,6 +24,9 @@ export function FirebaseErrorListener() {
 
     const handleFirestoreError = (error: any) => {
       console.error('Firestore error:', error);
+      console.error('Firestore error code:', error?.code);
+      console.error('Firestore error message:', error?.message);
+      console.error('Firestore error details:', JSON.stringify(error, null, 2));
       toast({
         variant: 'destructive',
         title: 'Erro de Conexão',

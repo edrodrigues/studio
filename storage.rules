@@ -25,10 +25,12 @@ service firebase.storage {
     }
     
     // Project documents storage
-    // Path: projects/{projectId}/documents/{documentId}/{filename}
-    match /projects/{projectId}/documents/{documentId}/{allPaths=**} {
+    // Path: projects/{projectId}/documents/{documentType}/{filename}
+    match /projects/{projectId}/documents/{documentType}/{allPaths=**} {
       allow read: if isSignedIn() && isProjectMember(projectId);
-      allow write: if isSignedIn() && hasProjectRole(projectId, 'editor');
+      allow write: if isSignedIn() 
+                      && hasProjectRole(projectId, 'editor')
+                      && request.resource.size < 104857600; // 100MB limit
     }
     
     // Project exports storage

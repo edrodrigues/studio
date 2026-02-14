@@ -115,6 +115,10 @@ export interface ProjectDocument {
   // Metadata
   mimeType: string;
   storagePath: string;
+  // Document categorization and versioning
+  documentType: string;
+  version: number;
+  originalFileName: string;
 }
 
 export interface ProjectPlaceholder {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -55,7 +55,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { useProject, useProjectMembers, usePermission } from '@/hooks/use-projects';
+import { useProject, useProjectMembers, usePermission, useInvites } from '@/hooks/use-projects';
 import { useUser } from '@/firebase';
 import { ProjectRole, type ProjectMember } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
@@ -263,6 +263,13 @@ function InviteDialog({
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  // Debug: Log when dialog opens
+  useEffect(() => {
+    if (open) {
+      console.log('InviteDialog opened', { email, role });
+    }
+  }, [open, email, role]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -292,9 +299,9 @@ function InviteDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Convidar membro
+        <Button size="lg" className="text-base font-semibold shadow-lg shadow-primary/20">
+          <Plus className="mr-2 h-5 w-5" />
+          Convidar Membro
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -388,16 +395,33 @@ export default function MembersPage() {
   const { toast } = useToast();
 
   const { project, isLoading: projectLoading } = useProject(projectId);
-  const { 
-    members, 
-    pendingInvites, 
-    isLoading: membersLoading, 
-    inviteMember, 
-    updateMemberRole, 
-    removeMember,
-    cancelInvite 
-  } = useProjectMembers(projectId);
-  const { canManageMembers } = usePermission(projectId);
+  const { members, isLoading: membersLoading, inviteMember, updateMemberRole, removeMember } =
+    useProjectMembers(projectId);
+  const { canManageMembers, isLoading: permissionLoading } = usePermission(projectId);
+  const { pendingInvites, acceptInvite, declineInvite } = useInvites();
+
+  // Debug: Log permission status
+  console.log('Permission check:', { canManageMembers, permissionLoading, projectId, pendingInvites });
+
+  const handleCancelInvite = async (inviteId: string) => {
+    if (!confirm('Tem certeza que deseja cancelar este convite?')) {
+      return;
+    }
+
+    try {
+      await declineInvite(inviteId);
+      toast({
+        title: 'Convite cancelado',
+        description: 'O convite foi removido.',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Não foi possível cancelar o convite.',
+      });
+    }
+  };
 
   const handleUpdateRole = async (memberId: string, newRole: ProjectRole) => {
     try {
@@ -431,26 +455,6 @@ export default function MembersPage() {
         variant: 'destructive',
         title: 'Erro',
         description: 'Não foi possível remover o membro.',
-      });
-    }
-  };
-
-  const handleCancelInvite = async (inviteId: string) => {
-    if (!confirm('Tem certeza que deseja cancelar este convite?')) {
-      return;
-    }
-
-    try {
-      await cancelInvite(inviteId);
-      toast({
-        title: 'Convite cancelado',
-        description: 'O convite foi removido.',
-      });
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: 'Não foi possível cancelar o convite.',
       });
     }
   };
@@ -501,16 +505,34 @@ export default function MembersPage() {
               Gerencie quem tem acesso a <strong>{project.name}</strong>
             </p>
           </div>
-
-          {canManageMembers && (
-            <InviteDialog
-              projectId={projectId}
-              projectName={project.name}
-              onInvite={inviteMember}
-            />
-          )}
         </div>
       </div>
+
+      {/* Invite Card - Prominent */}
+      {canManageMembers && (
+        <Card className="mb-8 border-2 border-primary/20 shadow-lg shadow-primary/10">
+          <CardContent className="py-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+                  <Users className="h-7 w-7 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Convide sua equipe</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Adicione colaboradores ao projeto para trabalhar juntos
+                  </p>
+                </div>
+              </div>
+              <InviteDialog
+                projectId={projectId}
+                projectName={project.name}
+                onInvite={inviteMember}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Role descriptions */}
       <Card className="mb-6">

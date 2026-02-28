@@ -13,6 +13,7 @@ import {
   Trash2,
   ExternalLink,
   Bell,
+  UserPlus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -68,6 +69,7 @@ function ProjectCard({
   onDelete: (id: string) => void;
 }) {
   const router = useRouter();
+  const canInvite = project.myRole === 'owner' || project.myRole === 'editor';
 
   return (
     <Card className="group relative hover:shadow-lg transition-shadow">
@@ -83,37 +85,50 @@ function ProjectCard({
               {project.description || 'Sem descrição'}
             </CardDescription>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
+          <div className="flex items-center gap-1">
+            {canInvite && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs text-primary hover:text-primary/80"
+                onClick={() => router.push(`/projects/${project.id}/members`)}
+              >
+                <UserPlus className="h-3 w-3 mr-1" />
+                Convidar
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => router.push(`/projects/${project.id}`)}>
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Abrir projeto
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push(`/projects/${project.id}/members`)}>
-                <Users className="mr-2 h-4 w-4" />
-                Gerenciar membros
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => onArchive(project.id)}>
-                <Archive className="mr-2 h-4 w-4" />
-                Arquivar
-              </DropdownMenuItem>
-              {project.myRole === 'owner' && (
-                <DropdownMenuItem
-                  onClick={() => onDelete(project.id)}
-                  className="text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Excluir
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => router.push(`/projects/${project.id}`)}>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Abrir projeto
                 </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuItem onClick={() => router.push(`/projects/${project.id}/members`)}>
+                  <Users className="mr-2 h-4 w-4" />
+                  Gerenciar membros
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onArchive(project.id)}>
+                  <Archive className="mr-2 h-4 w-4" />
+                  Arquivar
+                </DropdownMenuItem>
+                {project.myRole === 'owner' && (
+                  <DropdownMenuItem
+                    onClick={() => onDelete(project.id)}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Excluir
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="pb-3">

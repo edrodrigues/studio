@@ -7,12 +7,22 @@ import { FileText, DraftingCompass, UploadCloud, GitCompareArrows, Sparkles, Arr
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import useLocalStorage from "@/hooks/use-local-storage";
+import { useUserPreferences } from "@/hooks/use-user-preferences";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function ComeceAquiPage() {
-    const [clientName, setClientName] = useLocalStorage("clientName", "");
-    const [yourName, setYourName] = useLocalStorage("yourName", "");
+    const { clientName, setClientName, yourName, setYourName, isLoading } = useUserPreferences();
+
+    if (isLoading) {
+        return (
+            <main id="main" className="relative w-full overflow-hidden">
+                <div className="flex items-center justify-center min-h-[50vh]">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+            </main>
+        );
+    }
 
     return (
         <main id="main" className="relative w-full overflow-hidden">

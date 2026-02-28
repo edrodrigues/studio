@@ -11,6 +11,7 @@ import { type Template } from "@/lib/types";
 import { useCollection, useFirebase, useUser, useMemoFirebase } from "@/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import useLocalStorage from "@/hooks/use-local-storage";
+import { useUserPreferences } from "@/hooks/use-user-preferences";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -159,7 +160,7 @@ export default function GerarNovoContratoPage() {
     const { user } = useUser();
     const { firestore } = useFirebase();
     const [storedEntities] = useLocalStorage<Record<string, any> | null>("extractedEntities", null);
-    const [clientName] = useLocalStorage("clientName", "Cliente não especificado");
+    const { clientName, isLoading: preferencesLoading } = useUserPreferences();
     const { toast } = useToast();
     const router = useRouter();
     const [isGenerating, startGeneration] = useTransition();
@@ -300,11 +301,13 @@ export default function GerarNovoContratoPage() {
 
                     console.log(`Template "${selectedTemplate.name}": ${replacedCount} placeholders filled, ${notFoundCount} not found`);
 
+                    const finalClientName = clientName || "Cliente não especificado";
+                    
                     const newContract = {
                         contractModelId: selectedTemplate.id,
-                        clientName: clientName,
+                        clientName: finalClientName,
                         filledData: JSON.stringify({ entities: editedEntities }),
-                        name: `Contrato de ${selectedTemplate.name} - ${clientName} - ${new Date().toLocaleDateString('pt-BR')}`,
+                        name: `Contrato de ${selectedTemplate.name} - ${finalClientName} - ${new Date().toLocaleDateString('pt-BR')}`,
                         markdownContent: filledContent,
                         googleDocLink: selectedTemplate.googleDocLink || "",
                         createdAt: new Date().toISOString(),

@@ -1,14 +1,25 @@
-import { Metadata } from "next"
+"use client";
+
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
+import { useAuthContext } from "@/context/auth-context"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LoginForm, SignUpForm } from "@/components/auth/auth-forms"
 
-export const metadata: Metadata = {
-    title: "Autenticação | Assistente V-Lab",
-    description: "Faça login ou crie sua conta.",
-}
-
 export default function AuthenticationPage() {
+    const { user, loading } = useAuthContext();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!loading && user) {
+            router.push("/projects");
+        }
+    }, [user, loading, router]);
+
+    if (loading || user) {
+        return null;
+    }
     return (
         <main id="main" className="container relative min-h-screen flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0">
             <div className="relative hidden h-full flex-col bg-[#1A1A1A] text-white lg:flex dark:border-r">

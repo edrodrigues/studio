@@ -4,7 +4,89 @@ import { r2Client, R2_BUCKET_NAME } from '@/lib/r2';
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { db } from '@/lib/firebase-server';
-import { ProjectRole } from '@/lib/types';
+import { ProjectRole, ProjectMember } from '@/lib/types';
+
+/**
+ * Adds a member to a project by email
+ * Looks up the user by email in projectMembers collection
+ */
+export async function addMemberToProject(
+  projectId: string,
+  inviteeEmail: string,
+  role: ProjectRole,
+  invitedByUid: string,
+  invitedByName: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const normalizedEmail = inviteeEmail.toLowerCase().trim();
+
+    // Get all members of this project and check if user is already a member
+    const allMembersSnapshot = await db.collection('projectMembers')
+      .where('projectId', '==', projectId)
+      .get();
+    
+    const existingMember = allMembersSnapshot.docs.find(
+      doc => doc.data().email?.toLowerCase() === normalizedEmail
+    );
+    
+    if (existingMember) {
+      return { success: false, error: 'Este email já é membro deste projeto.' };
+    }
+
+    // Look up user by email in projectMembers (they must have been invited to another project before)
+    const userLookupQuery = await db.collection('projectMembers')
+      .where('email', '==', normalizedEmail)
+      .get();
+
+    if (userLookupQuery.empty) {
+      return { 
+        success: false, 
+        error: 'Usuário não encontrado. O usuário precisa criar uma conta no sistema primeiro (fazer login pelo menos uma vez em algum projeto).' 
+      };
+    }
+
+    // Get the user's UID from their existing membership
+    const existingUserDoc = userLookupQuery.docs[0];
+    const userData = existingUserDoc.data() as ProjectMember;
+    const userId = userData.userId;
+
+    const now = new Date().toISOString();
+
+    // Add member to project
+    const memberData = {
+      projectId,
+      userId,
+      role,
+      invitedBy: invitedByUid,
+      invitedByName,
+      invitedAt: now,
+      joinedAt: now,
+      email: normalizedEmail,
+      displayName: userData.displayName || null,
+      photoURL: userData.photoURL || null,
+    };
+
+    await db.collection('projectMembers').add(memberData);
+
+    // Update project member count - get current count and increment
+    const projectRef = db.collection('projects').doc(projectId);
+    const projectSnap = await projectRef.get();
+    
+    if (projectSnap.exists) {
+      const currentCount = projectSnap.data()?.memberCount || 0;
+      await projectRef.update({
+        memberCount: currentCount + 1,
+        updatedAt: now,
+      });
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error adding member to project:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return { success: false, error: `Erro ao adicionar membro ao projeto: ${errorMessage}` };
+  }
+}
 
 /**
  * Verifies if a user has the required permission in a project

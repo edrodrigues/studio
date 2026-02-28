@@ -26,6 +26,7 @@ import {
   Query,
 } from 'firebase/firestore';
 import { useFirebase, useUser, useCollection, useDoc, useMemoFirebase } from '@/firebase';
+import { addMemberToProject } from '@/lib/actions/storage-actions';
 import type {
   Project,
   ProjectMember,
@@ -240,26 +241,25 @@ export function useProjectMembers(projectId: string | null): UseProjectMembersRe
 
   const inviteMember = useCallback(
     async (email: string, role: ProjectRole) => {
-      if (!firestore || !projectId || !user) return;
+      if (!projectId || !user) return;
       
       try {
-        // Check if project exists to get its name
-        const projectDoc = await getDoc(doc(firestore, 'projects', projectId));
+        // Get project name for the notification
+        const projectDoc = await getDoc(doc(firestore!, 'projects', projectId));
         const projectName = projectDoc.exists() ? projectDoc.data().name : 'Projeto';
 
-        const inviteData = {
+        // Use server action to add member directly to project
+        const result = await addMemberToProject(
           projectId,
-          projectName,
-          email: email.toLowerCase(),
+          email,
           role,
-          invitedBy: user.uid,
-          invitedByName: user.displayName || user.email || 'Unknown',
-          invitedAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-          status: 'pending' as InviteStatus,
-        };
+          user.uid,
+          user.displayName || user.email || 'Unknown'
+        );
 
-        await addDoc(collection(firestore, 'invites'), inviteData);
+        if (!result.success) {
+          throw new Error(result.error || 'Erro ao adicionar membro');
+        }
       } catch (error) {
         console.error('Failed to invite member:', error);
         throw error;

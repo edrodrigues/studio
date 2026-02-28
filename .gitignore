@@ -57,3 +57,4 @@ firestore-debug.log
 # Secrets
 google-service-account.json
 google-oauth-credentials.json
+nul

@@ -457,7 +457,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
             Analise os documentos iniciais
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Faça upload dos documentos iniciais. Eles serão salvos no projeto e poderão ser baixados a qualquer momento.
+            Utilize os botões &quot;Carregar Documento&quot; nos cards abaixo para enviar os arquivos iniciais. Eles serão salvos no projeto e poderão ser baixados a qualquer momento.
             Depois clique em &quot;Extrair Entidades&quot; para que as variáveis sejam identificadas.
           </p>
           <Button 

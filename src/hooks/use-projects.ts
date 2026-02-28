@@ -133,7 +133,7 @@ interface UseUserProjectsReturn {
 
 export function useUserProjects(): UseUserProjectsReturn {
   const { firestore } = useFirebase();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
 
   // First, get all memberships for the current user
   const membershipsQuery = useMemoFirebase(() => {
@@ -189,7 +189,7 @@ export function useUserProjects(): UseUserProjectsReturn {
 
   return {
     projects: projectsWithRoles,
-    isLoading: membershipsLoading || projectsLoading,
+    isLoading: isUserLoading || membershipsLoading || projectsLoading,
     error: membershipsError || projectsError,
   };
 }
@@ -200,16 +200,18 @@ export function useUserProjects(): UseUserProjectsReturn {
 
 interface UseProjectMembersReturn {
   members: (ProjectMember & { id: string })[] | null;
+  pendingInvites: (ProjectInvite & { id: string })[] | null;
   isLoading: boolean;
   error: Error | null;
   inviteMember: (email: string, role: ProjectRole) => Promise<void>;
   updateMemberRole: (memberId: string, newRole: ProjectRole) => Promise<void>;
   removeMember: (memberId: string) => Promise<void>;
+  cancelInvite: (inviteId: string) => Promise<void>;
 }
 
 export function useProjectMembers(projectId: string | null): UseProjectMembersReturn {
   const { firestore } = useFirebase();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
 
   const membersQuery = useMemoFirebase(() => {
     if (!firestore || !projectId) return null;
@@ -220,16 +222,34 @@ export function useProjectMembers(projectId: string | null): UseProjectMembersRe
     );
   }, [firestore, projectId]);
 
-  const { data: members, isLoading, error } = useCollection<ProjectMember>(membersQuery);
+  const { data: members, isLoading: membersLoading, error: membersError } = 
+    useCollection<ProjectMember>(membersQuery);
+
+  const invitesQuery = useMemoFirebase(() => {
+    if (!firestore || !projectId) return null;
+    return query(
+      collection(firestore, 'invites'),
+      where('projectId', '==', projectId),
+      where('status', '==', 'pending'),
+      orderBy('invitedAt', 'desc')
+    );
+  }, [firestore, projectId]);
+
+  const { data: invites, isLoading: invitesLoading, error: invitesError } = 
+    useCollection<ProjectInvite>(invitesQuery);
 
   const inviteMember = useCallback(
     async (email: string, role: ProjectRole) => {
       if (!firestore || !projectId || !user) return;
       
       try {
+        // Check if project exists to get its name
+        const projectDoc = await getDoc(doc(firestore, 'projects', projectId));
+        const projectName = projectDoc.exists() ? projectDoc.data().name : 'Projeto';
+
         const inviteData = {
           projectId,
-          projectName: '', // Will be filled by Cloud Function
+          projectName,
           email: email.toLowerCase(),
           role,
           invitedBy: user.uid,
@@ -276,13 +296,32 @@ export function useProjectMembers(projectId: string | null): UseProjectMembersRe
     [firestore]
   );
 
+  const cancelInvite = useCallback(
+    async (inviteId: string) => {
+      if (!firestore) return;
+      try {
+        const inviteRef = doc(firestore, 'invites', inviteId);
+        await updateDoc(inviteRef, {
+          status: 'cancelled',
+          cancelledAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error('Failed to cancel invite:', error);
+        throw error;
+      }
+    },
+    [firestore]
+  );
+
   return {
     members,
-    isLoading,
-    error,
+    pendingInvites: invites,
+    isLoading: isUserLoading || membersLoading || invitesLoading,
+    error: membersError || invitesError,
     inviteMember,
     updateMemberRole,
     removeMember,
+    cancelInvite,
   };
 }
 
@@ -298,7 +337,7 @@ interface UseProjectRoleReturn {
 
 export function useProjectRole(projectId: string | null): UseProjectRoleReturn {
   const { firestore } = useFirebase();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
 
   const memberRef = useMemoFirebase(() => {
     if (!firestore || !projectId || !user) return null;
@@ -309,7 +348,7 @@ export function useProjectRole(projectId: string | null): UseProjectRoleReturn {
 
   return {
     role: membership?.role || null,
-    isLoading,
+    isLoading: isUserLoading || isLoading,
     error,
   };
 }
@@ -772,7 +811,7 @@ interface UseInvitesReturn {
 
 export function useInvites(): UseInvitesReturn {
   const { firestore } = useFirebase();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
 
   const invitesQuery = useMemoFirebase(() => {
     if (!firestore || !user?.email) return null;
@@ -822,6 +861,14 @@ export function useInvites(): UseInvitesReturn {
           acceptedAt: new Date().toISOString(),
           acceptedByUserId: user.uid,
         });
+
+        // Increment member count in project
+        const { increment } = await import('firebase/firestore');
+        const projectRef = doc(firestore, 'projects', inviteData.projectId);
+        batch.update(projectRef, {
+          memberCount: increment(1),
+          updatedAt: new Date().toISOString(),
+        });
         
         await batch.commit();
       } catch (error) {
@@ -853,7 +900,7 @@ export function useInvites(): UseInvitesReturn {
 
   return {
     pendingInvites: invites,
-    isLoading,
+    isLoading: isUserLoading || isLoading,
     error,
     acceptInvite,
     declineInvite,

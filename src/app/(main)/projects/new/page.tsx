@@ -78,7 +78,7 @@ export default function NewProjectPage() {
       const projectRef = await addDoc(collection(firestore, 'projects'), projectData);
       const projectId = projectRef.id;
 
-      // Create owner membership
+      // Create owner membership with deterministic ID
       const memberData = {
         projectId,
         userId: user.uid,
@@ -91,8 +91,8 @@ export default function NewProjectPage() {
         photoURL: user.photoURL || undefined,
       };
 
-      await addDoc(
-        collection(firestore, 'projectMembers'),
+      await setDoc(
+        doc(firestore, 'projectMembers', `${projectId}_${user.uid}`),
         memberData
       );
 

@@ -68,12 +68,12 @@ const roleConfig: Record<
 > = {
   owner: {
     label: 'Proprietário',
-    description: 'Controle total, pode excluir projeto',
+    description: 'Controle total, pode gerenciar membros e excluir projeto',
     icon: <Crown className="h-4 w-4" />,
   },
   editor: {
     label: 'Editor',
-    description: 'Pode editar variáveis e convidar',
+    description: 'Pode editar variáveis, fazer upload e convidar membros',
     icon: <Pencil className="h-4 w-4" />,
   },
   viewer: {
@@ -132,11 +132,6 @@ function MemberListItem({
                 Você
               </Badge>
             )}
-            {!member.joinedAt && (
-              <Badge variant="secondary" className="text-xs">
-                Pendente
-              </Badge>
-            )}
           </div>
           <p className="text-sm text-muted-foreground">{member.email}</p>
           {member.joinedAt && (
@@ -163,15 +158,15 @@ function MemberListItem({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
-                onClick={() => onUpdateRole(member.id, ProjectRole.EDITOR)}
-                disabled={member.role === ProjectRole.EDITOR}
+                onClick={() => onUpdateRole(member.id, 'editor' as ProjectRole)}
+                disabled={member.role === 'editor'}
               >
                 <Pencil className="mr-2 h-4 w-4" />
                 Tornar Editor
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => onUpdateRole(member.id, ProjectRole.VIEWER)}
-                disabled={member.role === ProjectRole.VIEWER}
+                onClick={() => onUpdateRole(member.id, 'viewer' as ProjectRole)}
+                disabled={member.role === 'viewer'}
               >
                 <Eye className="mr-2 h-4 w-4" />
                 Tornar Visualizador
@@ -183,6 +178,65 @@ function MemberListItem({
               >
                 <UserMinus className="mr-2 h-4 w-4" />
                 Remover do projeto
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Invite list item
+function InviteListItem({
+  invite,
+  canManage,
+  onCancel,
+}: {
+  invite: import('@/lib/types').ProjectInvite & { id: string };
+  canManage: boolean;
+  onCancel: (inviteId: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+          <Mail className="h-5 w-5 text-muted-foreground" />
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <p className="font-medium">{invite.email}</p>
+            <Badge variant="secondary" className="text-xs">
+              Pendente
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Convidado por {invite.invitedByName} •{' '}
+            {formatDistanceToNow(new Date(invite.invitedAt), {
+              addSuffix: true,
+              locale: ptBR,
+            })}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <RoleBadge role={invite.role} />
+
+        {canManage && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => onCancel(invite.id)}
+                className="text-destructive"
+              >
+                <UserMinus className="mr-2 h-4 w-4" />
+                Cancelar convite
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -287,7 +341,7 @@ function InviteDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(['editor', 'viewer'] as ProjectRole[]).map((r) => (
+                  {(['owner', 'editor', 'viewer'] as ProjectRole[]).map((r) => (
                     <SelectItem key={r} value={r}>
                 <div className="flex flex-col items-start">
                   <span>{roleConfig[r].label}</span>
@@ -334,8 +388,15 @@ export default function MembersPage() {
   const { toast } = useToast();
 
   const { project, isLoading: projectLoading } = useProject(projectId);
-  const { members, isLoading: membersLoading, inviteMember, updateMemberRole, removeMember } =
-    useProjectMembers(projectId);
+  const { 
+    members, 
+    pendingInvites, 
+    isLoading: membersLoading, 
+    inviteMember, 
+    updateMemberRole, 
+    removeMember,
+    cancelInvite 
+  } = useProjectMembers(projectId);
   const { canManageMembers } = usePermission(projectId);
 
   const handleUpdateRole = async (memberId: string, newRole: ProjectRole) => {
@@ -370,6 +431,26 @@ export default function MembersPage() {
         variant: 'destructive',
         title: 'Erro',
         description: 'Não foi possível remover o membro.',
+      });
+    }
+  };
+
+  const handleCancelInvite = async (inviteId: string) => {
+    if (!confirm('Tem certeza que deseja cancelar este convite?')) {
+      return;
+    }
+
+    try {
+      await cancelInvite(inviteId);
+      toast({
+        title: 'Convite cancelado',
+        description: 'O convite foi removido.',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Não foi possível cancelar o convite.',
       });
     }
   };
@@ -455,39 +536,50 @@ export default function MembersPage() {
       </Card>
 
       {/* Members list */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">
-          Membros ({members?.length || 0})
-        </h2>
+      <div className="space-y-6">
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">
+            Membros Ativos ({members?.length || 0})
+          </h2>
 
-        {members && members.length > 0 ? (
-          members.map((member) => (
-            <MemberListItem
-              key={member.id}
-              member={member}
-              currentUserId={user?.uid || ''}
-              canManage={canManageMembers}
-              onUpdateRole={handleUpdateRole}
-              onRemove={handleRemoveMember}
-            />
-          ))
-        ) : (
-          <Card className="border-dashed">
-            <CardContent className="py-8 text-center">
-              <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Nenhum membro</h3>
-              <p className="text-muted-foreground mb-4">
-                Você é o único membro deste projeto. Convide outras pessoas para colaborar.
-              </p>
-              {canManageMembers && (
-                <InviteDialog
-                  projectId={projectId}
-                  projectName={project.name}
-                  onInvite={inviteMember}
-                />
-              )}
-            </CardContent>
-          </Card>
+          {members && members.length > 0 ? (
+            members.map((member) => (
+              <MemberListItem
+                key={member.id}
+                member={member}
+                currentUserId={user?.uid || ''}
+                canManage={canManageMembers}
+                onUpdateRole={handleUpdateRole}
+                onRemove={handleRemoveMember}
+              />
+            ))
+          ) : (
+            <Card className="border-dashed">
+              <CardContent className="py-8 text-center">
+                <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Nenhum membro</h3>
+                <p className="text-muted-foreground">
+                  Você é o único membro deste projeto.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {pendingInvites && pendingInvites.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">
+              Convites Pendentes ({pendingInvites.length})
+            </h2>
+            {pendingInvites.map((invite) => (
+              <InviteListItem
+                key={invite.id}
+                invite={invite}
+                canManage={canManageMembers}
+                onCancel={handleCancelInvite}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>

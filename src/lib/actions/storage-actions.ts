@@ -21,15 +21,16 @@ async function checkProjectPermission(
   };
 
   try {
-    const membersRef = db.collection('projects').doc(projectId).collection('members');
-    const snapshot = await membersRef.where('userId', '==', userId).get();
+    // Look in the correct collection: /projectMembers/{projectId}_{userId}
+    const memberDocRef = db.collection('projectMembers').doc(`${projectId}_${userId}`);
+    const memberDoc = await memberDocRef.get();
 
-    if (snapshot.empty) {
+    if (!memberDoc.exists) {
       return false;
     }
 
-    const memberData = snapshot.docs[0].data();
-    const userRole = memberData.role as ProjectRole;
+    const memberData = memberDoc.data();
+    const userRole = memberData?.role as ProjectRole;
 
     return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
   } catch (error) {
@@ -50,7 +51,7 @@ export async function getUploadUrl(
   // 1. Verify permission (must be at least EDITOR to upload)
   const hasPermission = await checkProjectPermission(projectId, userId, ProjectRole.EDITOR);
   if (!hasPermission) {
-    throw new Error('Unauthorized: You do not have permission to upload to this project.');
+    throw new Error('Você não tem permissão para fazer upload neste projeto. Verifique se você é membro do projeto com acesso de editor.');
   }
 
   // 2. Generate storage key

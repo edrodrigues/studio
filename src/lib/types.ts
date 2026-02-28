@@ -83,6 +83,9 @@ export interface Project {
   // Collaboration
   lastActivityAt?: string;
   lastActivityBy?: string;
+  // Contract configuration
+  contractType?: string;
+  processType?: string;
 }
 
 export interface ProjectMember {

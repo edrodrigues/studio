@@ -2,6 +2,27 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject, Fi
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
 
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/msword', // DOC
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+  'application/vnd.ms-excel', // XLS
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // XLSX
+  'text/plain',
+];
+
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'];
+
+const BLOCKED_MIME_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/gif',
+  'image/webp',
+  'image/bmp',
+  'image/svg+xml',
+];
+
 export interface UploadProgress {
   progress: number;
   state: 'running' | 'paused' | 'success' | 'error';
@@ -31,6 +52,27 @@ export function validateFile(file: File): { valid: boolean; error?: string } {
       error: `Arquivo muito grande. Tamanho máximo permitido: 100MB. Seu arquivo tem: ${(file.size / 1024 / 1024).toFixed(2)}MB`
     };
   }
+
+  // Check if file is an image (not supported)
+  if (BLOCKED_MIME_TYPES.includes(file.type)) {
+    return {
+      valid: false,
+      error: `Formato de arquivo não suportado. Envie apenas arquivos PDF, DOC, DOCX, XLS, XLSX ou TXT. Imagens (PNG, JPG, etc.) não são aceitas.`
+    };
+  }
+
+  // Check if file type is explicitly allowed
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    // Allow if extension suggests it might be a supported format
+    const fileExtension = '.' + (file.name.split('.').pop()?.toLowerCase() || '');
+    if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
+      return {
+        valid: false,
+        error: `Tipo de arquivo não suportado. Tipos aceitos: PDF, DOC, DOCX, XLS, XLSX, TXT.`
+      };
+    }
+  }
+
   return { valid: true };
 }
 

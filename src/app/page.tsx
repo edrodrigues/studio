@@ -212,7 +212,7 @@ export default function HomePage() {
                             </span>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                            © 2024 V-Lab UFPE. Todos os direitos reservados.
+                            © 2026 V-Lab UFPE. Todos os direitos reservados.
                         </p>
                         <div className="flex gap-6">
                             <Link href="/terms" className="text-sm text-muted-foreground hover:text-primary transition-colors">

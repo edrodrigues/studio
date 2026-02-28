@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { FileText, Clock, CircleDollarSign, Loader2, Trash2, Upload, Download, History, ChevronDown, ChevronUp, File } from 'lucide-react';
+import { useState, useTransition, useEffect } from 'react';
+import { FileText, Clock, CircleDollarSign, Loader2, Trash2, Upload, Download, File, MoreVertical, Trash, Eye } from 'lucide-react';
 import { fileToDataURI } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,12 +13,19 @@ import { handleExtractEntitiesAction } from '@/lib/actions';
 import { UploadedFile, ProjectDocument, DocumentStatus } from '@/lib/types';
 import { useFileUpload, useDocumentsByType } from '@/hooks/use-file-upload';
 import { useProjectDocuments } from '@/hooks/use-projects';
+import { useProject } from '@/hooks/use-projects';
 import { useUser } from '@/firebase/provider';
 import { getDownloadUrl } from '@/lib/actions/storage-actions';
 import { formatFileSize } from '@/lib/storage';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import dynamic from 'next/dynamic';
 import useLocalStorage from '@/hooks/use-local-storage';
 
@@ -91,7 +98,7 @@ const DOCUMENT_TYPES = {
 };
 
 export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploaderProps) {
-  // State for contract and process types
+  // State for contract and process types - initialize from project
   const [contractType, setContractType] = useState<string>('');
   const [processType, setProcessType] = useState<string>('');
   
@@ -103,14 +110,44 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
   });
   const [uploadingType, setUploadingType] = useState<string | null>(null);
   
-  // State for expanded history sections
-  const [expandedHistory, setExpandedHistory] = useState<{ [key: string]: boolean }>({});
-  
   // Hooks
   const { user } = useUser();
+  const { project, updateProject } = useProject(projectId);
   const { uploadFile, uploadState, resetUpload } = useFileUpload(projectId);
   const { documentsByType, isLoading: isLoadingDocs } = useDocumentsByType(projectId);
   const { updateDocument } = useProjectDocuments(projectId);
+  
+  // Load contract types from project on mount
+  useEffect(() => {
+    if (project) {
+      if (project.contractType) {
+        setContractType(project.contractType);
+      }
+      if (project.processType) {
+        setProcessType(project.processType);
+      }
+    }
+  }, [project]);
+
+  // Save contract type when changed
+  const handleContractTypeChange = async (value: string) => {
+    setContractType(value);
+    try {
+      await updateProject({ contractType: value });
+    } catch (error) {
+      console.error('Failed to save contract type:', error);
+    }
+  };
+
+  // Save process type when changed
+  const handleProcessTypeChange = async (value: string) => {
+    setProcessType(value);
+    try {
+      await updateProject({ processType: value });
+    } catch (error) {
+      console.error('Failed to save process type:', error);
+    }
+  };
   
   // Other state
   const [isExtracting, startTransition] = useTransition();
@@ -136,9 +173,16 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
       const documentId = await uploadFile(file, projectId, key, documentName);
       
       if (documentId) {
+        const uploadDate = new Date().toLocaleString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
         toast({
           title: 'Upload concluído!',
-          description: `${documentName} foi salvo com sucesso.`,
+          description: `${documentName} - ${file.name} (${uploadDate})`,
         });
         // Clear the file from state after successful upload
         setFiles(prev => ({ ...prev, [key]: null }));
@@ -194,13 +238,6 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
         description: 'Não foi possível baixar o arquivo.',
       });
     }
-  };
-
-  const toggleHistory = (docType: string) => {
-    setExpandedHistory(prev => ({
-      ...prev,
-      [docType]: !prev[docType]
-    }));
   };
 
   const handleFeedbackClick = (file: File | null) => {
@@ -285,9 +322,18 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
     const latestDoc = documents[0];
     const isUploading = uploadingType === docType;
     const hasHistory = documents.length > 1;
-    const isHistoryExpanded = expandedHistory[docType] || false;
     const title = config.getTitle(contractType);
     const description = config.getDescription(contractType);
+
+    const formatDate = (dateStr: string) => {
+      return new Date(dateStr).toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
 
     return (
       <Card key={docType} className="flex flex-col">
@@ -329,68 +375,65 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
           {latestDoc && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <File className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium truncate max-w-[180px]">
-                    {latestDoc.originalFileName}
-                  </span>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <File className="h-4 w-4 text-primary shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium truncate">
+                      {latestDoc.originalFileName}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDate(latestDoc.uploadedAt)}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-xs">
                     v{latestDoc.version}
                   </Badge>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => handleDownload(latestDoc)}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onClick={() => handleDownload(latestDoc)}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Baixar arquivo
+                      </DropdownMenuItem>
+                      {hasHistory && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                            Histórico de uploads
+                          </div>
+                          {documents.slice(1).map((doc) => (
+                            <DropdownMenuItem 
+                              key={doc.id}
+                              onClick={() => handleDownload(doc)}
+                              className="flex flex-col items-start gap-1 py-2"
+                            >
+                              <div className="flex items-center gap-2">
+                                <File className="h-3 w-3 shrink-0" />
+                                <span className="truncate text-xs">{doc.originalFileName}</span>
+                                <Badge variant="outline" className="text-[10px] ml-auto">
+                                  v{doc.version}
+                                </Badge>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground ml-5">
+                                {formatDate(doc.uploadedAt)}
+                              </span>
+                            </DropdownMenuItem>
+                          ))}
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
               <div className="text-xs text-muted-foreground">
-                {formatFileSize(latestDoc.fileSize)} • {new Date(latestDoc.uploadedAt).toLocaleDateString('pt-BR')}
+                {formatFileSize(latestDoc.fileSize)}
               </div>
-
-              {/* History Button */}
-              {hasHistory && (
-                <Collapsible open={isHistoryExpanded} onOpenChange={() => toggleHistory(docType)}>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="w-full gap-2">
-                      <History className="h-4 w-4" />
-                      {isHistoryExpanded ? 'Ocultar histórico' : 'Ver histórico'}
-                      {isHistoryExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="space-y-2 mt-2">
-                    {documents.slice(1).map((doc) => (
-                      <div 
-                        key={doc.id} 
-                        className="flex items-center justify-between p-2 bg-muted rounded-lg text-sm"
-                      >
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <File className="h-3 w-3 text-muted-foreground shrink-0" />
-                          <span className="truncate">{doc.originalFileName}</span>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Badge variant="outline" className="text-xs">
-                            v{doc.version}
-                          </Badge>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => handleDownload(doc)}
-                          >
-                            <Download className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
             </div>
           )}
 
@@ -438,7 +481,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
               <Label className="text-base font-medium">Tipo de Contrato</Label>
               <RadioGroup
                 value={contractType}
-                onValueChange={setContractType}
+                onValueChange={handleContractTypeChange}
                 className="flex flex-wrap gap-4"
               >
                 <div className="flex items-center space-x-2">
@@ -465,7 +508,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
                 <Label className="text-base font-medium">Tipo de Processo</Label>
                 <RadioGroup
                   value={processType}
-                  onValueChange={setProcessType}
+                  onValueChange={handleProcessTypeChange}
                   className="flex flex-wrap gap-4"
                 >
                   <div className="flex items-center space-x-2">

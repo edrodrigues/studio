@@ -64,7 +64,7 @@ export async function addMemberToProject(
 
     const now = new Date().toISOString();
 
-    // Add member to project
+    // Add member to project with deterministic ID
     const memberData = {
       projectId,
       userId,
@@ -78,7 +78,7 @@ export async function addMemberToProject(
       photoURL: userData.photoURL || null,
     };
 
-    await db.collection('projectMembers').add(memberData);
+    await db.collection('projectMembers').doc(`${projectId}_${userId}`).set(memberData);
 
     // Also create an invite record for tracking/notification
     const inviteData = {

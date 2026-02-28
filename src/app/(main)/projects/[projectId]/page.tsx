@@ -102,11 +102,6 @@ function PlaceholdersTab({ projectId }: { projectId: string }) {
         <p className="text-sm text-muted-foreground">
           {filledCount} de {placeholders.length} preenchidas • {confirmedCount} confirmadas
         </p>
-        <Button variant="outline" size="sm" asChild>
-          <Link href={`/projects/${projectId}/placeholders`}>
-            Gerenciar todas
-          </Link>
-        </Button>
       </div>
 
       <div className="grid gap-3">
@@ -454,14 +449,6 @@ export default function ProjectDetailPage() {
         <TabsContent value="documents">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">Documentos</h2>
-            {canEdit && (
-              <Button asChild>
-                <Link href={`/projects/${projectId}/documents`}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Gerenciar
-                </Link>
-              </Button>
-            )}
           </div>
           <DocumentsTab projectId={projectId} />
         </TabsContent>
@@ -469,11 +456,6 @@ export default function ProjectDetailPage() {
         <TabsContent value="placeholders">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">Variáveis Extraídas</h2>
-            <Button variant="outline" asChild>
-              <Link href={`/projects/${projectId}/placeholders`}>
-                Gerenciar
-              </Link>
-            </Button>
           </div>
           <PlaceholdersTab projectId={projectId} />
         </TabsContent>

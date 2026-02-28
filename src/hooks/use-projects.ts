@@ -149,6 +149,36 @@ export function useUserProjects(): UseUserProjectsReturn {
   const { data: memberships, isLoading: membershipsLoading, error: membershipsError } = 
     useCollection<ProjectMember>(membershipsQuery);
 
+  // Auto-migration for legacy random-ID memberships to deterministic IDs
+  useEffect(() => {
+    if (!memberships || !firestore || !user) return;
+    
+    const migrateLegacyMemberships = async () => {
+      for (const membership of memberships) {
+        const deterministicId = `${membership.projectId}_${user.uid}`;
+        if (membership.id !== deterministicId) {
+          console.log(`Migrating legacy membership ${membership.id} to ${deterministicId}`);
+          try {
+            const batch = writeBatch(firestore);
+            const newRef = doc(firestore, 'projectMembers', deterministicId);
+            const oldRef = doc(firestore, 'projectMembers', membership.id);
+            
+            batch.set(newRef, {
+              ...membership,
+              id: deterministicId // Ensure ID field matches if present
+            });
+            batch.delete(oldRef);
+            await batch.commit();
+          } catch (err) {
+            console.error('Migration failed:', err);
+          }
+        }
+      }
+    };
+    
+    migrateLegacyMemberships();
+  }, [memberships, firestore, user]);
+
   // Get project IDs from memberships
   const projectIds = useMemo(() => {
     if (!memberships) return [];

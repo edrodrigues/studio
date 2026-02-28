@@ -120,10 +120,6 @@ function ProjectCard({
                   <ExternalLink className="mr-2 h-4 w-4" />
                   Abrir projeto
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push(`/projects/${project.id}/members`)}>
-                  <Users className="mr-2 h-4 w-4" />
-                  Gerenciar membros
-                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => onArchive(project.id)}>
                   <Archive className="mr-2 h-4 w-4" />

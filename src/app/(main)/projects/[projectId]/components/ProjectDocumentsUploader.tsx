@@ -13,6 +13,8 @@ import { handleExtractEntitiesAction } from '@/lib/actions';
 import { UploadedFile, ProjectDocument, DocumentStatus } from '@/lib/types';
 import { useFileUpload, useDocumentsByType } from '@/hooks/use-file-upload';
 import { useProjectDocuments } from '@/hooks/use-projects';
+import { useUser } from '@/firebase/provider';
+import { getDownloadUrl } from '@/lib/actions/storage-actions';
 import { formatFileSize } from '@/lib/storage';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -105,6 +107,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
   const [expandedHistory, setExpandedHistory] = useState<{ [key: string]: boolean }>({});
   
   // Hooks
+  const { user } = useUser();
   const { uploadFile, uploadState, resetUpload } = useFileUpload(projectId);
   const { documentsByType, isLoading: isLoadingDocs } = useDocumentsByType(projectId);
   const { updateDocument } = useProjectDocuments(projectId);
@@ -158,13 +161,39 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
     }
   };
 
-  const handleDownload = (url: string, fileName: string) => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async (doc: ProjectDocument) => {
+    if (!user) return;
+
+    try {
+      let downloadUrl = doc.fileUrl;
+
+      if (doc.storageProvider === 'r2') {
+        const result = await getDownloadUrl(projectId, user.uid, doc.storagePath);
+        if (result.success && result.url) {
+          downloadUrl = result.url;
+        } else {
+          throw new Error(result.error || 'Falha ao gerar URL de download');
+        }
+      }
+
+      if (!downloadUrl) {
+        throw new Error('URL de download não disponível');
+      }
+
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = doc.originalFileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro no download',
+        description: 'Não foi possível baixar o arquivo.',
+      });
+    }
   };
 
   const toggleHistory = (docType: string) => {
@@ -203,29 +232,28 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
   };
 
   const handleSubmit = async () => {
-    if (!hasAtLeastOneFile) return;
+    // Get the latest version of each document type from the project
+    const docTypes = Object.keys(DOCUMENT_TYPES);
+    const documentsToExtract = docTypes
+      .map(type => documentsByType?.[type]?.[0]) // Get latest version of each type
+      .filter(doc => doc !== undefined) as (ProjectDocument & { id: string })[];
+
+    if (documentsToExtract.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Nenhum arquivo',
+        description: 'Faça upload de ao menos um documento para extrair as entidades.',
+      });
+      return;
+    }
 
     startTransition(async () => {
       try {
-        const uploadedFiles = await Promise.all(
-          Object.entries(files)
-            .filter(([, file]) => file)
-            .map(async ([key, file]) => ({
-              name: file!.name,
-              dataUri: await fileToDataURI(file!),
-            }))
-        );
-
-        if (uploadedFiles.length === 0) {
-          toast({
-            variant: 'destructive',
-            title: 'Nenhum arquivo',
-            description: 'Carregue ao menos um documento para extrair as entidades.',
-          });
-          return;
-        }
-
-        const result = await handleExtractEntitiesAction({ documents: uploadedFiles });
+        const result = await handleExtractEntitiesAction({ 
+          projectId,
+          userId: user?.uid || '',
+          documentIds: documentsToExtract.map(doc => doc.id)
+        });
 
         if (result.success && result.data?.extractedJson) {
           const entitiesJson = result.data.extractedJson;
@@ -315,7 +343,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={() => handleDownload(latestDoc.fileUrl, latestDoc.originalFileName)}
+                    onClick={() => handleDownload(latestDoc)}
                   >
                     <Download className="h-4 w-4" />
                   </Button>
@@ -353,7 +381,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6"
-                            onClick={() => handleDownload(doc.fileUrl, doc.originalFileName)}
+                            onClick={() => handleDownload(doc)}
                           >
                             <Download className="h-3 w-3" />
                           </Button>
@@ -491,11 +519,21 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
       <FeedbackModal
         isOpen={isFeedbackModalOpen}
         onOpenChange={setIsFeedbackModalOpen}
+        projectId={projectId}
+        userId={user?.uid || ''}
+        documentIds={Object.values(documentsByType || {})
+          .map(docs => docs[0]?.id)
+          .filter(id => !!id)}
         files={feedbackFiles}
       />
       <ConsistencyAnalysisModal
         isOpen={isConsistencyModalOpen}
         onOpenChange={setIsConsistencyModalOpen}
+        projectId={projectId}
+        userId={user?.uid || ''}
+        documentIds={Object.values(documentsByType || {})
+          .map(docs => docs[0]?.id)
+          .filter(id => !!id)}
         files={Object.entries(files)
           .filter(([, file]) => file !== null)
           .map(([key, file]) => ({ id: key, file: file! }))}

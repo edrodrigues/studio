@@ -2,7 +2,27 @@
 
 ## ✅ Configurações Concluídas
 
-### 1. Firebase Storage
+### 1. Cloudflare R2 (Storage Principal)
+**Arquivos criados:**
+- `src/lib/r2.ts` - Configuração do cliente S3 para R2
+- `src/lib/actions/storage-actions.ts` - Server Actions para URLs assinadas
+- `src/lib/storage.ts` - Suporte a upload via presigned URLs
+
+**Features:**
+- Armazenamento de alta performance com zero custo de transferência (egress).
+- URLs assinadas temporárias para upload (1h) e download (15min).
+- Integração nativa com fluxos de IA (Genkit/Gemini).
+- Suporte híbrido (R2 como padrão, Firebase como fallback/legado).
+
+**Configuração necessária no `.env.local`:**
+```env
+R2_ACCOUNT_ID=seu_id
+R2_ACCESS_KEY_ID=sua_key
+R2_SECRET_ACCESS_KEY=sua_secret
+R2_BUCKET_NAME=vlab-contracts-storage
+```
+
+### 2. Firebase Storage (Legado/Fallback)
 **Arquivos criados:**
 - `storage.rules` - Regras de segurança do Storage
 - Atualização no `firebase.json`

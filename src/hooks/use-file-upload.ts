@@ -1,17 +1,17 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useStorage, useUser } from '@/firebase/provider';
+import { useUser } from '@/firebase/provider';
 import { useProjectDocuments } from '@/hooks/use-projects';
 import {
-  uploadFileToStorage,
+  uploadFileToR2,
   generateStoragePath,
   validateFile,
   UploadProgress,
-  UploadResult,
   formatFileSize
 } from '@/lib/storage';
 import { DocumentStatus, ProjectDocument } from '@/lib/types';
+import { getUploadUrl } from '@/lib/actions/storage-actions';
 
 export interface FileUploadState {
   isUploading: boolean;
@@ -32,7 +32,6 @@ export interface UseFileUploadReturn {
 }
 
 export function useFileUpload(projectId: string | null): UseFileUploadReturn {
-  const storage = useStorage();
   const { user } = useUser();
   const { addDocument, documents } = useProjectDocuments(projectId);
   
@@ -91,19 +90,22 @@ export function useFileUpload(projectId: string | null): UseFileUploadReturn {
         ) || [];
         const nextVersion = existingDocs.length + 1;
 
-        // Generate storage path
-        const storagePath = generateStoragePath(
+        // 1. Get signed URL from server for R2 upload
+        const uploadUrlResult = await getUploadUrl(
           projectId,
-          documentType,
+          user.uid,
           file.name,
-          nextVersion
+          file.type
         );
 
-        // Upload file to Firebase Storage
-        const uploadResult = await uploadFileToStorage(
+        if (!uploadUrlResult.success || !uploadUrlResult.url) {
+          throw new Error(uploadUrlResult.error || 'Falha ao obter URL de upload do servidor');
+        }
+
+        // 2. Upload to Cloudflare R2
+        await uploadFileToR2(
           file,
-          storagePath,
-          storage,
+          uploadUrlResult.url,
           (progress: UploadProgress) => {
             setUploadState(prev => ({
               ...prev,
@@ -112,18 +114,19 @@ export function useFileUpload(projectId: string | null): UseFileUploadReturn {
           }
         );
 
-        // Create document metadata in Firestore
+        // 3. Create document metadata in Firestore
         const docData: Omit<ProjectDocument, 'id'> = {
           projectId,
           name: documentName,
-          fileUrl: uploadResult.downloadUrl,
-          fileType: uploadResult.fileName.split('.').pop() || '',
-          fileSize: uploadResult.fileSize,
+          fileUrl: '', // For R2, we generate signed URLs on demand
+          fileType: file.name.split('.').pop() || '',
+          fileSize: file.size,
           uploadedBy: user.uid,
           uploadedAt: new Date().toISOString(),
           status: DocumentStatus.UPLOADED,
-          mimeType: uploadResult.mimeType,
-          storagePath: uploadResult.storagePath,
+          mimeType: file.type,
+          storagePath: uploadUrlResult.key,
+          storageProvider: 'r2',
           // Add custom fields for versioning
           version: nextVersion,
           originalFileName: file.name,
@@ -150,7 +153,7 @@ export function useFileUpload(projectId: string | null): UseFileUploadReturn {
         return null;
       }
     },
-    [storage, user, addDocument, documents]
+    [user, addDocument, documents]
   );
 
   return {

@@ -10,6 +10,10 @@ import { analyzeDocumentConsistency } from '@/ai/flows/analyze-document-consiste
 import { getPlaybookAssistance } from '@/ai/flows/get-playbook-assistance';
 import { convertDocumentsToSupportedFormats, convertBufferToSupportedDataUri } from '@/lib/document-converter';
 import { db } from '@/lib/firebase-server';
+import { r2Client, R2_BUCKET_NAME } from '@/lib/r2';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { ProjectDocument, ProjectRole } from './types';
+import { getDownloadUrl } from './actions/storage-actions';
 import { z } from 'zod';
 
 const fileSchema = z.string().refine(s => s.startsWith('data:'), {
@@ -21,12 +25,88 @@ const fileObjectSchema = z.object({
   dataUri: fileSchema,
 });
 
+const extractEntitiesSchema = z.object({
+  projectId: z.string().optional(),
+  userId: z.string().optional(),
+  documentIds: z.array(z.string()).optional(),
+  documents: z.array(fileObjectSchema).optional(),
+});
+
+/**
+ * Helper to prepare documents for AI flows, supporting both R2 and Firebase.
+ * Converts non-supported formats (DOCX, XLSX) to text and provides URLs for others.
+ */
+async function prepareDocumentsForFlow(input: {
+  projectId?: string;
+  userId?: string;
+  documentIds?: string[];
+  documents?: { name: string; dataUri: string }[];
+}): Promise<{ url: string }[]> {
+  if (input.documentIds && input.projectId && input.userId) {
+    const documentsSnapshot = await Promise.all(
+      input.documentIds.map(id => db.collection('projectDocuments').doc(id).get())
+    );
+
+    return await Promise.all(
+      documentsSnapshot.map(async (docSnap) => {
+        if (!docSnap.exists) {
+          throw new Error(`Documento ${docSnap.id} não encontrado.`);
+        }
+        const docData = docSnap.data() as ProjectDocument;
+
+        // If it's a format that Gemini supports natively (PDF), we can use a signed URL
+        if (docData.mimeType === 'application/pdf') {
+          if (docData.storageProvider === 'r2') {
+            const result = await getDownloadUrl(input.projectId!, input.userId!, docData.storagePath);
+            if (!result.success || !result.url) throw new Error(`Falha ao gerar URL para ${docData.name}`);
+            return { url: result.url };
+          }
+          return { url: docData.fileUrl };
+        }
+
+        // For other formats (DOCX, XLSX, etc.), we fetch and convert to text data URI
+        let buffer: Buffer;
+        if (docData.storageProvider === 'r2') {
+          const command = new GetObjectCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: docData.storagePath,
+          });
+          const response = await r2Client.send(command);
+          buffer = Buffer.from(await response.Body!.transformToByteArray());
+        } else {
+          const response = await fetch(docData.fileUrl);
+          if (!response.ok) throw new Error(`Falha ao baixar arquivo ${docData.name}`);
+          buffer = Buffer.from(await response.arrayBuffer());
+        }
+
+        const dataUri = await convertBufferToSupportedDataUri(
+          buffer,
+          docData.mimeType,
+          docData.originalFileName
+        );
+        return { url: dataUri };
+      })
+    );
+  } else if (input.documents) {
+    const convertedDocuments = await convertDocumentsToSupportedFormats(input.documents);
+    return convertedDocuments.map(doc => ({ url: doc.dataUri }));
+  }
+
+  return [];
+}
+
 const generateContractSchema = z.object({
-  documents: z.array(fileObjectSchema),
+  projectId: z.string().optional(),
+  userId: z.string().optional(),
+  documentIds: z.array(z.string()).optional(),
+  documents: z.array(fileObjectSchema).optional(),
 });
 
 export async function handleGenerateContract(input: {
-  documents: { name: string; dataUri: string }[];
+  projectId?: string;
+  userId?: string;
+  documentIds?: string[];
+  documents?: { name: string; dataUri: string }[];
 }) {
   try {
     const validatedData = generateContractSchema.safeParse(input);
@@ -36,14 +116,11 @@ export async function handleGenerateContract(input: {
       return { success: false, error: 'Dados de arquivo inválidos.' };
     }
 
-    // Convert documents to supported formats
-    const convertedDocuments = await convertDocumentsToSupportedFormats(
-      validatedData.data.documents
-    );
+    const documentsForFlow = await prepareDocumentsForFlow(validatedData.data);
 
-    const documentsForFlow = convertedDocuments.map(doc => ({
-      url: doc.dataUri,
-    }));
+    if (documentsForFlow.length === 0) {
+      return { success: false, error: 'Nenhum documento fornecido para geração.' };
+    }
 
     const result = await generateContractFromDocuments({
       documents: documentsForFlow,
@@ -195,12 +272,18 @@ export async function handleGetAssistance(input: {
 
 const getFeedbackSchema = z.object({
   systemPrompt: z.string(),
-  documents: z.array(fileObjectSchema),
+  projectId: z.string().optional(),
+  userId: z.string().optional(),
+  documentIds: z.array(z.string()).optional(),
+  documents: z.array(fileObjectSchema).optional(),
 });
 
 export async function handleGetFeedback(input: {
   systemPrompt: string;
-  documents: { name: string; dataUri: string }[];
+  projectId?: string;
+  userId?: string;
+  documentIds?: string[];
+  documents?: { name: string; dataUri: string }[];
 }) {
   try {
     const validatedData = getFeedbackSchema.safeParse(input);
@@ -212,14 +295,11 @@ export async function handleGetFeedback(input: {
       };
     }
 
-    // Convert documents to supported formats
-    const convertedDocuments = await convertDocumentsToSupportedFormats(
-      validatedData.data.documents
-    );
+    const documentsForFlow = await prepareDocumentsForFlow(validatedData.data);
 
-    const documentsForFlow = convertedDocuments.map(doc => ({
-      url: doc.dataUri,
-    }));
+    if (documentsForFlow.length === 0) {
+      return { success: false, error: 'Nenhum documento fornecido para feedback.' };
+    }
 
     // Inject Playbook Content
     let systemPromptToUse = validatedData.data.systemPrompt;
@@ -231,12 +311,9 @@ export async function handleGetFeedback(input: {
       if (fs.existsSync(playbookPath)) {
         const playbookContent = fs.readFileSync(playbookPath, 'utf-8');
         systemPromptToUse = `${systemPromptToUse}\n\n### REFERÊNCIA OBRIGATÓRIA (PLAYBOOK DE CONTRATOS):\nUse as diretrizes abaixo para avaliar os documentos. Se houver divergência entre o conhecimento geral e este playbook, siga o playbook.\n\n${playbookContent}`;
-      } else {
-        console.warn('Playbook file not found at:', playbookPath);
       }
     } catch (error) {
       console.error('Error reading playbook:', error);
-      // Continue with original prompt if playbook fails
     }
 
     const result = await getDocumentFeedback({
@@ -255,12 +332,11 @@ export async function handleGetFeedback(input: {
   }
 }
 
-const extractEntitiesSchema = z.object({
-  documents: z.array(fileObjectSchema),
-});
-
 export async function handleExtractEntitiesAction(input: {
-  documents: { name: string; dataUri: string }[];
+  projectId?: string;
+  userId?: string;
+  documentIds?: string[];
+  documents?: { name: string; dataUri: string }[];
 }) {
   try {
     const validatedData = extractEntitiesSchema.safeParse(input);
@@ -272,14 +348,11 @@ export async function handleExtractEntitiesAction(input: {
       };
     }
 
-    // Convert documents to supported formats
-    const convertedDocuments = await convertDocumentsToSupportedFormats(
-      validatedData.data.documents
-    );
+    const documentsForFlow = await prepareDocumentsForFlow(validatedData.data);
 
-    const documentsForFlow = convertedDocuments.map(doc => ({
-      url: doc.dataUri,
-    }));
+    if (documentsForFlow.length === 0) {
+      return { success: false, error: 'Nenhum documento fornecido para extração.' };
+    }
 
     const result = await extractEntitiesFromDocuments({
       documents: documentsForFlow,
@@ -310,26 +383,39 @@ const analyzeConsistencySchema = z.object({
 export async function handleAnalyzeDocumentConsistency(formData: FormData) {
   try {
     const systemPrompt = formData.get('systemPrompt') as string;
+    const documentIds = formData.getAll('documentIds') as string[];
     const files = formData.getAll('documents') as File[];
+    const projectId = formData.get('projectId') as string;
+    const userId = formData.get('userId') as string;
 
     if (!systemPrompt) {
       return { success: false, error: 'Prompt do sistema é obrigatório.' };
     }
 
-    if (files.length < 2) {
-      return { success: false, error: 'Ao menos dois documentos são necessários para análise de consistência.' };
+    let documentsForFlow: { url: string }[] = [];
+
+    if (documentIds.length > 0 && projectId && userId) {
+      documentsForFlow = await prepareDocumentsForFlow({
+        projectId,
+        userId,
+        documentIds
+      });
+    } else if (files.length > 0) {
+      // Convert Files to Data URIs on the server using optimized buffer flow
+      documentsForFlow = await Promise.all(
+        files.map(async (file) => {
+          const arrayBuffer = await file.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const mimeType = file.type;
+          const dataUri = await convertBufferToSupportedDataUri(buffer, mimeType, file.name);
+          return { url: dataUri };
+        })
+      );
     }
 
-    // Convert Files to Data URIs on the server using optimized buffer flow
-    const documentsForFlow = await Promise.all(
-      files.map(async (file) => {
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const mimeType = file.type; // or detect from filename if empty
-        const dataUri = await convertBufferToSupportedDataUri(buffer, mimeType, file.name);
-        return { url: dataUri };
-      })
-    );
+    if (documentsForFlow.length < 2) {
+      return { success: false, error: 'Ao menos dois documentos são necessários para análise de consistência.' };
+    }
 
     const result = await analyzeDocumentConsistency({
       systemPrompt,

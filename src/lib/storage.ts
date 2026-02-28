@@ -137,6 +137,66 @@ export function uploadFileToStorage(
 }
 
 /**
+ * Uploads a file to Cloudflare R2 using a presigned URL with progress tracking
+ */
+export async function uploadFileToR2(
+  file: File,
+  presignedUrl: string,
+  onProgress?: (progress: UploadProgress) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // Validate file
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      const error = new Error(validation.error);
+      (error as StorageError).code = 'file/too-large';
+      reject(error);
+      return;
+    }
+
+    const xhr = new XMLHttpRequest();
+    
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) {
+        const progress = (event.loaded / event.total) * 100;
+        onProgress?.({
+          progress,
+          state: 'running',
+          bytesTransferred: event.loaded,
+          totalBytes: event.total
+        });
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.({
+          progress: 100,
+          state: 'success',
+          bytesTransferred: file.size,
+          totalBytes: file.size
+        });
+        resolve();
+      } else {
+        reject(new Error(`Upload falhou com status ${xhr.status}. Verifique as configurações de CORS.`));
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      reject(new Error('Erro de rede durante o upload para o R2.'));
+    });
+
+    xhr.addEventListener('abort', () => {
+      reject(new Error('Upload cancelado pelo usuário.'));
+    });
+
+    xhr.open('PUT', presignedUrl);
+    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.send(file);
+  });
+}
+
+/**
  * Gets the download URL for a storage path
  */
 export async function getDocumentDownloadUrl(storagePath: string, storage: FirebaseStorage): Promise<string> {

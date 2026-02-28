@@ -115,6 +115,7 @@ export interface ProjectDocument {
   // Metadata
   mimeType: string;
   storagePath: string;
+  storageProvider?: 'firebase' | 'r2';
   // Document categorization and versioning
   documentType: string;
   version: number;

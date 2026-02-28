@@ -26,6 +26,9 @@ import { AIFeedback } from "./ai-feedback";
 interface ConsistencyAnalysisModalProps {
     isOpen: boolean;
     onOpenChange: (open: boolean) => void;
+    projectId?: string;
+    userId?: string;
+    documentIds?: string[];
     files: UploadedFile[];
 }
 
@@ -44,7 +47,14 @@ Você DEVE retornar:
 
 Seja objetivo, profissional e forneça exemplos específicos quando possível.`;
 
-export function ConsistencyAnalysisModal({ isOpen, onOpenChange, files }: ConsistencyAnalysisModalProps) {
+export function ConsistencyAnalysisModal({ 
+    isOpen, 
+    onOpenChange, 
+    projectId, 
+    userId, 
+    documentIds = [], 
+    files 
+}: ConsistencyAnalysisModalProps) {
     const router = useRouter();
     const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
     const [consistencyPercentage, setConsistencyPercentage] = useState<number | null>(null);
@@ -65,11 +75,14 @@ export function ConsistencyAnalysisModal({ isOpen, onOpenChange, files }: Consis
     }, []);
 
     const handleGenerateAnalysis = async () => {
-        if (files.length < 2) {
+        const hasProjectDocs = documentIds.length >= 2;
+        const hasLocalFiles = files.length >= 2;
+
+        if (!hasProjectDocs && !hasLocalFiles) {
             toast({
                 variant: "destructive",
                 title: "Documentos insuficientes",
-                description: "Carregue ao menos dois documentos para análise de consistência.",
+                description: "Ao menos dois documentos são necessários para análise de consistência.",
             });
             return;
         }
@@ -83,9 +96,15 @@ export function ConsistencyAnalysisModal({ isOpen, onOpenChange, files }: Consis
                 const formData = new FormData();
                 formData.append("systemPrompt", systemPrompt);
 
-                files.forEach(({ file }) => {
-                    formData.append("documents", file);
-                });
+                if (hasProjectDocs && projectId && userId) {
+                    formData.append("projectId", projectId);
+                    formData.append("userId", userId);
+                    documentIds.forEach(id => formData.append("documentIds", id));
+                } else {
+                    files.forEach(({ file }) => {
+                        formData.append("documents", file);
+                    });
+                }
 
                 const result = await handleAnalyzeDocumentConsistency(formData);
 

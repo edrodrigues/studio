@@ -25,6 +25,9 @@ import { AIFeedback } from "./ai-feedback";
 interface FeedbackModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  projectId?: string;
+  userId?: string;
+  documentIds?: string[];
   files: UploadedFile[];
 }
 
@@ -46,7 +49,14 @@ Use Markdown. Para cada ponto de verificação, use o seguinte padrão:
 Seja direto e aponte apenas desvios relevantes ou confirmações importantes.`;
 
 
-export function FeedbackModal({ isOpen, onOpenChange, files }: FeedbackModalProps) {
+export function FeedbackModal({ 
+  isOpen, 
+  onOpenChange, 
+  projectId, 
+  userId, 
+  documentIds = [], 
+  files 
+}: FeedbackModalProps) {
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [feedback, setFeedback] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -64,7 +74,10 @@ export function FeedbackModal({ isOpen, onOpenChange, files }: FeedbackModalProp
   }, []);
 
   const handleGenerateFeedback = async () => {
-    if (files.length === 0) {
+    const hasProjectDocs = documentIds.length > 0;
+    const hasLocalFiles = files.length > 0;
+
+    if (!hasProjectDocs && !hasLocalFiles) {
       toast({
         variant: "destructive",
         title: "Nenhum arquivo",
@@ -76,17 +89,28 @@ export function FeedbackModal({ isOpen, onOpenChange, files }: FeedbackModalProp
     setFeedback("");
     startTransition(async () => {
       try {
-        const documentsWithData = await Promise.all(
-          files.map(async ({ file }) => ({
-            name: file.name,
-            dataUri: await fileToDataURI(file),
-          }))
-        );
+        let result;
 
-        const result = await handleGetFeedback({
-          systemPrompt,
-          documents: documentsWithData,
-        });
+        if (hasProjectDocs && projectId && userId) {
+          result = await handleGetFeedback({
+            systemPrompt,
+            projectId,
+            userId,
+            documentIds,
+          });
+        } else {
+          const documentsWithData = await Promise.all(
+            files.map(async ({ file }) => ({
+              name: file.name,
+              dataUri: await fileToDataURI(file),
+            }))
+          );
+
+          result = await handleGetFeedback({
+            systemPrompt,
+            documents: documentsWithData,
+          });
+        }
 
         if (result.success && result.data?.feedback) {
           setFeedback(result.data.feedback);

@@ -4,7 +4,7 @@
 import { useState, useTransition, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { collection, addDoc } from "firebase/firestore";
-import { File, Loader2, Wand2, AlertTriangle, ArrowRight, CheckCircle, Filter } from "lucide-react";
+import { File, Loader2, Wand2, AlertTriangle, ArrowRight, CheckCircle, Filter, Mail } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { type Template } from "@/lib/types";
@@ -12,10 +12,13 @@ import { useCollection, useFirebase, useUser, useMemoFirebase } from "@/firebase
 import { Skeleton } from "@/components/ui/skeleton";
 import useLocalStorage from "@/hooks/use-local-storage";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
-import { cn } from "@/lib/utils";
+import { cn, extractGoogleDocId } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { useAuthContext } from "@/context/auth-context";
+import { generateContractDoc } from "@/lib/actions/google-docs-actions";
+import { Badge } from "@/components/ui/badge";
 const EntityEditModal = dynamic(() => import('@/components/app/entity-edit-modal').then(mod => mod.EntityEditModal), { ssr: false });
 import dynamic from 'next/dynamic';
 
@@ -136,7 +139,14 @@ function TemplatesList({
                         />
                         <File className={cn("h-5 w-5", isSelected ? "text-primary" : "text-muted-foreground")} />
                         <div className="flex-1">
-                            <p className="font-semibold">{template.name}</p>
+                            <div className="flex items-center gap-2">
+                                <p className="font-semibold">{template.name}</p>
+                                {template.googleDocLink && extractGoogleDocId(template.googleDocLink) && (
+                                    <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200">
+                                        Google Docs Ready
+                                    </Badge>
+                                )}
+                            </div>
                             <p className="text-xs text-muted-foreground truncate">{template.description}</p>
                         </div>
                         {isGenerating && <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />}
@@ -158,7 +168,8 @@ interface GenerationStatus {
 export default function GerarNovoContratoPage() {
     const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
     const { user } = useUser();
-    const { firestore } = useFirebase();
+    const { auth, firestore } = useFirebase();
+    const { accessToken, signInWithGoogle } = useAuthContext();
     const [storedEntities] = useLocalStorage<Record<string, any> | null>("extractedEntities", null);
     const { clientName, isLoading: preferencesLoading } = useUserPreferences();
     const { toast } = useToast();
@@ -217,6 +228,25 @@ export default function GerarNovoContratoPage() {
             return;
         }
 
+        // Check if any selected template is a Google Doc and user is not authenticated with Google
+        const hasGoogleDocTemplate = selectedTemplateIds.some(id => {
+            const t = templates.find(temp => temp.id === id);
+            return t?.googleDocLink && extractGoogleDocId(t.googleDocLink);
+        });
+
+        if (hasGoogleDocTemplate && !accessToken) {
+            toast({
+                title: "Login com Google Necessário",
+                description: "Alguns modelos selecionados são do Google Docs. Por favor, conecte sua conta para continuar.",
+                action: (
+                    <Button variant="outline" size="sm" onClick={() => signInWithGoogle()}>
+                        Conectar
+                    </Button>
+                ),
+            });
+            return;
+        }
+
         // Log entities to verify data flow
         console.log('Opening entity modal with entities from "Entidades para Preenchimento":', {
             storedEntitiesRaw: storedEntities,
@@ -256,11 +286,57 @@ export default function GerarNovoContratoPage() {
 
                 const selectedTemplate = templates.find(t => t.id === templateId);
 
-                if (!selectedTemplate || !selectedTemplate.markdownContent) {
+                if (!selectedTemplate) continue;
+
+                // 1. Try Google Docs Flow if link is present
+                const templateFileId = selectedTemplate.googleDocLink ? extractGoogleDocId(selectedTemplate.googleDocLink) : null;
+
+                if (templateFileId && accessToken) {
+                    try {
+                        const finalClientName = clientName || "Cliente não especificado";
+                        
+                        const result = await generateContractDoc(
+                            accessToken,
+                            templateFileId,
+                            selectedTemplate.name,
+                            finalClientName,
+                            editedEntities
+                        );
+
+                        const newContract = {
+                            contractModelId: selectedTemplate.id,
+                            clientName: finalClientName,
+                            filledData: JSON.stringify({ entities: editedEntities }),
+                            name: result.fileName,
+                            markdownContent: "", // No markdown content for Google Docs
+                            googleDocLink: result.documentLink,
+                            googleDocId: result.documentId,
+                            createdAt: new Date().toISOString(),
+                        };
+
+                        const filledContractsRef = collection(firestore, 'users', user.uid, 'filledContracts');
+                        await addDoc(filledContractsRef, newContract);
+
+                        generatedCount++;
+                        setGenerationStatus(prev => ({ ...prev, completed: [...prev.completed, templateId] }));
+                        continue; // Successfully handled via Google Docs
+                    } catch (error: any) {
+                        console.error(`Error generating Google Doc for template ${templateId}:`, error);
+                        toast({
+                            variant: "destructive",
+                            title: `Erro no Google Docs: ${selectedTemplate.name}`,
+                            description: error.message || "Ocorreu um erro ao gerar no Google Docs. Tentando fallback para Markdown...",
+                        });
+                        // Fall back to Markdown logic below if possible
+                    }
+                }
+
+                // 2. Fallback to Markdown logic (or default if no Google Doc link)
+                if (!selectedTemplate.markdownContent) {
                     toast({
                         variant: "destructive",
-                        title: `Erro no Modelo: ${selectedTemplate?.name}`,
-                        description: "O modelo selecionado está vazio ou não pôde ser carregado. Pulando para o próximo.",
+                        title: `Erro no Modelo: ${selectedTemplate.name}`,
+                        description: "O modelo selecionado não possui conteúdo Markdown nem Google Docs válido.",
                     });
                     continue;
                 }
@@ -296,7 +372,6 @@ export default function GerarNovoContratoPage() {
                             console.warn(`Entity not found for placeholder: ${placeholder} (normalized key: "${key}")`);
                             notFoundCount++;
                         }
-                        // Se a entidade não existir, mantém o placeholder original no documento
                     });
 
                     console.log(`Template "${selectedTemplate.name}": ${replacedCount} placeholders filled, ${notFoundCount} not found`);

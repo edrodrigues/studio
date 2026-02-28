@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface AuthContextType {
     user: User | null;
+    accessToken: string | null;
     loading: boolean;
     signInWithGoogle: () => Promise<void>;
     signInWithEmail: (email: string, pass: string) => Promise<void>;
@@ -34,13 +35,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // We use local loading state to handle the action (signin/signup) loading as well
     // But primarily we rely on useFirebase for the initial check
     const [actionLoading, setActionLoading] = useState(false);
+    const [accessToken, setAccessToken] = useState<string | null>(null);
+
+    // Load token from sessionStorage on mount
+    useEffect(() => {
+        const storedToken = sessionStorage.getItem("google_access_token");
+        if (storedToken) {
+            setAccessToken(storedToken);
+        }
+    }, []);
 
     const signInWithGoogle = async () => {
         if (!auth) return;
         setActionLoading(true);
         try {
             const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
+            // Add scopes for Google Docs and Drive integration
+            provider.addScope("https://www.googleapis.com/auth/drive.file");
+            provider.addScope("https://www.googleapis.com/auth/documents");
+            
+            const result = await signInWithPopup(auth, provider);
+            
+            // Capture the OAuth Access Token
+            const credential = GoogleAuthProvider.credentialFromResult(result);
+            if (credential?.accessToken) {
+                setAccessToken(credential.accessToken);
+                sessionStorage.setItem("google_access_token", credential.accessToken);
+            }
+
             toast({
                 title: "Login realizado com sucesso",
                 description: "Bem-vindo de volta!",
@@ -155,6 +177,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!auth) return;
         try {
             await firebaseSignOut(auth);
+            setAccessToken(null);
+            sessionStorage.removeItem("google_access_token");
             toast({
                 title: "Desconectado",
                 description: "Você saiu da sua conta.",
@@ -171,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return (
         <AuthContext.Provider value={{
             user,
+            accessToken,
             loading,
             signInWithGoogle,
             signInWithEmail,

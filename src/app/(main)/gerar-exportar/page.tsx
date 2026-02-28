@@ -5,7 +5,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { collection, doc, deleteDoc } from "firebase/firestore";
 import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { FilePlus2, MoreHorizontal, Trash2, Pencil, Eye, GitCompareArrows } from "lucide-react";
+import { FilePlus2, MoreHorizontal, Trash2, Pencil, Eye, GitCompareArrows, ExternalLink } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -101,7 +101,22 @@ function ContractsTable({
                 onCheckedChange={() => onSelectionChange(contract.id)}
               />
             </TableCell>
-            <TableCell className="font-medium">{contract.name ? contract.name.replace(/^Contrato de\s+/i, '') : 'Sem título'}</TableCell>
+            <TableCell className="font-medium">
+              <div className="flex flex-col">
+                <span>{contract.name ? contract.name.replace(/^Contrato de\s+/i, '') : 'Sem título'}</span>
+                {contract.googleDocLink && (
+                  <a 
+                    href={contract.googleDocLink} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-1"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Abrir no Google Docs
+                  </a>
+                )}
+              </div>
+            </TableCell>
             <TableCell>
               {contract.createdAt ? format(new Date(contract.createdAt), "dd 'de' MMMM 'de' yyyy, 'às' HH:mm", { locale: ptBR }) : 'Data indisponível'}
             </TableCell>
@@ -117,9 +132,17 @@ function ContractsTable({
                     <Eye className="mr-2 h-4 w-4" />
                     Visualizar e Exportar
                   </DropdownMenuItem>
+                  {contract.googleDocLink && (
+                    <DropdownMenuItem asChild>
+                      <a href={contract.googleDocLink} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Abrir no Google Docs
+                      </a>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onSelect={() => onEdit(contract.id)}>
                     <Pencil className="mr-2 h-4 w-4" />
-                    Editar
+                    Editar Localmente
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => onDelete(contract.id)} className="text-destructive">
                     <Trash2 className="mr-2 h-4 w-4" />

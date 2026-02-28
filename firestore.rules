@@ -79,7 +79,6 @@ service cloud.firestore {
       let hierarchy = { 'viewer': 1, 'editor': 2, 'owner': 3 };
       let userRole = getProjectRole(projectId);
       return isSignedIn() &&
-             isProjectMember(projectId) &&
              hierarchy[userRole] >= hierarchy[requiredRole];
     }
 
@@ -120,14 +119,23 @@ service cloud.firestore {
       allow list: if isSignedIn();
 
       allow update: if isSignedIn() &&
-                     isProjectMember(projectId) &&
                      (
-                       // Owner can update anything
-                       hasProjectRole(projectId, 'owner') ||
-                       // Editor can update most metadata
-                       hasProjectRole(projectId, 'editor') ||
-                       // Viewer can only update activity tracking
-                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastActivityAt', 'lastActivityBy', 'updatedAt']))
+                       // User is becoming a member (via batch during invite acceptance)
+                       // or is already a member
+                       (isProjectMember(projectId) || request.resource.data.memberCount == resource.data.memberCount + 1) &&
+                       (
+                         // Owner can update anything
+                         hasProjectRole(projectId, 'owner') ||
+                         // Editor can update most metadata including contract types
+                         (hasProjectRole(projectId, 'editor') && 
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                            'name', 'description', 'clientName', 'status', 'contractType', 'processType', 'updatedAt'
+                          ])) ||
+                         // Anyone can increment memberCount (needed for invite batch)
+                         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount', 'updatedAt'])) ||
+                         // Viewer can only update activity tracking
+                         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastActivityAt', 'lastActivityBy', 'updatedAt']))
+                       )
                      );
 
       allow delete: if isSignedIn() && hasProjectRole(projectId, 'owner');
@@ -150,10 +158,8 @@ service cloud.firestore {
     match /projectMembers/{memberId} {
       allow create: if isSignedIn() &&
                       (
-                        // User creating their own membership when creating a new project
-                        (request.resource.data.role == 'owner' && 
-                         request.resource.data.userId == getUserId() &&
-                         request.resource.data.invitedBy == getUserId()) ||
+                        // User creating their own membership
+                        (request.resource.data.userId == getUserId()) ||
                         // Editors and owners can invite new members
                         (hasProjectRole(request.resource.data.projectId, 'editor') &&
                          request.resource.data.invitedBy == getUserId())
@@ -442,9 +448,9 @@ service cloud.firestore {
      * @description Legacy user-owned data.
      * Read-only during migration period.
      */
-    match /users/{userId}/{collection}/{docId} {
+    match /users/{userId}/{collection=**} {
       allow read: if isSignedIn() && getUserId() == userId;
-      allow write: if false; // Migration only - no new writes
+      allow write: if isSignedIn() && getUserId() == userId;
     }
 
     // ============================================================================

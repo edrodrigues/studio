@@ -8,7 +8,6 @@ import { collection, doc, addDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { type Template } from "@/lib/types";
@@ -88,21 +87,30 @@ function TemplateEditor({
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="template-doc-link">Link do Modelo em Google Doc (Opcional)</Label>
+                        <Label htmlFor="template-doc-link">
+                            Link do Modelo em Google Doc <span className="text-destructive">*</span>
+                        </Label>
                         <Input
                             id="template-doc-link"
                             value={template.googleDocLink || ""}
                             onChange={(e) => onTemplateChange("googleDocLink", e.target.value)}
                             placeholder="https://docs.google.com/document/d/..."
+                            required
                         />
+                        <p className="text-xs text-muted-foreground">Este campo é obrigatório para gerar contratos.</p>
                     </div>
                     <div className="space-y-2">
-                        <Label>Conteúdo do Modelo</Label>
-                        <RichTextEditor
-                            value={template.markdownContent}
-                            onChange={(value) => onTemplateChange("markdownContent", value)}
-                            placeholder="Escreva o conteúdo do seu modelo aqui..."
+                        <Label htmlFor="project-doc-link">
+                            Link da Versão do Projeto em Google Doc <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                            id="project-doc-link"
+                            value={template.projectDocLink || ""}
+                            onChange={(e) => onTemplateChange("projectDocLink", e.target.value)}
+                            placeholder="https://docs.google.com/document/d/..."
+                            required
                         />
+                        <p className="text-xs text-muted-foreground">Link do documento original do projeto (versão editável).</p>
                     </div>
                 </CardContent>
             </Card>
@@ -158,11 +166,12 @@ export default function ModelosPage() {
 
     const handleNewTemplate = useCallback(() => {
         const newTemplate: Template = {
-            id: `new-${Date.now()}`, // Temporary ID for a new template
+            id: `new-${Date.now()}`,
             name: "Novo Modelo sem Título",
             description: "",
-            markdownContent: "# Novo Modelo\n\nComece a editar...",
+            markdownContent: "",
             googleDocLink: "",
+            projectDocLink: "",
             contractTypes: [],
             isNew: true,
         };
@@ -186,6 +195,34 @@ export default function ModelosPage() {
     const handleSaveTemplate = useCallback(async () => {
         if (!editingTemplate || !user || !firestore) return;
 
+        // Validation
+        if (!editingTemplate.name?.trim()) {
+            toast({
+                variant: "destructive",
+                title: "Erro ao Salvar",
+                description: "Por favor, insira o nome do modelo.",
+            });
+            return;
+        }
+
+        if (!editingTemplate.googleDocLink?.trim()) {
+            toast({
+                variant: "destructive",
+                title: "Erro ao Salvar",
+                description: "O link do Google Doc é obrigatório.",
+            });
+            return;
+        }
+
+        if (!editingTemplate.projectDocLink?.trim()) {
+            toast({
+                variant: "destructive",
+                title: "Erro ao Salvar",
+                description: "O link da versão do projeto é obrigatório.",
+            });
+            return;
+        }
+
         const { id, isNew, ...templateData } = editingTemplate;
 
         const templateToSave = {
@@ -193,6 +230,7 @@ export default function ModelosPage() {
             description: templateData.description,
             markdownContent: templateData.markdownContent,
             googleDocLink: templateData.googleDocLink || "",
+            projectDocLink: templateData.projectDocLink || "",
             contractTypes: templateData.contractTypes || [],
         };
 

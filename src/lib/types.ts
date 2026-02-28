@@ -293,6 +293,7 @@ export interface Template {
   description: string;
   markdownContent: string;
   googleDocLink?: string;
+  projectDocLink?: string;
   isNew?: boolean;
   contractTypes?: string[];
 }

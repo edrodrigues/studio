@@ -20,6 +20,11 @@ export async function addMemberToProject(
   try {
     const normalizedEmail = inviteeEmail.toLowerCase().trim();
 
+    // Get project name
+    const projectRef = db.collection('projects').doc(projectId);
+    const projectSnap = await projectRef.get();
+    const projectName = projectSnap.exists ? (projectSnap.data()?.name || 'Projeto') : 'Projeto';
+
     // Get all members of this project and check if user is already a member
     const allMembersSnapshot = await db.collection('projectMembers')
       .where('projectId', '==', projectId)
@@ -38,17 +43,24 @@ export async function addMemberToProject(
       .where('email', '==', normalizedEmail)
       .get();
 
-    if (userLookupQuery.empty) {
-      return { 
-        success: false, 
-        error: 'Usuário não encontrado. O usuário precisa criar uma conta no sistema primeiro (fazer login pelo menos uma vez em algum projeto).' 
-      };
-    }
+    let userId: string;
+    let userData: Partial<ProjectMember> = {};
 
-    // Get the user's UID from their existing membership
-    const existingUserDoc = userLookupQuery.docs[0];
-    const userData = existingUserDoc.data() as ProjectMember;
-    const userId = userData.userId;
+    if (userLookupQuery.empty) {
+      // If user doesn't exist in projectMembers, we need to create a pending record
+      // This will be completed when they first login
+      userId = `pending_${normalizedEmail}`;
+      userData = {
+        email: normalizedEmail,
+        displayName: undefined,
+        photoURL: undefined,
+      };
+    } else {
+      // Get the user's UID from their existing membership
+      const existingUserDoc = userLookupQuery.docs[0];
+      userData = existingUserDoc.data() as ProjectMember;
+      userId = userData.userId!;
+    }
 
     const now = new Date().toISOString();
 
@@ -68,10 +80,24 @@ export async function addMemberToProject(
 
     await db.collection('projectMembers').add(memberData);
 
-    // Update project member count - get current count and increment
-    const projectRef = db.collection('projects').doc(projectId);
-    const projectSnap = await projectRef.get();
+    // Also create an invite record for tracking/notification
+    const inviteData = {
+      projectId,
+      projectName,
+      email: normalizedEmail,
+      role,
+      invitedBy: invitedByUid,
+      invitedByName,
+      invitedAt: now,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+      status: 'accepted', // Auto-accepted since we added directly
+      acceptedAt: now,
+      acceptedByUserId: userId,
+    };
     
+    await db.collection('invites').add(inviteData);
+
+    // Update project member count
     if (projectSnap.exists) {
       const currentCount = projectSnap.data()?.memberCount || 0;
       await projectRef.update({

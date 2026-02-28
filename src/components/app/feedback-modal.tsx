@@ -175,7 +175,7 @@ export function FeedbackModal({
               placeholder="Descreva como a IA deve analisar os documentos..."
               disabled={isPending}
             />
-            <Button onClick={handleGenerateFeedback} disabled={isPending || files.length === 0}>
+            <Button onClick={handleGenerateFeedback} disabled={isPending || (files.length === 0 && (!documentIds || documentIds.length === 0))}>
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

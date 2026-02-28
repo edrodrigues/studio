@@ -31,13 +31,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserProjects, useInvites } from '@/hooks/use-projects';
-import { useUser } from '@/firebase';
+import { useUser, useFirebase } from '@/firebase';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { doc, updateDoc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 import type { Project, ProjectRole } from '@/lib/types';
 
 // Role badge component
@@ -250,8 +262,15 @@ function InviteNotification({
 export default function ProjectsDashboardPage() {
   const router = useRouter();
   const { user } = useUser();
+  const { firestore } = useFirebase();
   const { projects, isLoading, error } = useUserProjects();
   const { pendingInvites, acceptInvite, declineInvite } = useInvites();
+  const { toast } = useToast();
+
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Filter and sort projects
   const sortedProjects = useMemo(() => {
@@ -262,13 +281,65 @@ export default function ProjectsDashboardPage() {
   }, [projects]);
 
   const handleArchive = (projectId: string) => {
-    // TODO: Implement archive functionality
-    console.log('Archive project:', projectId);
+    setSelectedProjectId(projectId);
+    setArchiveDialogOpen(true);
   };
 
   const handleDelete = (projectId: string) => {
-    // TODO: Implement delete functionality with confirmation
-    console.log('Delete project:', projectId);
+    setSelectedProjectId(projectId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmArchive = async () => {
+    if (!firestore || !selectedProjectId) return;
+    setIsProcessing(true);
+    try {
+      await updateDoc(doc(firestore, 'projects', selectedProjectId), {
+        status: 'archived',
+        updatedAt: new Date().toISOString(),
+      });
+      toast({
+        title: 'Projeto arquivado',
+        description: 'O projeto foi arquivado com sucesso.',
+      });
+    } catch (err) {
+      console.error('Error archiving project:', err);
+      toast({
+        title: 'Erro ao arquivar',
+        description: 'Não foi possível arquivar o projeto. Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+      setArchiveDialogOpen(false);
+      setSelectedProjectId(null);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!firestore || !selectedProjectId) return;
+    setIsProcessing(true);
+    try {
+      await updateDoc(doc(firestore, 'projects', selectedProjectId), {
+        status: 'deleted',
+        updatedAt: new Date().toISOString(),
+      });
+      toast({
+        title: 'Projeto excluído',
+        description: 'O projeto foi excluído com sucesso.',
+      });
+    } catch (err) {
+      console.error('Error deleting project:', err);
+      toast({
+        title: 'Erro ao excluir',
+        description: 'Não foi possível excluir o projeto. Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+      setDeleteDialogOpen(false);
+      setSelectedProjectId(null);
+    }
   };
 
   if (error) {
@@ -341,6 +412,42 @@ export default function ProjectsDashboardPage() {
           </Button>
         </div>
       )}
+
+      {/* Archive Confirmation Dialog */}
+      <AlertDialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Arquivar projeto</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja arquivar este projeto? Você poderá restaurar ele mais tarde.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessing}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmArchive} disabled={isProcessing}>
+              {isProcessing ? 'Arquivando...' : 'Arquivar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir projeto</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este projeto? Esta ação não pode ser desfeita e todos os documentos serão perdidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessing}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} disabled={isProcessing} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isProcessing ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

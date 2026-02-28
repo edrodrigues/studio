@@ -72,7 +72,10 @@ async function prepareDocumentsForFlow(input: {
             Key: docData.storagePath,
           });
           const response = await r2Client.send(command);
-          buffer = Buffer.from(await response.Body!.transformToByteArray());
+          if (!response.Body) {
+            throw new Error(`Arquivo vazio ou não encontrado: ${docData.name}`);
+          }
+          buffer = Buffer.from(await response.Body.transformToByteArray());
         } else {
           const response = await fetch(docData.fileUrl);
           if (!response.ok) throw new Error(`Falha ao baixar arquivo ${docData.name}`);

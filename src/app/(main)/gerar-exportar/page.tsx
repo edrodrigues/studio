@@ -101,7 +101,7 @@ function ContractsTable({
                 onCheckedChange={() => onSelectionChange(contract.id)}
               />
             </TableCell>
-            <TableCell className="font-medium">{contract.name.replace(/^Contrato de\s+/i, '')}</TableCell>
+            <TableCell className="font-medium">{contract.name ? contract.name.replace(/^Contrato de\s+/i, '') : 'Sem título'}</TableCell>
             <TableCell>
               {contract.createdAt ? format(new Date(contract.createdAt), "dd 'de' MMMM 'de' yyyy, 'às' HH:mm", { locale: ptBR }) : 'Data indisponível'}
             </TableCell>
@@ -157,7 +157,11 @@ export default function GerarExportarPage() {
 
   const sortedContracts = useMemo(() => {
     if (!contracts) return null;
-    return [...contracts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return [...contracts].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
   }, [contracts]);
 
   const comparisonContracts = useMemo(() => {

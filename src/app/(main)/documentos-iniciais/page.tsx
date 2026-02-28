@@ -66,10 +66,13 @@ export default function DocumentosIniciaisPage() {
         const uploadedFiles = await Promise.all(
           Object.entries(files)
             .filter(([, file]) => file)
-            .map(async ([key, file]) => ({
-              name: file!.name,
-              dataUri: await fileToDataURI(file!),
-            }))
+            .map(async ([key, file]) => {
+              if (!file) throw new Error('Arquivo inválido');
+              return {
+                name: file.name,
+                dataUri: await fileToDataURI(file),
+              };
+            })
         );
 
         if (uploadedFiles.length === 0) {

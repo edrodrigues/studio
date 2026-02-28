@@ -23,15 +23,19 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val
 
   const setValue = (value: T | ((val: T) => T)) => {
     if (typeof window === 'undefined') {
-      console.warn(`Tried to set localStorage key “${key}” even though no window was found`);
+      console.warn(`Tried to set localStorage key "${key}" even though no window was found`);
     }
 
     try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
-      setStoredValue(valueToStore);
+      setStoredValue((prevValue) => {
+        const valueToStore = value instanceof Function ? value(prevValue) : value;
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(key, JSON.stringify(valueToStore));
+        }
+        return valueToStore;
+      });
     } catch (error) {
-      console.warn(`Error setting localStorage key “${key}”:`, error);
+      console.warn(`Error setting localStorage key "${key}":`, error);
     }
   };
 

@@ -63,6 +63,9 @@ const getAssistanceFromGeminiFlow = ai.defineFlow(
   },
   async input => {
     const { output } = await getAssistanceFromGeminiPrompt(input);
-    return output!;
+    if (!output) {
+      throw new Error('Não foi possível obter assistência. Tente novamente.');
+    }
+    return output;
   }
 );

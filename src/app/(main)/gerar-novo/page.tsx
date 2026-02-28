@@ -286,7 +286,9 @@ export default function GerarNovoContratoPage() {
 
                         if (Object.prototype.hasOwnProperty.call(caseInsensitiveEntities, key)) {
                             // Escape special regex characters in placeholder for safe replacement
-                            const escapedPlaceholder = placeholder.replace(/[{}]/g, '\\$&');
+                            const escapedPlaceholder = placeholder
+                                .replace(/[{}]/g, '\\$&')
+                                .replace(/[<]/g, '\\$&');
                             filledContent = filledContent.replace(new RegExp(escapedPlaceholder, 'g'), String(caseInsensitiveEntities[key]));
                             replacedCount++;
                         } else {

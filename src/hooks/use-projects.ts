@@ -162,12 +162,18 @@ export function useUserProjects(): UseUserProjectsReturn {
     return map;
   }, [memberships]);
 
-  // Query for active projects - need to handle Firestore limitation of 10 items in 'in' clause
+  // Query for user's projects - use 'in' clause with projectIds (Firestore limit: 10 items)
   const projectsQuery = useMemoFirebase(() => {
     if (!firestore || projectIds.length === 0) return null;
-    // For now, query without 'in' to avoid limitation, filter client-side
+    
+    // Firestore 'in' clause has a limit of 10 items
+    // If we have more than 10 projectIds, we need to handle this differently
+    // For simplicity, we'll query the first 10 and let the client filter
+    const idsToQuery = projectIds.slice(0, 10);
+    
     return query(
       collection(firestore, 'projects'),
+      where('__name__', 'in', idsToQuery),
       where('status', '==', 'active'),
       orderBy('updatedAt', 'desc'),
       limit(100)
@@ -722,35 +728,17 @@ export function useActivity(projectId: string | null, pageSize: number = 50): Us
   }, [activities, pageSize]);
 
   const loadMore = useCallback(async () => {
-    if (!firestore || !projectId || !allActivities || allActivities.length === 0 || isLoadingMore) return;
+    if (!firestore || !projectId || !lastVisible || isLoadingMore) return;
     
     setIsLoadingMore(true);
     try {
-      const lastDoc = allActivities[allActivities.length - 1];
       const nextQuery = buildQuery(lastVisible);
       
       if (!nextQuery) return;
       
-      // Get the document reference for the last visible item
-      const lastDocRef = doc(firestore, 'activity', lastDoc.id);
-      const lastDocSnap = await getDoc(lastDocRef);
-      
-      if (!lastDocSnap.exists()) {
-        setHasMore(false);
-        return;
-      }
-      
-      const paginatedQuery = query(
-        collection(firestore, 'activity'),
-        where('projectId', '==', projectId),
-        orderBy('timestamp', 'desc'),
-        startAfter(lastDocSnap),
-        limit(pageSize)
-      );
-      
       // Manual fetch for pagination
       const { getDocs } = await import('firebase/firestore');
-      const snapshot = await getDocs(paginatedQuery);
+      const snapshot = await getDocs(nextQuery);
       
       const newActivities = snapshot.docs.map(doc => ({
         ...(doc.data() as Activity),
@@ -769,7 +757,7 @@ export function useActivity(projectId: string | null, pageSize: number = 50): Us
     } finally {
       setIsLoadingMore(false);
     }
-  }, [firestore, projectId, allActivities, pageSize, lastVisible, isLoadingMore, buildQuery]);
+  }, [firestore, projectId, lastVisible, pageSize, isLoadingMore, buildQuery]);
 
   const logActivity = useCallback(
     async (activity: Omit<Activity, 'id' | 'timestamp'>) => {

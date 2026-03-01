@@ -41,7 +41,7 @@ export async function matchEntitiesToPlaceholders(
 
 const matchEntitiesPrompt = ai.definePrompt({
     name: 'matchEntitiesPrompt',
-    model: 'googleai/gemini-3-pro-preview',
+    model: 'googleai/gemini-3-flash-preview',
     input: {
         schema: z.object({
             placeholdersList: z.string(),

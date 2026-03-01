@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
@@ -9,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { FileUploader } from '@/components/app/file-uploader';
-import { handleExtractEntitiesAction } from '@/lib/actions';
+import { handleSyncToFileSearch } from '@/lib/actions';
 import { UploadedFile, ProjectDocument, DocumentStatus } from '@/lib/types';
 import { useFileUpload, useDocumentsByType } from '@/hooks/use-file-upload';
 import { useProjectDocuments } from '@/hooks/use-projects';
@@ -28,10 +29,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import dynamic from 'next/dynamic';
 import useLocalStorage from '@/hooks/use-local-storage';
+import { useRouter } from 'next/navigation';
 
 const FeedbackModal = dynamic(() => import('@/components/app/feedback-modal').then(mod => mod.FeedbackModal), { ssr: false });
 const ConsistencyAnalysisModal = dynamic(() => import('@/components/app/consistency-analysis-modal').then(mod => mod.ConsistencyAnalysisModal), { ssr: false });
-const EntitiesPreviewModal = dynamic(() => import('@/components/app/entities-preview-modal').then(mod => mod.EntitiesPreviewModal), { ssr: false });
 
 interface ProjectDocumentsUploaderProps {
   projectId: string;
@@ -98,6 +99,7 @@ const DOCUMENT_TYPES = {
 };
 
 export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploaderProps) {
+  const router = useRouter();
   // State for contract and process types - initialize from project
   const [contractType, setContractType] = useState<string>('');
   const [processType, setProcessType] = useState<string>('');
@@ -151,14 +153,11 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
   };
 
   // Other state
-  const [isExtracting, startTransition] = useTransition();
+  const [isSyncing, startTransition] = useTransition();
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackFiles, setFeedbackFiles] = useState<UploadedFile[]>([]);
   const [feedbackDocumentId, setFeedbackDocumentId] = useState<string | null>(null);
   const [isConsistencyModalOpen, setIsConsistencyModalOpen] = useState(false);
-  const [isEntitiesModalOpen, setIsEntitiesModalOpen] = useState(false);
-  const [extractedEntities, setExtractedEntities] = useState<string>('');
-  const [, setStoredEntities] = useLocalStorage<any>('extractedEntities', null);
 
   const { toast } = useToast();
 
@@ -244,7 +243,6 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
 
   const handleFeedbackClick = (doc: import('@/lib/types').ProjectDocument & { id: string }) => {
     setFeedbackFiles([]);
-    // Pass the stored document ID so the modal fetches it from the server
     setFeedbackDocumentId(doc.id);
     setIsFeedbackModalOpen(true);
   };
@@ -272,9 +270,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
   };
 
   const hasAtLeastOneFile = Object.values(files).some(file => file !== null);
-  const hasAtLeastTwoFiles = Object.values(files).filter(file => file !== null).length >= 2;
 
-  // Get document IDs based on selection or fallback to all uploaded documents
   const getSelectedDocumentIds = (): string[] => {
     const docTypesToUse = selectedDocuments.length > 0
       ? selectedDocuments
@@ -289,51 +285,51 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
   };
 
   const handleSubmit = async () => {
-    // Use selected documents or fallback to all uploaded documents
     const docTypesToUse = selectedDocuments.length > 0
       ? selectedDocuments
       : Object.keys(DOCUMENT_TYPES);
 
-    const documentsToExtract = docTypesToUse
-      .map(type => documentsByType?.[type]?.[0]) // Get latest version of each type
+    const documentsToSync = docTypesToUse
+      .map(type => documentsByType?.[type]?.[0])
       .filter(doc => doc !== undefined) as (ProjectDocument & { id: string })[];
 
-    if (documentsToExtract.length < 2) {
+    if (documentsToSync.length < 1) {
       toast({
         variant: 'destructive',
         title: 'Documentos insuficientes',
-        description: 'Selecione ao menos 2 documentos para extrair as entidades.',
+        description: 'Selecione ao menos 1 documento para sincronizar.',
       });
       return;
     }
 
     startTransition(async () => {
       try {
-        const result = await handleExtractEntitiesAction({
-          projectId,
-          userId: user?.uid || '',
-          documentIds: documentsToExtract.map(doc => doc.id)
+        toast({
+          title: 'Iniciando sincronização...',
+          description: 'Seus documentos estão sendo preparados para o File Search.',
         });
 
-        if (result.success && result.data?.extractedJson) {
-          const entitiesJson = result.data.extractedJson;
+        const result = await handleSyncToFileSearch({
+          projectId,
+          userId: user?.uid || '',
+          documentIds: documentsToSync.map(doc => doc.id)
+        });
 
-          setExtractedEntities(JSON.stringify(entitiesJson, null, 2));
-          setStoredEntities(entitiesJson);
-
-          setIsEntitiesModalOpen(true);
+        if (result.success) {
           toast({
-            title: 'Sucesso!',
-            description: 'As entidades foram extraídas e salvas para a próxima etapa.',
+            title: 'Sincronização Concluída!',
+            description: 'Os documentos agora estão disponíveis como contexto para o ALEX.',
           });
+          
+          router.push(`/gerar-exportar?projectId=${projectId}`);
         } else {
-          throw new Error(result.error || 'Falha ao extrair entidades.');
+          throw new Error(result.error || 'Falha na sincronização.');
         }
       } catch (error) {
         console.error(error);
         toast({
           variant: 'destructive',
-          title: 'Erro na Extração',
+          title: 'Erro na Sincronização',
           description: error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.',
         });
       }
@@ -372,7 +368,6 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
           </div>
         </CardHeader>
         <CardContent className="flex-1 space-y-4">
-          {/* Upload + Feedback Buttons */}
           <FileUploader
             handleFileSelect={handleFileSelect(docType)}
             handleFeedback={() => latestDoc && handleFeedbackClick(latestDoc as import('@/lib/types').ProjectDocument & { id: string })}
@@ -381,7 +376,6 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
             feedbackDisabled={!latestDoc}
           />
 
-          {/* Upload Progress */}
           {isUploading && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
@@ -392,7 +386,6 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
             </div>
           )}
 
-          {/* Latest Document */}
           {latestDoc && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -468,7 +461,6 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
             </div>
           )}
 
-          {/* No documents message */}
           {!latestDoc && !isUploading && (
             <div className="text-center py-4 text-sm text-muted-foreground">
               Nenhum documento enviado ainda
@@ -482,7 +474,6 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
   return (
     <>
       <div className="space-y-8">
-        {/* Header */}
         <div className="text-center space-y-4">
           <h2 className="text-2xl font-bold tracking-tight">
             Analise os documentos iniciais
@@ -502,7 +493,6 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
           </Button>
         </div>
 
-        {/* Contract Type Selection */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Definições Iniciais</CardTitle>
@@ -556,18 +546,16 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
           </CardContent>
         </Card>
 
-        {/* File Uploaders with Document Display */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {renderDocumentCard('planOfWork', DOCUMENT_TYPES.planOfWork)}
           {renderDocumentCard('termOfExecution', DOCUMENT_TYPES.termOfExecution)}
           {renderDocumentCard('budgetSpreadsheet', DOCUMENT_TYPES.budgetSpreadsheet)}
         </div>
 
-        {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
           <Button
             onClick={handleConsistencyClick}
-            disabled={selectedDocuments.length < 2 && !hasAtLeastTwoFiles}
+            disabled={getSelectedDocumentIds().length < 2}
             variant="outline"
             size="lg"
           >
@@ -575,13 +563,13 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={(selectedDocuments.length < 2 && !hasAtLeastTwoFiles) || isExtracting}
+            disabled={getSelectedDocumentIds().length < 1 || isSyncing}
             size="lg"
           >
-            {isExtracting ? (
+            {isSyncing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Extraindo...
+                Sincronizando...
               </>
             ) : (
               'Sincronizar Arquivos'
@@ -607,14 +595,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
         projectId={projectId}
         userId={user?.uid || ''}
         documentIds={getSelectedDocumentIds()}
-        files={Object.entries(files)
-          .filter(([, file]) => file !== null)
-          .map(([key, file]) => ({ id: key, file: file! }))}
-      />
-      <EntitiesPreviewModal
-        isOpen={isEntitiesModalOpen}
-        onOpenChange={setIsEntitiesModalOpen}
-        jsonContent={extractedEntities}
+        files={[]} // Files are now handled via documentIds in the modal
       />
     </>
   );

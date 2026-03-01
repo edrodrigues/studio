@@ -1,9 +1,8 @@
-
 "use client";
 
-import { useState, useMemo, useTransition, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { collection, addDoc, doc, deleteDoc } from "firebase/firestore";
+import { useState, useMemo, useTransition, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { collection, addDoc, doc, deleteDoc, query, where } from "firebase/firestore";
 import { 
   FilePlus2, Loader2, CheckCircle2, FileText, LayoutTemplate, 
   ArrowRight, Wand2, Eye, Pencil, Trash2, MoreHorizontal, 
@@ -40,13 +39,17 @@ const EntityEditModal = dynamic(() => import('@/components/app/entity-edit-modal
 const ContractPreviewModal = dynamic(() => import('@/components/app/contract-preview-modal').then(mod => mod.ContractPreviewModal), { ssr: false });
 const ComparisonModal = dynamic(() => import('@/components/app/comparison-modal').then(mod => mod.ComparisonModal), { ssr: false });
 
-export default function GerarExportarPage() {
+function GerarExportarContent() {
   const { user } = useUser();
   const { firestore } = useFirebase();
   const { accessToken, signInWithGoogle } = useAuthContext();
   const { clientName } = useUserPreferences();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
+  
+  const projectIdFromUrl = searchParams.get('projectId');
+  const currentProjectId = projectIdFromUrl || "default-project";
   
   const [isGenerating, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState("gerar");
@@ -66,8 +69,11 @@ export default function GerarExportarPage() {
   // Queries
   const projectDocsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
+    if (projectIdFromUrl) {
+      return query(collection(firestore, 'projectDocuments'), where('projectId', '==', projectIdFromUrl));
+    }
     return collection(firestore, 'projectDocuments');
-  }, [user, firestore]);
+  }, [user, firestore, projectIdFromUrl]);
 
   const templatesQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -76,8 +82,11 @@ export default function GerarExportarPage() {
 
   const filledContractsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
+    if (projectIdFromUrl) {
+      return query(collection(firestore, 'users', user.uid, 'filledContracts'), where('projectId', '==', projectIdFromUrl));
+    }
     return collection(firestore, 'users', user.uid, 'filledContracts');
-  }, [user, firestore]);
+  }, [user, firestore, projectIdFromUrl]);
 
   const { data: documents, isLoading: isLoadingDocs } = useCollection<ProjectDocument>(projectDocsQuery);
   const { data: templates, isLoading: isLoadingTemplates } = useCollection<Template>(templatesQuery);
@@ -142,10 +151,11 @@ export default function GerarExportarPage() {
             // Google Docs Flow
             const result = await generateContractDoc(
               accessToken, googleDocId, template.name, 
-              clientName || "Cliente", editedEntities, "default-project"
+              clientName || "Cliente", editedEntities, currentProjectId
             );
 
             await addDoc(collection(firestore, 'users', user.uid, 'filledContracts'), {
+              projectId: currentProjectId,
               contractModelId: template.id,
               clientName: clientName || "Cliente",
               filledData: JSON.stringify({ entities: editedEntities }),
@@ -158,13 +168,14 @@ export default function GerarExportarPage() {
           } else {
             // Markdown Flow
             const result = await handleGenerateContract({
-              projectId: "default-project",
+              projectId: currentProjectId,
               userId: user.uid,
               documentIds: selectedDocs,
             });
 
             if (result.success) {
               await addDoc(collection(firestore, 'users', user.uid, 'filledContracts'), {
+                projectId: currentProjectId,
                 contractModelId: template.id,
                 clientName: clientName || "Cliente",
                 filledData: JSON.stringify({ entities: editedEntities }),
@@ -211,7 +222,9 @@ export default function GerarExportarPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-extrabold tracking-tight">Gerar e Revisar</h1>
-            <p className="text-muted-foreground mt-2">Central de inteligência para seus contratos.</p>
+            <p className="text-muted-foreground mt-2">
+              {projectIdFromUrl ? `Projeto: ${currentProjectId}` : "Central de inteligência para seus contratos."}
+            </p>
           </div>
           <TabsList className="grid w-[400px] grid-cols-2">
             <TabsTrigger value="gerar" className="flex gap-2">
@@ -243,6 +256,11 @@ export default function GerarExportarPage() {
                           <div className="flex-1 truncate text-sm font-medium">{doc.name}</div>
                         </div>
                       ))}
+                      {documents?.length === 0 && (
+                        <div className="text-center py-10 text-muted-foreground text-sm">
+                          Nenhum documento sincronizado encontrado para este projeto.
+                        </div>
+                      )}
                     </div>
                   )}
                 </ScrollArea>
@@ -339,6 +357,13 @@ export default function GerarExportarPage() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {sortedContracts.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">
+                        Nenhum documento gerado ainda para este projeto.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -370,5 +395,13 @@ export default function GerarExportarPage() {
         contracts={sortedContracts.filter(c => selectedContracts.includes(c.id))}
       />
     </div>
+  );
+}
+
+export default function GerarExportarPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>}>
+      <GerarExportarContent />
+    </Suspense>
   );
 }

@@ -425,7 +425,7 @@ export async function handleExtractEntitiesAction(input: {
   } catch (error) {
     console.error('Error extracting entities:', error);
     const errorMessage =
-      error instanceof Error ? error.message : 'Falha ao extrair entidades.';
+      error instanceof Error ? error.message : 'Falha ao sincronizar arquivos.';
     return { success: false, error: errorMessage };
   }
 }

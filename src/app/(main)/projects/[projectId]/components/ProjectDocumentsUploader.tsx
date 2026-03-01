@@ -489,7 +489,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
             Utilize os botões &quot;Carregar Documento&quot; nos cards abaixo para enviar os arquivos iniciais. Eles serão salvos no projeto e poderão ser baixados a qualquer momento.
-            Depois clique em &quot;Extrair Entidades&quot; para que as variáveis sejam identificadas.
+            Depois clique em &quot;Sincronizar Arquivos&quot; para que o conteúdo seja indexado pela IA.
           </p>
           <Button
             variant="outline"
@@ -584,7 +584,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
                 Extraindo...
               </>
             ) : (
-              'Extrair Entidades'
+              'Sincronizar Arquivos'
             )}
           </Button>
         </div>

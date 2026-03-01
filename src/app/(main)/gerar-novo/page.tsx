@@ -55,7 +55,7 @@ function EntitiesCard({ entities, isLoading }: { entities: Record<string, any> |
                         Nenhuma Entidade Encontrada
                     </CardTitle>
                     <CardDescription>
-                        Vá para a aba "Documentos Iniciais", carregue seus arquivos e clique em "Extrair Entidades dos Documentos" para extrair as entidades.
+                        Vá para a aba "Documentos Iniciais", carregue seus arquivos e clique em "Sincronizar Arquivos" para habilitar o contexto.
                     </CardDescription>
                 </CardHeader>
             </Card>

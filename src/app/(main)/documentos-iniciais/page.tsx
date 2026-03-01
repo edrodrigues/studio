@@ -229,7 +229,7 @@ export default function DocumentosIniciaisPage() {
                 Sincronizando...
               </>
             ) : (
-              'Sincronizar ao File Search'
+              'Sincronizar Arquivos'
             )}
           </Button>
         </section>

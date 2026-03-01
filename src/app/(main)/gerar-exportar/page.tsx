@@ -1,342 +1,269 @@
-
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { collection, doc, deleteDoc } from "firebase/firestore";
-import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { FilePlus2, MoreHorizontal, Trash2, Pencil, Eye, GitCompareArrows, ExternalLink } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { collection, query, where } from "firebase/firestore";
+import { FilePlus2, Loader2, CheckCircle2, FileText, LayoutTemplate, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { type Contract } from "@/lib/types";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useCollection, useFirebase, useUser, useMemoFirebase } from "@/firebase";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { ContractPreviewModal } from "@/components/app/contract-preview-modal";
-import { ComparisonModal } from "@/components/app/comparison-modal";
-import { saveAs } from "file-saver";
-import { exportToDocx } from "@/lib/export";
-
-function ContractsTable({
-  contracts,
-  isLoading,
-  onEdit,
-  onDelete,
-  onPreview,
-  selectedContracts,
-  onSelectionChange
-}: {
-  contracts: (Contract & { id: string })[] | null,
-  isLoading: boolean,
-  onEdit: (id: string) => void,
-  onDelete: (id: string) => void,
-  onPreview: (contract: Contract) => void,
-  selectedContracts: string[],
-  onSelectionChange: (id: string) => void,
-}) {
-  if (isLoading) {
-    return (
-      <div className="space-y-2">
-        {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
-      </div>
-    )
-  }
-
-  if (!contracts || contracts.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 border border-dashed rounded-lg">
-        <FilePlus2 className="h-8 w-8 mb-4" />
-        <p className="font-semibold">Nenhum documento gerado ainda</p>
-        <p className="text-sm">Vá para a aba "Gerar Documentos" para começar.</p>
-      </div>
-    )
-  }
-
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-[40px]">
-            <Checkbox
-              checked={selectedContracts.length === contracts.length && contracts.length > 0}
-              onCheckedChange={(checked) => {
-                if (checked) {
-                  const allIds = contracts.map(c => c.id);
-                  allIds.forEach(id => {
-                    if (!selectedContracts.includes(id)) onSelectionChange(id);
-                  });
-                } else {
-                  selectedContracts.forEach(id => onSelectionChange(id));
-                }
-              }}
-            />
-          </TableHead>
-          <TableHead>Nome do Documento</TableHead>
-          <TableHead>Data de Criação</TableHead>
-          <TableHead className="w-[50px]"></TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {contracts.map((contract) => (
-          <TableRow key={contract.id} data-state={selectedContracts.includes(contract.id) ? 'selected' : ''}>
-            <TableCell>
-              <Checkbox
-                checked={selectedContracts.includes(contract.id)}
-                onCheckedChange={() => onSelectionChange(contract.id)}
-              />
-            </TableCell>
-            <TableCell className="font-medium">
-              <div className="flex flex-col">
-                <span>{contract.name ? contract.name.replace(/^Contrato de\s+/i, '') : 'Sem título'}</span>
-                {contract.googleDocLink && (
-                  <a 
-                    href={contract.googleDocLink} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-1"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    Abrir no Google Docs
-                  </a>
-                )}
-              </div>
-            </TableCell>
-            <TableCell>
-              {contract.createdAt ? format(new Date(contract.createdAt), "dd 'de' MMMM 'de' yyyy, 'às' HH:mm", { locale: ptBR }) : 'Data indisponível'}
-            </TableCell>
-            <TableCell>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onSelect={() => onPreview(contract)}>
-                    <Eye className="mr-2 h-4 w-4" />
-                    Visualizar e Exportar
-                  </DropdownMenuItem>
-                  {contract.googleDocLink && (
-                    <DropdownMenuItem asChild>
-                      <a href={contract.googleDocLink} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        Abrir no Google Docs
-                      </a>
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onSelect={() => onEdit(contract.id)}>
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Editar Localmente
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => onDelete(contract.id)} className="text-destructive">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Deletar
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  )
-}
+import { type ProjectDocument, type Template } from "@/lib/types";
+import { handleGenerateContract } from "@/lib/actions";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 
 export default function GerarExportarPage() {
   const { user } = useUser();
   const { firestore } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
+  const [isGenerating, startTransition] = useTransition();
 
-  const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [isComparisonOpen, setIsComparisonOpen] = useState(false);
-  const [selectedForComparison, setSelectedForComparison] = useState<string[]>([]);
-  const [startInEditMode, setStartInEditMode] = useState(false);
+  // Selections
+  const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
+  const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
 
-
-  const filledContractsQuery = useMemoFirebase(() => {
+  // Queries
+  const projectDocsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    return collection(firestore, 'users', user.uid, 'filledContracts');
+    // In a real app, we'd filter by current project. 
+    // For now, let's fetch all project documents accessible to the user or globally.
+    return collection(firestore, 'projectDocuments');
   }, [user, firestore]);
 
-  const { data: contracts, isLoading } = useCollection<Omit<Contract, 'id'>>(filledContractsQuery);
+  const templatesQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return collection(firestore, 'contractModels');
+  }, [user, firestore]);
 
-  const sortedContracts = useMemo(() => {
-    if (!contracts) return null;
-    return [...contracts].sort((a, b) => {
-      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return dateB - dateA;
-    });
-  }, [contracts]);
+  const { data: documents, isLoading: isLoadingDocs } = useCollection<ProjectDocument>(projectDocsQuery);
+  const { data: templates, isLoading: isLoadingTemplates } = useCollection<Template>(templatesQuery);
 
-  const comparisonContracts = useMemo(() => {
-    if (!sortedContracts) return [];
-    return sortedContracts.filter(c => selectedForComparison.includes(c.id));
-  }, [sortedContracts, selectedForComparison]);
-
-  const handleEdit = (id: string) => {
-    const contract = sortedContracts?.find(c => c.id === id);
-    if (contract) {
-      setSelectedContract(contract as (Contract & { id: string }));
-      setStartInEditMode(true);
-      setIsPreviewOpen(true);
-    }
+  const handleDocToggle = (id: string) => {
+    setSelectedDocs(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
-  const handleDelete = async (id: string) => {
-    if (!user || !firestore) return;
-
-    if (window.confirm("Tem certeza de que deseja excluir este contrato?")) {
-      const contractRef = doc(firestore, 'users', user.uid, 'filledContracts', id);
-      try {
-        await deleteDoc(contractRef);
-        toast({
-          title: "Documento excluído",
-          description: "O documento foi removido com sucesso.",
-        });
-        setSelectedForComparison(prev => prev.filter(cid => cid !== id));
-      } catch (error) {
-        console.error("Erro ao excluir o documento:", error);
-        toast({
-          variant: "destructive",
-          title: "Erro ao excluir",
-          description: "Não foi possível remover o documento. Tente novamente.",
-        });
-      }
-    }
+  const handleTemplateToggle = (id: string) => {
+    setSelectedTemplates(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
-  const handlePreview = (contract: Contract) => {
-    setSelectedContract(contract);
-    setStartInEditMode(false);
-    setIsPreviewOpen(true);
-  }
-
-  const handleExportSelected = () => {
-    if (selectedForComparison.length === 0 || !sortedContracts) {
+  const handleGenerate = async () => {
+    if (selectedDocs.length === 0 || selectedTemplates.length === 0) {
       toast({
         variant: "destructive",
-        title: "Nenhum documento selecionado",
-        description: "Por favor, selecione pelo menos um documento para exportar."
+        title: "Seleção incompleta",
+        description: "Selecione ao menos um documento de contexto e um modelo de contrato."
       });
       return;
     }
 
-    const selectedContractsData = sortedContracts.filter(c => selectedForComparison.includes(c.id));
+    startTransition(async () => {
+      try {
+        toast({
+          title: "Iniciando geração...",
+          description: `Gerando ${selectedTemplates.length} documento(s) com base em ${selectedDocs.length} documento(s) de contexto.`
+        });
 
-    selectedContractsData.forEach(contract => {
-      if (!contract.markdownContent) {
-        console.warn(`Documento '${contract.name}' (ID: ${contract.id}) ignorado por não ter conteúdo.`);
-        return;
+        // Loop through selected templates and generate each
+        // In a real implementation, handleGenerateContract might need to take templateId
+        for (const templateId of selectedTemplates) {
+          const template = templates?.find(t => t.id === templateId);
+          const result = await handleGenerateContract({
+            projectId: "default-project", // Should be dynamic
+            userId: user?.uid,
+            documentIds: selectedDocs,
+          });
+
+          if (!result.success) {
+            throw new Error(`Erro ao gerar ${template?.name}: ${result.error}`);
+          }
+        }
+
+        toast({
+          title: "Sucesso!",
+          description: "Os documentos foram gerados e salvos no seu projeto.",
+        });
+
+        // Redirect to a dashboard or a list of generated contracts if needed
+        // router.push('/projects/default-project/contracts');
+      } catch (error) {
+        console.error(error);
+        toast({
+          variant: "destructive",
+          title: "Erro na Geração",
+          description: error instanceof Error ? error.message : "Falha ao gerar documentos."
+        });
       }
-
-      const cleanedContent = contract.markdownContent.replace(/<[^>]*>?/gm, '');
-      const mdBlob = new Blob([cleanedContent], { type: "text/markdown;charset=utf-8" });
-      saveAs(mdBlob, `${contract.name.replace(/\s/g, '_')}.md`);
-
-      exportToDocx(contract.markdownContent, contract.name.replace(/\s/g, '_'));
     });
-
-    toast({
-      title: "Exportação iniciada!",
-      description: `${selectedContractsData.length} documento(s) estão sendo baixados.`
-    });
-  };
-
-  const handleSelectionChange = (id: string) => {
-    setSelectedForComparison(prev =>
-      prev.includes(id) ? prev.filter(cid => cid !== id) : [...prev, id]
-    );
   };
 
   return (
-    <>
-      <div className="container py-12">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold leading-tight tracking-tighter md:text-4xl">
-              Revisar Documentos
-            </h1>
-            <p className="mt-2 text-muted-foreground">
-              Visualize, edite, exporte ou compare os documentos que você já gerou.
+    <div className="container py-10 max-w-6xl">
+      <header className="mb-10">
+        <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl">
+          Gerar Documentos
+        </h1>
+        <p className="mt-4 text-xl text-muted-foreground">
+          Selecione o contexto e os modelos para criar novos contratos inteligentes.
+        </p>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+        {/* Step 1: Context Selection */}
+        <Card className="flex flex-col">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <FileText className="text-blue-500" /> 1. Documentos Iniciais
+                </CardTitle>
+                <CardDescription>
+                  Selecione os documentos que servirão de base para a IA.
+                </CardDescription>
+              </div>
+              <Badge variant="secondary" className="h-6">
+                {selectedDocs.length} selecionados
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1">
+            <ScrollArea className="h-[400px] pr-4">
+              {isLoadingDocs ? (
+                <div className="space-y-4">
+                  {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {documents?.map((doc) => (
+                    <div 
+                      key={doc.id}
+                      onClick={() => handleDocToggle(doc.id)}
+                      className={cn(
+                        "flex items-center space-x-3 p-3 rounded-lg border transition-all cursor-pointer hover:bg-muted/50",
+                        selectedDocs.includes(doc.id) ? "border-blue-500 bg-blue-50/50" : "border-transparent"
+                      )}
+                    >
+                      <Checkbox checked={selectedDocs.includes(doc.id)} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium leading-none truncate">{doc.name}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Sincronizado: {doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString() : 'N/A'}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {documents?.length === 0 && (
+                    <p className="text-center text-muted-foreground py-10">Nenhum documento encontrado.</p>
+                  )}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+          <CardFooter className="bg-muted/50 border-t p-4">
+            <p className="text-xs text-muted-foreground">
+              Apenas documentos sincronizados com o File Search estão listados.
             </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsComparisonOpen(true)}
-              disabled={selectedForComparison.length < 2}
-            >
-              <GitCompareArrows className="mr-2 h-5 w-5" />
-              Analisar Documentos com IA ({selectedForComparison.length})
-            </Button>
-            <Button size="lg" onClick={handleExportSelected} disabled={selectedForComparison.length === 0}>
-              <FilePlus2 className="mr-2 h-5 w-5" />
-              Exportar Documentos ({selectedForComparison.length})
-            </Button>
-          </div>
-        </div>
+          </CardFooter>
+        </Card>
 
-        <div className="border rounded-lg">
-          <ContractsTable
-            contracts={sortedContracts as (Contract & { id: string; })[] | null}
-            isLoading={isLoading}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onPreview={handlePreview}
-            selectedContracts={selectedForComparison}
-            onSelectionChange={handleSelectionChange}
-          />
-        </div>
+        {/* Step 2: Template Selection */}
+        <Card className="flex flex-col">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <LayoutTemplate className="text-purple-500" /> 2. Modelos de Contrato
+                </CardTitle>
+                <CardDescription>
+                  Escolha quais tipos de contrato deseja gerar agora.
+                </CardDescription>
+              </div>
+              <Badge variant="secondary" className="h-6">
+                {selectedTemplates.length} selecionados
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1">
+            <ScrollArea className="h-[400px] pr-4">
+              {isLoadingTemplates ? (
+                <div className="space-y-4">
+                  {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {templates?.map((template) => (
+                    <div 
+                      key={template.id}
+                      onClick={() => handleTemplateToggle(template.id)}
+                      className={cn(
+                        "flex items-center space-x-3 p-3 rounded-lg border transition-all cursor-pointer hover:bg-muted/50",
+                        selectedTemplates.includes(template.id) ? "border-purple-500 bg-purple-50/50" : "border-transparent"
+                      )}
+                    >
+                      <Checkbox checked={selectedTemplates.includes(template.id)} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium leading-none truncate">{template.name}</p>
+                        <div className="flex gap-1 mt-1 overflow-x-hidden">
+                          {template.contractTypes?.map(type => (
+                            <Badge key={type} variant="outline" className="text-[10px] py-0 px-1">
+                              {type}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+          <CardFooter className="bg-muted/50 border-t p-4">
+            <p className="text-xs text-muted-foreground">
+              Você pode gerenciar esses modelos na aba "Modelos".
+            </p>
+          </CardFooter>
+        </Card>
       </div>
-      {selectedContract && (
-        <ContractPreviewModal
-          contract={selectedContract}
-          isOpen={isPreviewOpen}
-          initialEditMode={startInEditMode}
-          onClose={() => setIsPreviewOpen(false)}
-          onSave={(newContent) => {
-            if (!user || !firestore || !selectedContract.id) return;
-            const contractRef = doc(firestore, 'users', user.uid, 'filledContracts', selectedContract.id);
-            updateDocumentNonBlocking(contractRef, { markdownContent: newContent });
 
-            // Update local state so the preview reflects the change immediately if revisited
-            setSelectedContract(prev => prev ? { ...prev, markdownContent: newContent } : null);
+      <Separator className="my-10" />
 
-            toast({
-              title: "Documento salvo",
-              description: "As alterações foram salvas com sucesso.",
-            });
-          }}
-        />
-      )}
-      <ComparisonModal
-        isOpen={isComparisonOpen}
-        onOpenChange={setIsComparisonOpen}
-        contracts={comparisonContracts as (Contract & { id: string; })[]}
-      />
-    </>
+      <div className="flex flex-col items-center justify-center gap-6 pb-20">
+        <div className="text-center space-y-2">
+          <h3 className="text-lg font-semibold">Resumo da Geração</h3>
+          <p className="text-muted-foreground">
+            {selectedTemplates.length} contratos serão criados usando {selectedDocs.length} documentos como referência.
+          </p>
+        </div>
+        
+        <Button 
+          size="lg" 
+          className="h-16 px-10 text-xl font-bold rounded-full shadow-lg shadow-primary/20 transition-all hover:scale-105"
+          onClick={handleGenerate}
+          disabled={selectedDocs.length === 0 || selectedTemplates.length === 0 || isGenerating}
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 className="mr-3 h-6 w-6 animate-spin" />
+              Gerando Documentos...
+            </>
+          ) : (
+            <>
+              Gerar Documentos Selecionados
+              <ArrowRight className="ml-3 h-6 w-6" />
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
   );
 }
 
-
-
-
+// Helper function for conditional classes
+function cn(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}

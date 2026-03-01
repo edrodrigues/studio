@@ -76,15 +76,15 @@ const getPlaybookAssistanceFlow = ai.defineFlow(
         outputSchema: GetPlaybookAssistanceOutputSchema,
     },
     async input => {
-        // In a real implementation with File Search:
-        // 1. We would check if the project has a fileSearchStoreId
-        // 2. We would call the model with the file_search tool enabled
+        // 1. Verificar se o projeto tem um repositório de busca (File Search Store)
+        // Nota: Em um fluxo real, o projectId seria passado no input.
+        // Como o ALEX é global por enquanto, vamos tentar ler o storeId do projeto atual se disponível.
         
-        // For now, let's keep the manual reading as fallback, but add the 'File Search' logic 
-        // as a high-level comment/structure since we are in the "Implantação" phase.
-
+        let storeIds: string[] = [];
         let playbookContent = '';
+
         try {
+            // Tenta carregar o Playbook como fallback ou contexto adicional
             const playbookPath = path.join(process.cwd(), 'docs', 'Playbook - Contratos V-LAB.md');
             if (fs.existsSync(playbookPath)) {
                 playbookContent = fs.readFileSync(playbookPath, 'utf-8');
@@ -93,6 +93,12 @@ const getPlaybookAssistanceFlow = ai.defineFlow(
             console.error('Error reading playbook:', error);
         }
 
+        // Se tivéssemos um projectId no input, poderíamos buscar o storeId no Firestore:
+        // const projectDoc = await db.collection('projects').doc(input.projectId).get();
+        // if (projectDoc.data()?.fileSearchStoreId) storeIds.push(projectDoc.data().fileSearchStoreId);
+
+        // A chamada ao prompt agora pode incluir o File Search via Genkit
+        // Se o plugin googleAI suportar ferramentas nativas de busca.
         const { output } = await getPlaybookAssistancePrompt({
             ...input,
             playbookContent: playbookContent || 'Conteúdo do playbook não disponível.',

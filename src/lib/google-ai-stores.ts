@@ -1,53 +1,97 @@
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { db } from "./firebase-server";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "");
+// Inicializa o cliente do Google GenAI (Unified SDK)
+const client = new GoogleGenAI({
+  apiKey: process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "",
+  vertexai: false // Usando a API direta da ML Dev (AI Studio)
+});
 
 /**
- * Interface for File Search Store management
+ * Obtém ou cria um File Search Store para o projeto no Google
  */
 export async function getOrCreateProjectStore(projectId: string) {
   const projectRef = db.collection('projects').doc(projectId);
   const projectDoc = await projectRef.get();
   
-  if (!projectDoc.exists) {
-    throw new Error("Projeto não encontrado.");
-  }
-
-  const data = projectDoc.data();
+  const data = projectDoc.exists ? projectDoc.data() : null;
   if (data?.fileSearchStoreId) {
     return data.fileSearchStoreId;
   }
 
-  // If not exists, we should create one. 
-  // Note: The @google/generative-ai SDK might have different methods for File Search Stores 
-  // depending on the version. If the SDK doesn't support it directly yet, we use the REST API.
-  // For now, let's assume we store the ID in Firestore and handle the creation logic.
+  console.log(`Criando novo File Search Store para o projeto: ${projectId}`);
   
-  // Placeholder for store creation via REST or SDK
-  const newStoreId = `store_${projectId}_${Date.now()}`; 
-  
-  await projectRef.update({
-    fileSearchStoreId: newStoreId,
-    updatedAt: new Date()
-  });
+  try {
+    const fileSearchStore = await client.fileSearchStores.create({
+      config: {
+        displayName: `Store_Project_${projectId}`
+      }
+    });
 
-  return newStoreId;
+    const storeId = fileSearchStore.name;
+
+    if (projectDoc.exists) {
+      await projectRef.update({
+        fileSearchStoreId: storeId,
+        updatedAt: new Date()
+      });
+    }
+
+    return storeId;
+  } catch (error) {
+    console.error("Erro ao criar File Search Store no Google:", error);
+    throw new Error("Falha ao inicializar repositório de busca do Google.");
+  }
 }
 
 /**
- * Uploads a file to a specific File Search Store
+ * Faz o upload de um arquivo para o File Search Store do projeto
  */
 export async function uploadFileToProjectStore(projectId: string, fileBuffer: Buffer, fileName: string, mimeType: string) {
-  const storeId = await getOrCreateProjectStore(projectId);
-  
-  console.log(`Uploading ${fileName} to store ${storeId} for project ${projectId}`);
-  
-  // Implementation for uploading to Google File Search Store
-  // This usually involves:
-  // 1. Uploading the file to Google's media service
-  // 2. Adding the file to the File Search Store
-  
-  return { success: true, storeId };
+  let tempFilePath = "";
+  try {
+    const storeId = await getOrCreateProjectStore(projectId);
+    
+    // Criar um arquivo temporário para o upload
+    const tempDir = os.tmpdir();
+    tempFilePath = path.join(tempDir, `upload_${Date.now()}_${fileName}`);
+    fs.writeFileSync(tempFilePath, fileBuffer);
+
+    console.log(`Fazendo upload de ${fileName} para o store ${storeId}...`);
+
+    const operation = await client.fileSearchStores.uploadToFileSearchStore({
+      file: tempFilePath,
+      fileSearchStoreName: storeId,
+      config: {
+        displayName: fileName,
+        mimeType: mimeType
+      }
+    });
+
+    console.log(`Upload concluído. Resposta da operação:`, JSON.stringify(operation, null, 2));
+
+    // Para o teste, vamos apenas retornar sucesso se chegamos aqui
+    // A indexação acontece em background no Google.
+    return { 
+      success: true, 
+      storeId, 
+      fileName,
+      operationName: (operation as any).name 
+    };
+  } catch (error) {
+    console.error(`Erro ao sincronizar arquivo ${fileName}:`, error);
+    return { success: false, error: (error as Error).message };
+  } finally {
+    // Limpar arquivo temporário
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (e) {
+        // Silencioso
+      }
+    }
+  }
 }

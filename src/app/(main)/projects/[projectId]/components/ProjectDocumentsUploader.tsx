@@ -101,7 +101,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
   // State for contract and process types - initialize from project
   const [contractType, setContractType] = useState<string>('');
   const [processType, setProcessType] = useState<string>('');
-  
+
   // State for file handling
   const [files, setFiles] = useState<{ [key: string]: File | null }>({
     planOfWork: null,
@@ -109,14 +109,15 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
     budgetSpreadsheet: null,
   });
   const [uploadingType, setUploadingType] = useState<string | null>(null);
-  
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
+
   // Hooks
   const { user } = useUser();
   const { project, updateProject } = useProject(projectId);
   const { uploadFile, uploadState, resetUpload } = useFileUpload(projectId);
   const { documentsByType, isLoading: isLoadingDocs } = useDocumentsByType(projectId);
   const { updateDocument } = useProjectDocuments(projectId);
-  
+
   // Load contract types from project on mount
   useEffect(() => {
     if (project) {
@@ -148,11 +149,12 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
       console.error('Failed to save process type:', error);
     }
   };
-  
+
   // Other state
   const [isExtracting, startTransition] = useTransition();
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackFiles, setFeedbackFiles] = useState<UploadedFile[]>([]);
+  const [feedbackDocumentId, setFeedbackDocumentId] = useState<string | null>(null);
   const [isConsistencyModalOpen, setIsConsistencyModalOpen] = useState(false);
   const [isEntitiesModalOpen, setIsEntitiesModalOpen] = useState(false);
   const [extractedEntities, setExtractedEntities] = useState<string>('');
@@ -171,7 +173,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
 
     try {
       const documentId = await uploadFile(file, projectId, key, documentName);
-      
+
       if (documentId) {
         const uploadDate = new Date().toLocaleString('pt-BR', {
           day: '2-digit',
@@ -240,11 +242,19 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
     }
   };
 
-  const handleFeedbackClick = (file: File | null) => {
-    if (file) {
-      setFeedbackFiles([{ id: file.name, file }]);
-      setIsFeedbackModalOpen(true);
-    }
+  const handleFeedbackClick = (doc: import('@/lib/types').ProjectDocument & { id: string }) => {
+    setFeedbackFiles([]);
+    // Pass the stored document ID so the modal fetches it from the server
+    setFeedbackDocumentId(doc.id);
+    setIsFeedbackModalOpen(true);
+  };
+
+  const toggleDocumentSelection = (docType: string) => {
+    setSelectedDocuments(prev =>
+      prev.includes(docType)
+        ? prev.filter(d => d !== docType)
+        : [...prev, docType]
+    );
   };
 
   const handleClearAll = () => {
@@ -264,29 +274,42 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
   const hasAtLeastOneFile = Object.values(files).some(file => file !== null);
   const hasAtLeastTwoFiles = Object.values(files).filter(file => file !== null).length >= 2;
 
+  // Get document IDs based on selection or fallback to all uploaded documents
+  const getSelectedDocumentIds = (): string[] => {
+    const docTypesToUse = selectedDocuments.length > 0
+      ? selectedDocuments
+      : Object.keys(DOCUMENT_TYPES);
+    return docTypesToUse
+      .map(type => documentsByType?.[type]?.[0]?.id)
+      .filter((id): id is string => !!id);
+  };
+
   const handleConsistencyClick = () => {
     setIsConsistencyModalOpen(true);
   };
 
   const handleSubmit = async () => {
-    // Get the latest version of each document type from the project
-    const docTypes = Object.keys(DOCUMENT_TYPES);
-    const documentsToExtract = docTypes
+    // Use selected documents or fallback to all uploaded documents
+    const docTypesToUse = selectedDocuments.length > 0
+      ? selectedDocuments
+      : Object.keys(DOCUMENT_TYPES);
+
+    const documentsToExtract = docTypesToUse
       .map(type => documentsByType?.[type]?.[0]) // Get latest version of each type
       .filter(doc => doc !== undefined) as (ProjectDocument & { id: string })[];
 
-    if (documentsToExtract.length === 0) {
+    if (documentsToExtract.length < 2) {
       toast({
         variant: 'destructive',
-        title: 'Nenhum arquivo',
-        description: 'Faça upload de ao menos um documento para extrair as entidades.',
+        title: 'Documentos insuficientes',
+        description: 'Selecione ao menos 2 documentos para extrair as entidades.',
       });
       return;
     }
 
     startTransition(async () => {
       try {
-        const result = await handleExtractEntitiesAction({ 
+        const result = await handleExtractEntitiesAction({
           projectId,
           userId: user?.uid || '',
           documentIds: documentsToExtract.map(doc => doc.id)
@@ -349,15 +372,13 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
           </div>
         </CardHeader>
         <CardContent className="flex-1 space-y-4">
-          {/* Upload Section */}
+          {/* Upload + Feedback Buttons */}
           <FileUploader
-            icon={config.icon}
-            title={title}
-            description={description}
             handleFileSelect={handleFileSelect(docType)}
-            handleFeedback={() => handleFeedbackClick(files[docType])}
+            handleFeedback={() => latestDoc && handleFeedbackClick(latestDoc as import('@/lib/types').ProjectDocument & { id: string })}
             name={docType}
             disabled={!contractType || isUploading}
+            feedbackDisabled={!latestDoc}
           />
 
           {/* Upload Progress */}
@@ -387,6 +408,16 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant={selectedDocuments.includes(docType) ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => toggleDocumentSelection(docType)}
+                      disabled={!latestDoc}
+                    >
+                      {selectedDocuments.includes(docType) ? "Selecionado" : "Selecionar"}
+                    </Button>
+                  </div>
                   <Badge variant="outline" className="text-xs">
                     v{latestDoc.version}
                   </Badge>
@@ -408,7 +439,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
                             Histórico de uploads
                           </div>
                           {documents.slice(1).map((doc) => (
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               key={doc.id}
                               onClick={() => handleDownload(doc)}
                               className="flex flex-col items-start gap-1 py-2"
@@ -460,9 +491,9 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
             Utilize os botões &quot;Carregar Documento&quot; nos cards abaixo para enviar os arquivos iniciais. Eles serão salvos no projeto e poderão ser baixados a qualquer momento.
             Depois clique em &quot;Extrair Entidades&quot; para que as variáveis sejam identificadas.
           </p>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleClearAll}
             className="gap-2"
           >
@@ -536,7 +567,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
         <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
           <Button
             onClick={handleConsistencyClick}
-            disabled={!hasAtLeastTwoFiles}
+            disabled={selectedDocuments.length < 2 && !hasAtLeastTwoFiles}
             variant="outline"
             size="lg"
           >
@@ -544,7 +575,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!hasAtLeastTwoFiles || isExtracting}
+            disabled={(selectedDocuments.length < 2 && !hasAtLeastTwoFiles) || isExtracting}
             size="lg"
           >
             {isExtracting ? (
@@ -561,12 +592,13 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
 
       <FeedbackModal
         isOpen={isFeedbackModalOpen}
-        onOpenChange={setIsFeedbackModalOpen}
+        onOpenChange={(open) => {
+          setIsFeedbackModalOpen(open);
+          if (!open) setFeedbackDocumentId(null);
+        }}
         projectId={projectId}
         userId={user?.uid || ''}
-        documentIds={Object.values(documentsByType || {})
-          .map(docs => docs[0]?.id)
-          .filter(id => !!id)}
+        documentIds={feedbackDocumentId ? [feedbackDocumentId] : getSelectedDocumentIds()}
         files={feedbackFiles}
       />
       <ConsistencyAnalysisModal
@@ -574,9 +606,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
         onOpenChange={setIsConsistencyModalOpen}
         projectId={projectId}
         userId={user?.uid || ''}
-        documentIds={Object.values(documentsByType || {})
-          .map(docs => docs[0]?.id)
-          .filter(id => !!id)}
+        documentIds={getSelectedDocumentIds()}
         files={Object.entries(files)
           .filter(([, file]) => file !== null)
           .map(([key, file]) => ({ id: key, file: file! }))}

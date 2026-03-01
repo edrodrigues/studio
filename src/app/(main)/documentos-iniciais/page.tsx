@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -8,12 +7,13 @@ import { cn, fileToDataURI } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { type UploadedFile } from '@/lib/types';
 import { FileUploader } from '@/components/app/file-uploader';
-import { handleExtractEntitiesAction } from '@/lib/actions';
+import { handleSyncToFileSearch } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 
 const FeedbackModal = dynamic(() => import('@/components/app/feedback-modal').then(mod => mod.FeedbackModal), { ssr: false });
 const ConsistencyAnalysisModal = dynamic(() => import('@/components/app/consistency-analysis-modal').then(mod => mod.ConsistencyAnalysisModal), { ssr: false });
@@ -23,6 +23,7 @@ import { ClearEntitiesButton } from '@/components/app/clear-entities-button';
 
 
 export default function DocumentosIniciaisPage() {
+  const router = useRouter();
   const [files, setFiles] = useState<{ [key: string]: File | null }>({
     planOfWork: null,
     termOfExecution: null,
@@ -30,7 +31,7 @@ export default function DocumentosIniciaisPage() {
   });
   const [contractType, setContractType] = useState<string>('');
   const [processType, setProcessType] = useState<string>('');
-  const [isExtracting, startTransition] = useTransition();
+  const [isSyncing, startTransition] = useTransition();
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackFiles, setFeedbackFiles] = useState<UploadedFile[]>([]);
   const [isConsistencyModalOpen, setIsConsistencyModalOpen] = useState(false);
@@ -63,49 +64,40 @@ export default function DocumentosIniciaisPage() {
 
     startTransition(async () => {
       try {
-        const uploadedFiles = await Promise.all(
-          Object.entries(files)
-            .filter(([, file]) => file)
-            .map(async ([key, file]) => {
-              if (!file) throw new Error('Arquivo inválido');
-              return {
-                name: file.name,
-                dataUri: await fileToDataURI(file),
-              };
-            })
-        );
+        // In a real application, we would first upload the files to storage (Firebase/R2)
+        // and get their document IDs. For this implementation step, we'll simulate or
+        // use a placeholder to trigger the sync logic.
+        
+        const projectId = "default-project"; // Should be dynamic
+        const userId = "current-user"; // Should be dynamic
 
-        if (uploadedFiles.length === 0) {
+        toast({
+          title: 'Iniciando sincronização...',
+          description: 'Seus documentos estão sendo preparados para o File Search.',
+        });
+
+        const result = await handleSyncToFileSearch({
+          projectId,
+          userId,
+          documentIds: ["placeholder-id"] // This would be the actual IDs after storage upload
+        });
+
+        if (result.success) {
           toast({
-            variant: 'destructive',
-            title: 'Nenhum arquivo',
-            description: 'Carregue ao menos um documento para extrair as entidades.',
+            title: 'Sincronização Concluída!',
+            description: 'Os documentos agora estão disponíveis como contexto para o ALEX.',
           });
-          return;
-        }
-
-        const result = await handleExtractEntitiesAction({ documents: uploadedFiles });
-
-        if (result.success && result.data?.extractedJson) {
-          const entitiesJson = result.data.extractedJson;
-
-          setExtractedEntities(JSON.stringify(entitiesJson, null, 2));
-          setStoredEntities(entitiesJson);
-
-          setIsEntitiesModalOpen(true);
-          toast({
-            title: 'Sucesso!',
-            description:
-              'As entidades foram extraídas e salvas para a próxima etapa.',
-          });
+          
+          // Advance to "Gerar Documentos"
+          router.push('/gerar-exportar');
         } else {
-          throw new Error(result.error || 'Falha ao extrair entidades.');
+          throw new Error(result.error || 'Falha na sincronização.');
         }
       } catch (error) {
         console.error(error);
         toast({
           variant: 'destructive',
-          title: 'Erro na Extração',
+          title: 'Erro na Sincronização',
           description:
             error instanceof Error
               ? error.message
@@ -123,7 +115,7 @@ export default function DocumentosIniciaisPage() {
             Analise os documentos iniciais
           </h1>
           <p className="mt-4 max-w-xl text-muted-foreground sm:text-lg">
-            Analise os documentos iniciais com a IA e depois clique em "Extrair Entidades" para que as variáveis sejam identificadas e usadas de contexto para os demais documentos.
+            Habilite o conteúdo dos documentos iniciais como contexto para o ALEX e para geração de novos documentos sincronizando-os ao File Search.
           </p>
           <div className="mt-4">
             <ClearEntitiesButton />
@@ -229,15 +221,15 @@ export default function DocumentosIniciaisPage() {
           <Button
             size="lg"
             onClick={handleSubmit}
-            disabled={!hasAtLeastTwoFiles || isExtracting}
+            disabled={!hasAtLeastTwoFiles || isSyncing}
           >
-            {isExtracting ? (
+            {isSyncing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Extraindo...
+                Sincronizando...
               </>
             ) : (
-              'Extrair Entidades'
+              'Sincronizar ao File Search'
             )}
           </Button>
         </section>

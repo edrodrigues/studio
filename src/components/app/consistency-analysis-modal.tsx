@@ -183,7 +183,7 @@ export function ConsistencyAnalysisModal({
                             placeholder="Descreva como a IA deve analisar a consistência dos documentos..."
                             disabled={isPending}
                         />
-                        <Button onClick={handleGenerateAnalysis} disabled={isPending || files.length < 2}>
+                        <Button onClick={handleGenerateAnalysis} disabled={isPending || (documentIds.length < 2 && files.length < 2)}>
                             {isPending ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

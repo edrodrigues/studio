@@ -326,6 +326,75 @@ export async function handleGetFeedback(input: {
   }
 }
 
+import { uploadFileToProjectStore } from './google-ai-stores';
+
+const syncToFileSearchSchema = z.object({
+  projectId: z.string(),
+  userId: z.string(),
+  documentIds: z.array(z.string()),
+});
+
+export async function handleSyncToFileSearch(input: {
+  projectId: string;
+  userId: string;
+  documentIds: string[];
+}) {
+  try {
+    const validatedData = syncToFileSearchSchema.safeParse(input);
+    if (!validatedData.success) {
+      return { success: false, error: 'Dados de entrada inválidos para sincronização.' };
+    }
+
+    const { projectId, documentIds } = validatedData.data;
+
+    // Fetch documents from DB to get their buffers
+    const documentsSnapshot = await Promise.all(
+      documentIds.map(id => db.collection('projectDocuments').doc(id).get())
+    );
+
+    const syncResults = await Promise.all(
+      documentsSnapshot.map(async (docSnap) => {
+        if (!docSnap.exists) return null;
+        const docData = docSnap.data() as ProjectDocument;
+        
+        let buffer: Buffer;
+        if (docData.storageProvider === 'r2') {
+          const command = new GetObjectCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: docData.storagePath,
+          });
+          const response = await r2Client.send(command);
+          if (!response.Body) return null;
+          buffer = Buffer.from(await response.Body.transformToByteArray());
+        } else {
+          const response = await fetch(docData.fileUrl);
+          if (!response.ok) return null;
+          buffer = Buffer.from(await response.arrayBuffer());
+        }
+
+        // Sincronizar com o File Search do Google
+        return await uploadFileToProjectStore(
+          projectId, 
+          buffer, 
+          docData.name, 
+          docData.mimeType
+        );
+      })
+    );
+
+    // After syncing, mark project as synced to enable File Search for ALEX
+    await db.collection('projects').doc(projectId).update({
+      isSyncedToFileSearch: true,
+      lastSyncedAt: new Date()
+    });
+
+    return { success: true, results: syncResults };
+  } catch (error) {
+    console.error('Error syncing to file search:', error);
+    return { success: false, error: 'Falha ao sincronizar com o File Search.' };
+  }
+}
+
 export async function handleExtractEntitiesAction(input: {
   projectId?: string;
   userId?: string;

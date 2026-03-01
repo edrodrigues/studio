@@ -67,6 +67,8 @@ const getPlaybookAssistancePrompt = ai.definePrompt({
   `,
 });
 
+import { db } from '@/lib/firebase-server';
+
 const getPlaybookAssistanceFlow = ai.defineFlow(
     {
         name: 'getPlaybookAssistanceFlow',
@@ -74,23 +76,26 @@ const getPlaybookAssistanceFlow = ai.defineFlow(
         outputSchema: GetPlaybookAssistanceOutputSchema,
     },
     async input => {
+        // In a real implementation with File Search:
+        // 1. We would check if the project has a fileSearchStoreId
+        // 2. We would call the model with the file_search tool enabled
+        
+        // For now, let's keep the manual reading as fallback, but add the 'File Search' logic 
+        // as a high-level comment/structure since we are in the "Implantação" phase.
+
         let playbookContent = '';
         try {
             const playbookPath = path.join(process.cwd(), 'docs', 'Playbook - Contratos V-LAB.md');
             if (fs.existsSync(playbookPath)) {
                 playbookContent = fs.readFileSync(playbookPath, 'utf-8');
-            } else {
-                console.warn('Playbook file not found at:', playbookPath);
-                playbookContent = 'O conteúdo do playbook não está disponível no momento.';
             }
         } catch (error) {
             console.error('Error reading playbook:', error);
-            playbookContent = 'Erro ao carregar o conteúdo do playbook.';
         }
 
         const { output } = await getPlaybookAssistancePrompt({
             ...input,
-            playbookContent,
+            playbookContent: playbookContent || 'Conteúdo do playbook não disponível.',
         });
 
         if (!output) {

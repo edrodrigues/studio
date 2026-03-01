@@ -180,8 +180,12 @@ service cloud.firestore {
                      );
 
       allow delete: if isSignedIn() &&
-                     hasProjectRole(resource.data.projectId, 'owner') &&
-                     resource.data.userId != getUserId(); // Can't remove yourself
+                     (
+                       // Owners can remove any member
+                       hasProjectRole(resource.data.projectId, 'owner') ||
+                       // Users can remove themselves (needed for migration and leaving)
+                       resource.data.userId == getUserId()
+                     );
     }
 
     // ============================================================================

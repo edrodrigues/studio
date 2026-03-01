@@ -9,7 +9,21 @@ function getFirebaseAdminApp(): App {
         return existingApp;
     }
 
-    // Try to use service account file first
+    // Try to use environment variable with JSON content first
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (serviceAccountJson) {
+        try {
+            const serviceAccount = JSON.parse(serviceAccountJson);
+            return initializeApp({
+                credential: cert(serviceAccount),
+                projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || serviceAccount.project_id,
+            });
+        } catch (error) {
+            console.error('Error parsing FIREBASE_SERVICE_ACCOUNT environment variable:', error);
+        }
+    }
+
+    // Try to use service account file next
     const serviceAccountPath = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH 
         ? join(process.cwd(), process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH)
         : join(process.cwd(), './google-service-account.json');

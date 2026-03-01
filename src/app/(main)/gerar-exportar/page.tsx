@@ -115,6 +115,15 @@ function GerarExportarContent() {
       return;
     }
 
+    if (selectedDocs.length === 0) {
+      toast({ 
+        variant: "destructive", 
+        title: "Documentos não selecionados", 
+        description: "Por favor, selecione ao menos um documento inicial para fornecer contexto à IA." 
+      });
+      return;
+    }
+
     const hasGoogleDoc = selectedTemplates.some(id => {
       const t = templates.find(temp => temp.id === id);
       return t?.googleDocLink && extractGoogleDocId(t.googleDocLink);
@@ -138,14 +147,21 @@ function GerarExportarContent() {
 
     startTransition(async () => {
       let successCount = 0;
+      let errorCount = 0;
+      let lastErrorMessage = "";
       
       for (const templateId of selectedTemplates) {
         const template = templates.find(t => t.id === templateId);
-        if (!template) continue;
+        if (!template) {
+          console.warn(`Template ${templateId} not found`);
+          continue;
+        }
 
         const googleDocId = template.googleDocLink ? extractGoogleDocId(template.googleDocLink) : null;
 
         try {
+          let generatedSuccessfully = false;
+
           if (googleDocId && accessToken) {
             // Google Docs Flow
             const result = await generateContractDoc(
@@ -164,6 +180,7 @@ function GerarExportarContent() {
               googleDocId: result.documentId,
               createdAt: new Date().toISOString(),
             });
+            generatedSuccessfully = true;
           } else {
             // Markdown Flow
             const result = await handleGenerateContract({
@@ -182,27 +199,48 @@ function GerarExportarContent() {
                 markdownContent: result.data?.contractDraft || "",
                 createdAt: new Date().toISOString(),
               });
+              generatedSuccessfully = true;
+            } else {
+              lastErrorMessage = result.error || "Erro desconhecido na geração.";
             }
           }
 
-          // Increment contract count in project
-          if (currentProjectId && currentProjectId !== "default-project") {
-            const { increment } = await import('firebase/firestore');
-            const projectRef = doc(firestore, 'projects', currentProjectId);
-            await updateDoc(projectRef, {
-              contractCount: increment(1),
-              updatedAt: new Date().toISOString(),
-            });
+          if (generatedSuccessfully) {
+            // Increment contract count in project
+            if (currentProjectId && currentProjectId !== "default-project") {
+              const { increment } = await import('firebase/firestore');
+              const projectRef = doc(firestore, 'projects', currentProjectId);
+              await updateDoc(projectRef, {
+                contractCount: increment(1),
+                updatedAt: new Date().toISOString(),
+              });
+            }
+            successCount++;
+          } else {
+            errorCount++;
           }
-
-          successCount++;
         } catch (e) {
           console.error(e);
+          errorCount++;
+          lastErrorMessage = e instanceof Error ? e.message : "Falha na comunicação com o servidor.";
         }
       }
 
-      toast({ title: "Geração Concluída!", description: `${successCount} documentos gerados.` });
-      setActiveTab("revisar");
+      if (successCount > 0) {
+        toast({ 
+          title: "Geração Concluída!", 
+          description: `${successCount} documento(s) gerado(s) com sucesso.${errorCount > 0 ? ` ${errorCount} falha(s).` : ""}` 
+        });
+        setActiveTab("revisar");
+      } else {
+        toast({ 
+          variant: "destructive",
+          title: "Falha na Geração", 
+          description: errorCount > 0 
+            ? `Não foi possível gerar os documentos. Erro: ${lastErrorMessage}`
+            : "Nenhum modelo selecionado ou encontrado."
+        });
+      }
     });
   };
 

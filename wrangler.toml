@@ -1,0 +1,19 @@
+name = "vlab-contracts-storage"
+compatibility_date = "2024-01-01"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "vlab-contracts-storage"
+
+# CORS configuration
+# To apply CORS rules to your R2 bucket, use the Cloudflare dashboard or API
+# Dashboard > R2 > Your bucket > Settings > CORS policy
+#
+# Or use this JSON for the CORS policy:
+# [
+#   {
+#     "AllowedOrigins": ["https://studio-wheat-one-49.vercel.app", "http://localhost:3000"],
+#     "AllowedMethods": ["GET", "PUT", "POST", "HEAD"],
+#     "AllowedHeaders": ["*"]
+#   }
+# ]

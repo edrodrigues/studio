@@ -2,6 +2,7 @@
 
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
+import pdf from 'pdf-parse';
 
 /**
  * Extracts text content from a .docx file buffer
@@ -49,6 +50,28 @@ async function extractTextFromXlsxBuffer(buffer: Buffer): Promise<string> {
     } catch (error) {
         console.error('Error extracting text from XLSX:', error);
         throw new Error('Falha ao extrair texto da planilha Excel.');
+    }
+}
+
+/**
+ * Extracts text content from a PDF file buffer
+ * @param buffer - The buffer of the PDF file
+ * @returns Plain text content extracted from the PDF
+ */
+async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
+    try {
+        const data = await pdf(buffer);
+        const text = data.text;
+        
+        if (!text || text.trim().length === 0) {
+            console.warn('PDF parsed but no text extracted - may contain only images');
+            return 'Não foi possível extrair texto do PDF. O documento pode conter apenas imagens.';
+        }
+        
+        return text;
+    } catch (error) {
+        console.error('Error extracting text from PDF:', error);
+        throw new Error('Falha ao extrair texto do PDF.');
     }
 }
 
@@ -153,10 +176,9 @@ export async function convertBufferToText(
         );
     }
 
-    // Special case for PDF: convertBufferToText shouldn't be called for PDF if we expect to keep it as PDF,
-    // but if it is called, we should warn or handle it.
+    // Handle PDF: extract text to avoid image processing issues with Gemini
     if (effectiveMimeType === 'application/pdf' || effectiveExtension === 'pdf' || detectedType.ext === 'pdf') {
-        throw new Error('Internal Error: PDF extraction is not supported in convertBufferToText. Use Geminis native PDF support.');
+        return extractTextFromPdfBuffer(buffer);
     }
 
     throw new Error(

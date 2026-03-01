@@ -26,7 +26,6 @@ import {
   Query,
 } from 'firebase/firestore';
 import { useFirebase, useUser, useCollection, useDoc, useMemoFirebase } from '@/firebase';
-import { addMemberToProject } from '@/lib/actions/storage-actions';
 import type {
   Project,
   ProjectMember,
@@ -277,25 +276,40 @@ export function useProjectMembers(projectId: string | null): UseProjectMembersRe
 
   const inviteMember = useCallback(
     async (email: string, role: ProjectRole) => {
-      if (!projectId || !user) return;
+      if (!projectId || !user || !firestore) return;
       
       try {
-        // Get project name for the notification
-        const projectDoc = await getDoc(doc(firestore!, 'projects', projectId));
+        // Get project name
+        const projectDoc = await getDoc(doc(firestore, 'projects', projectId));
         const projectName = projectDoc.exists() ? projectDoc.data().name : 'Projeto';
+        const normalizedEmail = email.toLowerCase().trim();
+        const now = new Date().toISOString();
 
-        // Use server action to add member directly to project
-        const result = await addMemberToProject(
-          projectId,
-          email,
-          role,
-          user.uid,
-          user.displayName || user.email || 'Unknown'
-        );
-
-        if (!result.success) {
-          throw new Error(result.error || 'Erro ao adicionar membro');
+        // Check if user is already a member
+        const memberId = `${projectId}_${normalizedEmail}`;
+        const existingMemberRef = doc(firestore, 'projectMembers', memberId);
+        const existingMember = await getDoc(existingMemberRef);
+        
+        if (existingMember.exists()) {
+          throw new Error('Este email já é membro deste projeto.');
         }
+
+        // Create invite record
+        const inviteData = {
+          projectId,
+          projectName,
+          email: normalizedEmail,
+          role,
+          invitedBy: user.uid,
+          invitedByName: user.displayName || user.email || 'Unknown',
+          invitedAt: now,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          status: 'pending',
+        };
+        
+        await addDoc(collection(firestore, 'invites'), inviteData);
+
+        // TODO: Send notification email to invitee
       } catch (error) {
         console.error('Failed to invite member:', error);
         throw error;

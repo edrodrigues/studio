@@ -54,17 +54,7 @@ async function prepareDocumentsForFlow(input: {
         }
         const docData = docSnap.data() as ProjectDocument;
 
-        // If it's a format that Gemini supports natively (PDF), we can use a signed URL
-        if (docData.mimeType === 'application/pdf') {
-          if (docData.storageProvider === 'r2') {
-            const result = await getDownloadUrl(input.projectId!, input.userId!, docData.storagePath);
-            if (!result.success || !result.url) throw new Error(`Falha ao gerar URL para ${docData.name}`);
-            return { url: result.url };
-          }
-          return { url: docData.fileUrl };
-        }
-
-        // For other formats (DOCX, XLSX, etc.), we fetch and convert to text data URI
+        // Fetch the file buffer first
         let buffer: Buffer;
         if (docData.storageProvider === 'r2') {
           const command = new GetObjectCommand({
@@ -82,6 +72,7 @@ async function prepareDocumentsForFlow(input: {
           buffer = Buffer.from(await response.arrayBuffer());
         }
 
+        // Convert all file types to text to avoid image processing issues with AI
         const dataUri = await convertBufferToSupportedDataUri(
           buffer,
           docData.mimeType,

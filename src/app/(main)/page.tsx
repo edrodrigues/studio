@@ -135,7 +135,7 @@ export default function ComeceAquiPage() {
                                     </div>
                                     <h3 className="text-2xl font-serif font-bold text-primary mb-4">2. Gerar Documentos</h3>
                                     <p className="text-muted-foreground font-outfit leading-relaxed">
-                                        Selecione modelos e use as entidades extraídas para gerar novos documentos preenchidos com IA na aba "Gerar Documentos".
+                                        Selecione modelos e use as entidades extraídas para gerar novos documentos preenchidos com IA na aba "Gerar e Revisar".
                                     </p>
                                 </CardContent>
                             </Card>

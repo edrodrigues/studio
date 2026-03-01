@@ -8,6 +8,7 @@ const GenerateContractInDocsInputSchema = z.object({
   accessToken: z.string(),
   documentId: z.string(),
   extractedEntities: z.record(z.any()),
+  projectId: z.string().optional(),
 });
 
 export type GenerateContractInDocsInput = z.infer<typeof GenerateContractInDocsInputSchema>;
@@ -20,6 +21,8 @@ const GenerateContractInDocsOutputSchema = z.object({
 
 export type GenerateContractInDocsOutput = z.infer<typeof GenerateContractInDocsOutputSchema>;
 
+import { db } from '@/lib/firebase-server';
+
 /**
  * Prompt to identify text replacements in a document based on extracted entities.
  */
@@ -29,6 +32,7 @@ const findReplacementsPrompt = ai.definePrompt({
         schema: z.object({
             templateContent: z.string(),
             extractedEntities: z.record(z.any()),
+            hasFileSearch: z.boolean().optional(),
         })
     },
     output: {
@@ -39,13 +43,19 @@ const findReplacementsPrompt = ai.definePrompt({
             }))
         })
     },
+    model: 'googleai/gemini-3-flash-preview',
     prompt: `
         Você é um assistente especializado em preenchimento de contratos e documentos jurídicos.
         
         CONTEXTO:
         Você recebeu o conteúdo de texto de um Google Doc que serve como modelo de contrato.
         Você também recebeu um conjunto de entidades extraídas de documentos iniciais (JSON).
-        Sua tarefa é identificar quais textos no documento devem ser substituídos pelas informações das entidades.
+        
+        {{#if hasFileSearch}}
+        Além disso, você tem acesso à ferramenta de busca nos arquivos originais do projeto para encontrar informações que possam estar faltando nas entidades fornecidas.
+        {{/if}}
+
+        Sua tarefa é identificar quais textos no documento devem ser substituídos pelas informações das entidades ou informações encontradas nos documentos do projeto.
         
         INSTRUÇÕES:
         1. Procure por placeholders explícitos como {{Nome do Cliente}}, [CPF], [[DATA]], etc.
@@ -57,7 +67,7 @@ const findReplacementsPrompt = ai.definePrompt({
         - O 'replacement' deve ser o valor da entidade, formatado adequadamente (ex: R$ 1.000,00 para moedas, DD/MM/AAAA para datas).
         - Se houver múltiplas ocorrências de um placeholder, o Google Docs API cuidará de todas se usarmos replaceAllText.
         - Seja conservador: só sugira uma substituição se houver alta confiança de que o placeholder corresponde à entidade.
-        - Não invente informações. Se uma entidade necessária não estiver presente, ignore o placeholder correspondente.
+        - Não invente informações. Se uma entidade necessária não estiver presente {{#if hasFileSearch}}e você não conseguir encontrá-la via busca{{/if}}, ignore o placeholder correspondente.
         
         CONTEÚDO DO DOCUMENTO:
         {{templateContent}}
@@ -78,21 +88,32 @@ const generateContractInDocsFlow = ai.defineFlow(
     },
     async (input) => {
         // Step 1: Read the document content to provide context to the AI
-        // This helps the AI identify actual text patterns and placeholders
         const templateContent = await getDocumentContent(input.accessToken, input.documentId);
         
-        // Step 2: Ask AI for replacements
+        // Step 2: Check if File Search is enabled for this project
+        let hasFileSearch = false;
+        let fileSearchStoreId = null;
+        
+        if (input.projectId) {
+            const projectDoc = await db.collection('projects').doc(input.projectId).get();
+            if (projectDoc.exists && projectDoc.data()?.fileSearchStoreId) {
+                hasFileSearch = true;
+                fileSearchStoreId = projectDoc.data()?.fileSearchStoreId;
+            }
+        }
+
+        // Step 3: Ask AI for replacements
         const { output } = await findReplacementsPrompt({ 
             templateContent, 
-            extractedEntities: input.extractedEntities 
+            extractedEntities: input.extractedEntities,
+            hasFileSearch
         });
         
         if (!output || !output.replacements) {
             throw new Error('AI failed to find any replacements.');
         }
         
-        // Step 3: Convert AI replacements to Google Docs batchUpdate requests
-        // We use replaceAllText which is the simplest and most robust for placeholder replacement
+        // Step 4: Convert AI replacements to Google Docs batchUpdate requests
         const requests = output.replacements.map(r => ({
             replaceAllText: {
                 replaceText: r.replacement,
@@ -103,7 +124,7 @@ const generateContractInDocsFlow = ai.defineFlow(
             }
         }));
         
-        // Step 4: Apply updates to the document if any were found
+        // Step 5: Apply updates to the document if any were found
         if (requests.length > 0) {
             await batchUpdateDocument(input.accessToken, input.documentId, requests);
         }

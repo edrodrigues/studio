@@ -165,7 +165,7 @@ export default function HomePage() {
                                     </div>
                                     <h3 className="text-2xl font-serif font-bold text-primary mb-4">2. Gere com IA</h3>
                                     <p className="text-muted-foreground font-outfit leading-relaxed">
-                                        Selecione modelos e use as entidades extraídas para gerar novos documentos automaticamente.
+                                        Selecione modelos e use o contexto sincronizado para gerar novos documentos automaticamente.
                                     </p>
                                 </CardContent>
                             </Card>

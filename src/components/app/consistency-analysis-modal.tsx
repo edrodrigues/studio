@@ -148,7 +148,7 @@ export function ConsistencyAnalysisModal({
             setConsistencyPercentage(null);
             setAnalysis("");
             setSuggestions([]);
-            router.push('/gerar-novo');
+            router.push('/gerar-exportar');
         }
         onOpenChange(open);
     };

@@ -6,6 +6,7 @@ import { ArrowLeft, FileText } from 'lucide-react';
 import { useProject } from '@/hooks/use-projects';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 
 export default function NewProjectContractPage() {
   const params = useParams();
@@ -26,18 +27,22 @@ export default function NewProjectContractPage() {
           <span>/</span>
           <span>Novo Contrato</span>
         </div>
-        <h1 className="text-3xl font-bold tracking-tight">Gerar Novo Contrato</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Gerar Documentos</h1>
         <p className="text-muted-foreground mt-2">
-          Gere um novo documento usando as variáveis extraídas deste projeto.
+          Gere novos documentos usando as variáveis extraídas deste projeto.
         </p>
       </div>
 
       <Alert className="bg-muted/50">
         <FileText className="h-4 w-4" />
-        <AlertTitle>Funcionalidade em migração</AlertTitle>
+        <AlertTitle>Central de Geração</AlertTitle>
         <AlertDescription>
-          A geração de contratos específicos por projeto está sendo integrada ao novo fluxo do Google Docs. 
-          Por enquanto, você pode usar a aba global "Gerar Novo" para utilizar seus modelos salvos com as entidades deste projeto.
+          A geração de contratos agora centralizada. Clique no botão abaixo para ir para a aba "Gerar e Revisar", onde você poderá selecionar este projeto como contexto.
+          <div className="mt-4">
+            <Link href="/gerar-exportar">
+              <Button>Ir para Gerar e Revisar</Button>
+            </Link>
+          </div>
         </AlertDescription>
       </Alert>
     </div>

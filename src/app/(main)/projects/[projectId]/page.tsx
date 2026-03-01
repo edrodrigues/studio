@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -20,7 +21,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useProject, useProjectMembers, useProjectPlaceholders, useProjectContracts, useActivity, usePresence, usePermission } from '@/hooks/use-projects';
+import { 
+  useProject, 
+  useProjectMembers, 
+  useProjectPlaceholders, 
+  useProjectContracts, 
+  useProjectDocuments,
+  useActivity, 
+  usePresence, 
+  usePermission 
+} from '@/hooks/use-projects';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -31,13 +41,11 @@ function ActiveUsersIndicator({ projectId }: { projectId: string }) {
   const { activeUsers, updatePresence } = usePresence(projectId);
 
   useEffect(() => {
-    // Mark user as present when viewing project
     updatePresence({ currentView: 'dashboard' });
-  }, [updatePresence]);
+  }, [updatePresence, projectId]);
 
   if (!activeUsers || activeUsers.length <= 1) return null;
 
-  // Filter out current user
   const otherUsers = activeUsers.filter(u => u.userId !== activeUsers[0]?.userId);
 
   return (
@@ -177,7 +185,7 @@ function ContractsTab({ projectId }: { projectId: string }) {
           </p>
           {canEdit && (
             <Button asChild>
-              <Link href={`/projects/${projectId}/contracts/new`}>
+              <Link href={`/gerar-exportar`}>
                 <Plus className="mr-2 h-4 w-4" />
                 Gerar contrato
               </Link>
@@ -197,10 +205,10 @@ function ContractsTab({ projectId }: { projectId: string }) {
               <div>
                 <p className="font-medium">{contract.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {formatDistanceToNow(new Date(contract.generatedAt), {
+                  {contract.generatedAt ? formatDistanceToNow(new Date(contract.generatedAt), {
                     addSuffix: true,
                     locale: ptBR,
-                  })}
+                  }) : 'Data desconhecida'}
                 </p>
               </div>
               <Button variant="outline" size="sm" asChild>
@@ -275,10 +283,10 @@ function ActivityTab({ projectId }: { projectId: string }) {
               <span className="font-medium">{activity.targetName}</span>
             </p>
             <p className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(activity.timestamp), {
+              {activity.timestamp ? formatDistanceToNow(new Date(activity.timestamp), {
                 addSuffix: true,
                 locale: ptBR,
-              })}
+              }) : 'Agora'}
             </p>
           </div>
         </div>
@@ -293,6 +301,9 @@ export default function ProjectDetailPage() {
   const projectId = params.projectId as string;
 
   const { project, isLoading: projectLoading, error } = useProject(projectId);
+  const { documents, isLoading: documentsLoading } = useProjectDocuments(projectId);
+  const { placeholders, isLoading: placeholdersLoading } = useProjectPlaceholders(projectId);
+  const { contracts, isLoading: contractsLoading } = useProjectContracts(projectId);
   const { members, isLoading: membersLoading } = useProjectMembers(projectId);
   const { canEdit } = usePermission(projectId);
 
@@ -392,7 +403,9 @@ export default function ProjectDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{project.documentCount || 0}</div>
+              <div className="text-2xl font-bold">
+                {documentsLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : documents?.length || 0}
+              </div>
               <FolderOpen className="h-5 w-5 text-muted-foreground" />
             </div>
           </CardContent>
@@ -404,7 +417,9 @@ export default function ProjectDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{project.placeholderCount || 0}</div>
+              <div className="text-2xl font-bold">
+                {placeholdersLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : placeholders?.length || 0}
+              </div>
               <FileText className="h-5 w-5 text-muted-foreground" />
             </div>
           </CardContent>
@@ -416,7 +431,9 @@ export default function ProjectDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{project.contractCount || 0}</div>
+              <div className="text-2xl font-bold">
+                {contractsLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : contracts?.length || 0}
+              </div>
               <FileText className="h-5 w-5 text-muted-foreground" />
             </div>
           </CardContent>
@@ -465,7 +482,7 @@ export default function ProjectDetailPage() {
             <h2 className="text-xl font-semibold">Contratos Gerados</h2>
             {canEdit && (
               <Button asChild>
-                <Link href={`/projects/${projectId}/contracts/new`}>
+                <Link href={`/gerar-exportar`}>
                   <Plus className="mr-2 h-4 w-4" />
                   Gerar
                 </Link>

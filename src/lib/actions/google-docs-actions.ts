@@ -17,7 +17,8 @@ export async function generateContractDoc(
     templateFileId: string,
     templateName: string,
     clientName: string,
-    extractedEntities: Record<string, any>
+    extractedEntities: Record<string, any>,
+    projectId?: string
 ) {
     try {
         console.log(`Starting Google Doc generation for template ${templateFileId}`);
@@ -33,7 +34,8 @@ export async function generateContractDoc(
         const result = await generateContractInDocs({
             accessToken,
             documentId: newFileId,
-            extractedEntities
+            extractedEntities,
+            projectId
         });
         
         console.log(`AI filling completed. Replacements applied: ${result.replacementsApplied}`);

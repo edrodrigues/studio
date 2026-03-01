@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useParams } from "next/navigation";
+import { usePathname, useParams, useSearchParams } from "next/navigation";
 import { Logo } from "@/components/app/logo";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -31,14 +31,27 @@ const navLinks = [
 
 function NavLink({ href, label }: { href: string; label: string }) {
   const pathname = usePathname();
+  const params = useParams();
+  const searchParams = useSearchParams();
+  
+  const projectIdFromPath = params?.projectId as string | undefined;
+  const projectIdFromQuery = searchParams.get('projectId');
+  const projectId = projectIdFromPath || projectIdFromQuery;
+
   const isActive =
     (href === "/" && pathname === "/") ||
     (href === "/projects" && (pathname.startsWith("/projects"))) ||
     (href !== "/" && href !== "/projects" && pathname.startsWith(href));
 
+  // If we have a project ID, append it to links that are not the root or the projects list itself
+  // This allows keeping project context when moving between pages like 'Gerar e Revisar'
+  const finalHref = projectId && href !== "/" && href !== "/projects" 
+    ? `${href}?projectId=${projectId}` 
+    : href;
+
   return (
     <Link
-      href={href}
+      href={finalHref}
       className={cn(
         "relative transition-all duration-300 px-4 py-2 rounded-xl text-sm font-outfit font-medium flex items-center gap-2",
         isActive
@@ -58,13 +71,23 @@ function NavLink({ href, label }: { href: string; label: string }) {
   );
 }
 
-/** Shows the currently open project name when inside a /projects/[projectId] route */
+/** Shows the currently open project name when inside a project-related route */
 function ProjectBreadcrumb() {
   const pathname = usePathname();
   const params = useParams();
-  const projectId = params?.projectId as string | undefined;
+  const searchParams = useSearchParams();
+  
+  const projectIdFromPath = params?.projectId as string | undefined;
+  const projectIdFromQuery = searchParams.get('projectId');
+  
+  const projectId = projectIdFromPath || projectIdFromQuery;
 
-  const { project } = useProject(projectId ?? null);
+  const { project, isLoading } = useProject(projectId ?? null);
+
+  // Show a skeleton while loading
+  if (projectId && isLoading) {
+    return <div className="ml-3 h-4 w-32 animate-pulse bg-primary/10 rounded-full" />;
+  }
 
   // Only show when we're inside a specific project
   if (!projectId || !project?.name) return null;
@@ -79,9 +102,13 @@ function ProjectBreadcrumb() {
         Projetos
       </Link>
       <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
-      <span className="font-semibold text-primary truncate max-w-[200px]" title={project.name}>
+      <Link
+        href={`/projects/${projectId}`}
+        className="font-semibold text-primary truncate max-w-[200px] hover:text-primary/80 transition-colors"
+        title={project.name}
+      >
         {project.name}
-      </span>
+      </Link>
     </div>
   );
 }

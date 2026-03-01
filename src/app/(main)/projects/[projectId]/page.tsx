@@ -326,9 +326,9 @@ function ContractsTab({ projectId }: { projectId: string }) {
           </p>
           {canEdit && (
             <Button asChild>
-              <Link href="/gerar-exportar">
+              <Link href={`/gerar-exportar?projectId=${projectId}`}>
                 <Plus className="mr-2 h-4 w-4" />
-                Gerar contrato
+                Gerar novo contrato
               </Link>
             </Button>
           )}
@@ -345,7 +345,7 @@ function ContractsTab({ projectId }: { projectId: string }) {
         </p>
         {canEdit && (
           <Button size="sm" asChild>
-            <Link href="/gerar-exportar">
+            <Link href={`/gerar-exportar?projectId=${projectId}`}>
               <Plus className="mr-2 h-4 w-4" />
               Gerar novo
             </Link>
@@ -663,14 +663,6 @@ export default function ProjectDetailPage() {
         <TabsContent value="contracts">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">Contratos Gerados</h2>
-            {canEdit && (
-              <Button asChild>
-                <Link href={`/gerar-exportar`}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Gerar
-                </Link>
-              </Button>
-            )}
           </div>
           <ContractsTab projectId={projectId} />
         </TabsContent>

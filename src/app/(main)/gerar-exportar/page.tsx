@@ -344,7 +344,9 @@ function GerarExportarContent() {
                         )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {c.createdAt ? format(new Date(c.createdAt), "dd/MM/yyyy HH:mm") : "-"}
+                        {c.createdAt && !isNaN(new Date(c.createdAt).getTime()) 
+                          ? format(new Date(c.createdAt), "dd/MM/yyyy HH:mm") 
+                          : "-"}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>

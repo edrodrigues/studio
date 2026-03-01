@@ -1,14 +1,14 @@
 
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useParams } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, FileUp, FilePlus, CheckCircle } from "lucide-react";
+import { Home, FolderOpen, FilePlus, CheckCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const steps = [
   { href: "/", label: "Comece Aqui", icon: Home },
-  { href: "/documentos-iniciais", label: "Documentos Iniciais", icon: FileUp },
+  { href: "/projects", label: "Documentos do Projeto", icon: FolderOpen },
   { href: "/gerar-novo", label: "Gerar Documentos", icon: FilePlus },
   { href: "/gerar-exportar", label: "Revisar Documentos", icon: CheckCircle },
 ];
@@ -25,7 +25,7 @@ function Step({
   isCompleted: boolean;
 }) {
   return (
-    <div className="relative z-10 flex w-24 flex-col items-center gap-2 text-center">
+    <div className="relative z-10 flex w-28 flex-col items-center gap-2 text-center">
       <div
         className={cn(
           "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors duration-300",
@@ -55,7 +55,7 @@ function StepIndicatorSkeleton() {
     <div className="border-b bg-background">
       <div className="container py-4">
         <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-          <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-96px)] -translate-x-1/2 bg-border" />
+          <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-112px)] -translate-x-1/2 bg-border" />
           {steps.map((step) => (
             <Step
               key={step.href}
@@ -71,9 +71,9 @@ function StepIndicatorSkeleton() {
   );
 }
 
-
 export function StepIndicator() {
   const pathname = usePathname();
+  const params = useParams();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -84,14 +84,19 @@ export function StepIndicator() {
     return <StepIndicatorSkeleton />;
   }
 
-  // A rota /modelos é uma rota "paralela" e não parte do fluxo principal.
-  // Vamos ignorá-la para a determinação do passo ativo.
-  if (pathname.startsWith('/modelos')) {
+  // Modelos and feedback are not part of the main flow
+  if (pathname.startsWith('/modelos') || pathname.startsWith('/feedback')) {
     return null;
   }
 
   const getActiveIndex = () => {
-    // Tratar a página de edição de contrato (/preencher) como parte da última etapa
+    // Project detail pages (documents upload/manage) → step 2 (Documentos do Projeto)
+    if (pathname.startsWith("/projects")) return 1;
+
+    // Legacy: the old /documentos-iniciais route also maps to step 2
+    if (pathname.startsWith("/documentos-iniciais")) return 1;
+
+    // Filling a contract (/preencher) is part of the last step
     if (pathname.startsWith("/preencher")) return steps.length - 1;
 
     const currentIndex = steps.findIndex((step) =>
@@ -99,7 +104,7 @@ export function StepIndicator() {
       (step.href === "/" && pathname === "/")
     );
     return currentIndex > -1 ? currentIndex : 0;
-  }
+  };
 
   const currentActiveIndex = getActiveIndex();
 
@@ -107,7 +112,7 @@ export function StepIndicator() {
     <div className="border-b bg-background">
       <div className="container py-4">
         <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-          <div className="absolute left-1/2 top-5 flex h-0.5 w-[calc(100%-96px)] -translate-x-1/2">
+          <div className="absolute left-1/2 top-5 flex h-0.5 w-[calc(100%-112px)] -translate-x-1/2">
             {Array.from({ length: steps.length - 1 }).map((_, index) => (
               <div key={`line-bg-${index}`} className="relative h-full flex-1 bg-border">
                 <div

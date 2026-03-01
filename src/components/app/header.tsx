@@ -2,10 +2,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useParams } from "next/navigation";
 import { Logo } from "@/components/app/logo";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { FolderOpen, ChevronRight } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -17,12 +18,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { LogOut, MessageSquare, User as UserIcon, Sparkles } from "lucide-react"
+import { LogOut, MessageSquare } from "lucide-react"
 import { useAuthContext } from "@/context/auth-context"
+import { useProject } from "@/hooks/use-projects";
 
 const navLinks = [
   { href: "/", label: "Comece Aqui" },
-  { href: "/documentos-iniciais", label: "Documentos Iniciais" },
+  { href: "/projects", label: "Meus Projetos" },
   { href: "/modelos", label: "Gerenciar Modelos" },
   { href: "/gerar-novo", label: "Gerar Documentos" },
   { href: "/gerar-exportar", label: "Revisar Documentos" },
@@ -30,8 +32,10 @@ const navLinks = [
 
 function NavLink({ href, label }: { href: string; label: string }) {
   const pathname = usePathname();
-  const isActive = (href === "/" && pathname === "/") ||
-    (href !== "/" && pathname.startsWith(href));
+  const isActive =
+    (href === "/" && pathname === "/") ||
+    (href === "/projects" && (pathname.startsWith("/projects"))) ||
+    (href !== "/" && href !== "/projects" && pathname.startsWith(href));
 
   return (
     <Link
@@ -52,6 +56,34 @@ function NavLink({ href, label }: { href: string; label: string }) {
       )}
       {label}
     </Link>
+  );
+}
+
+/** Shows the currently open project name when inside a /projects/[projectId] route */
+function ProjectBreadcrumb() {
+  const pathname = usePathname();
+  const params = useParams();
+  const projectId = params?.projectId as string | undefined;
+
+  const { project } = useProject(projectId ?? null);
+
+  // Only show when we're inside a specific project
+  if (!projectId || !project?.name) return null;
+
+  return (
+    <div className="hidden lg:flex items-center gap-1.5 text-sm font-outfit ml-3">
+      <Link
+        href="/projects"
+        className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+      >
+        <FolderOpen className="h-3.5 w-3.5" />
+        Projetos
+      </Link>
+      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+      <span className="font-semibold text-primary truncate max-w-[200px]" title={project.name}>
+        {project.name}
+      </span>
+    </div>
   );
 }
 
@@ -107,11 +139,14 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/70 backdrop-blur-xl">
       <div className="container flex h-20 items-center justify-between">
-        <div className="flex items-center gap-10">
+        <div className="flex items-center gap-4">
           <Link href="/" className="flex items-center gap-3 group">
             <Logo />
-            <span className="hidden font-serif font-bold text-lg text-primary tracking-tight leading-none group-hover:text-foreground transition-colors sm:inline-block">Assistente de Contratos V-Lab</span>
+            <span className="hidden font-serif font-bold text-lg text-primary tracking-tight leading-none group-hover:text-foreground transition-colors sm:inline-block">
+              Assistente de Contratos V-Lab
+            </span>
           </Link>
+          <ProjectBreadcrumb />
         </div>
 
         <div className="flex items-center gap-6">

@@ -544,7 +544,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!hasAtLeastOneFile || isExtracting}
+            disabled={!hasAtLeastTwoFiles || isExtracting}
             size="lg"
           >
             {isExtracting ? (

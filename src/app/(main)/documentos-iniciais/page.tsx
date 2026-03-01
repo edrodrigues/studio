@@ -229,7 +229,7 @@ export default function DocumentosIniciaisPage() {
           <Button
             size="lg"
             onClick={handleSubmit}
-            disabled={!hasAtLeastOneFile || isExtracting}
+            disabled={!hasAtLeastTwoFiles || isExtracting}
           >
             {isExtracting ? (
               <>

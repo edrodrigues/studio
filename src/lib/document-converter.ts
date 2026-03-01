@@ -2,7 +2,18 @@
 
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
-import pdf from 'pdf-parse';
+
+// pdf-parse lazy loader to avoid ESM issues
+let pdfParse: ((buffer: Buffer) => Promise<{ text: string }>) | null = null;
+
+async function getPdfParser(): Promise<(buffer: Buffer) => Promise<{ text: string }>> {
+  if (!pdfParse) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require('pdf-parse');
+    pdfParse = (buffer: Buffer) => mod(buffer) as Promise<{ text: string }>;
+  }
+  return pdfParse;
+}
 
 /**
  * Extracts text content from a .docx file buffer
@@ -60,7 +71,8 @@ async function extractTextFromXlsxBuffer(buffer: Buffer): Promise<string> {
  */
 async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
     try {
-        const data = await pdf(buffer);
+        const pdfParser = await getPdfParser();
+        const data = await pdfParser(buffer);
         const text = data.text;
         
         if (!text || text.trim().length === 0) {

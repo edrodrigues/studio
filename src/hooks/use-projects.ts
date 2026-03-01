@@ -477,13 +477,24 @@ export function useProjectDocuments(projectId: string | null): UseProjectDocumen
       if (!firestore) throw new Error('Firestore not initialized');
       try {
         const docRef = await addDoc(collection(firestore, 'projectDocuments'), docData);
+        
+        // Increment document count in project
+        if (projectId) {
+          const { increment } = await import('firebase/firestore');
+          const projectRef = doc(firestore, 'projects', projectId);
+          await updateDoc(projectRef, {
+            documentCount: increment(1),
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        
         return docRef.id;
       } catch (error) {
         console.error('Failed to add document:', error);
         throw error;
       }
     },
-    [firestore]
+    [firestore, projectId]
   );
 
   const updateDocument = useCallback(
@@ -506,12 +517,22 @@ export function useProjectDocuments(projectId: string | null): UseProjectDocumen
       try {
         const docRef = doc(firestore, 'projectDocuments', docId);
         await deleteDoc(docRef);
+
+        // Decrement document count in project
+        if (projectId) {
+          const { increment } = await import('firebase/firestore');
+          const projectRef = doc(firestore, 'projects', projectId);
+          await updateDoc(projectRef, {
+            documentCount: increment(-1),
+            updatedAt: new Date().toISOString(),
+          });
+        }
       } catch (error) {
         console.error('Failed to delete document:', error);
         throw error;
       }
     },
-    [firestore]
+    [firestore, projectId]
   );
 
   return {

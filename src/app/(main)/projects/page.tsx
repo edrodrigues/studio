@@ -147,11 +147,15 @@ function ProjectCard({
             <span className="font-medium">{project.clientName}</span>
           </div>
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1" title="Documentos Iniciais">
               <FolderOpen className="h-4 w-4" />
-              <span>{project.documentCount || 0} documentos</span>
+              <span>{project.documentCount || 0} docs</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1" title="Contratos Gerados">
+              <FileText className="h-4 w-4" />
+              <span>{project.contractCount || 0} contratos</span>
+            </div>
+            <div className="flex items-center gap-1" title="Membros">
               <Users className="h-4 w-4" />
               <span>{project.memberCount || 1} membros</span>
             </div>

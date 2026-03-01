@@ -34,8 +34,8 @@ import { ptBR } from "date-fns/locale";
 import { saveAs } from "file-saver";
 import { exportToDocx } from "@/lib/export";
 import dynamic from 'next/dynamic';
+import { motion, AnimatePresence } from "framer-motion";
 
-const EntityEditModal = dynamic(() => import('@/components/app/entity-edit-modal').then(mod => mod.EntityEditModal), { ssr: false });
 const ContractPreviewModal = dynamic(() => import('@/components/app/contract-preview-modal').then(mod => mod.ContractPreviewModal), { ssr: false });
 const ComparisonModal = dynamic(() => import('@/components/app/comparison-modal').then(mod => mod.ComparisonModal), { ssr: false });
 
@@ -60,7 +60,6 @@ function GerarExportarContent() {
   const [selectedContracts, setSelectedContracts] = useState<string[]>([]);
   
   // Modal States
-  const [isEntityModalOpen, setIsEntityModalOpen] = useState(false);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
@@ -130,12 +129,12 @@ function GerarExportarContent() {
       return;
     }
 
-    setIsEntityModalOpen(true);
+    // Directly start generation without modal
+    handleConfirmGeneration({});
   };
 
   const handleConfirmGeneration = (editedEntities: Record<string, any>) => {
     if (!user || !firestore || !templates) return;
-    setIsEntityModalOpen(false);
 
     startTransition(async () => {
       let successCount = 0;
@@ -185,6 +184,17 @@ function GerarExportarContent() {
               });
             }
           }
+
+          // Increment contract count in project
+          if (currentProjectId && currentProjectId !== "default-project") {
+            const { increment } = await import('firebase/firestore');
+            const projectRef = doc(firestore, 'projects', currentProjectId);
+            await updateDoc(projectRef, {
+              contractCount: increment(1),
+              updatedAt: new Date().toISOString(),
+            });
+          }
+
           successCount++;
         } catch (e) {
           console.error(e);
@@ -199,9 +209,26 @@ function GerarExportarContent() {
   const handleDeleteContract = async (id: string) => {
     if (!user || !firestore || !window.confirm("Deseja excluir este contrato?")) return;
     try {
-      await deleteDoc(doc(firestore, 'users', user.uid, 'filledContracts', id));
+      const contractRef = doc(firestore, 'users', user.uid, 'filledContracts', id);
+      const contractDoc = await getDoc(contractRef);
+      const contractData = contractDoc.exists() ? contractDoc.data() : null;
+      const contractProjectId = contractData?.projectId;
+
+      await deleteDoc(contractRef);
+      
+      // Decrement contract count in project
+      if (contractProjectId && contractProjectId !== "default-project") {
+        const { increment } = await import('firebase/firestore');
+        const projectRef = doc(firestore, 'projects', contractProjectId);
+        await updateDoc(projectRef, {
+          contractCount: increment(-1),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
       toast({ title: "Documento excluído." });
     } catch (e) {
+      console.error(e);
       toast({ variant: "destructive", title: "Erro ao excluir." });
     }
   };
@@ -217,7 +244,59 @@ function GerarExportarContent() {
   };
 
   return (
-    <div className="container py-10 max-w-6xl">
+    <div className="container py-10 max-w-6xl relative">
+      <AnimatePresence>
+        {isGenerating && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-md"
+          >
+            <div className="text-center space-y-6 max-w-md p-8 rounded-3xl bg-card shadow-2xl border border-border/50">
+              <div className="relative mx-auto w-24 h-24">
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.2, 1],
+                    rotate: [0, 180, 360],
+                    borderRadius: ["20%", "50%", "20%"]
+                  }}
+                  transition={{ 
+                    repeat: Infinity, 
+                    duration: 3,
+                    ease: "easeInOut"
+                  }}
+                  className="w-full h-full bg-primary/20 flex items-center justify-center"
+                >
+                  <Wand2 className="w-12 h-12 text-primary" />
+                </motion.div>
+                <motion.div
+                  animate={{ 
+                    scale: [1.2, 1, 1.2],
+                    opacity: [0.5, 0.2, 0.5]
+                  }}
+                  transition={{ 
+                    repeat: Infinity, 
+                    duration: 2,
+                    ease: "easeInOut"
+                  }}
+                  className="absolute inset-0 bg-primary/30 rounded-full -z-10 blur-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold tracking-tight text-primary">Gerando Documentos</h2>
+                <p className="text-muted-foreground">O ALEX está utilizando inteligência artificial para preencher seus contratos com precisão.</p>
+              </div>
+              <div className="flex justify-center gap-2">
+                <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0 }} className="w-2 h-2 bg-primary rounded-full" />
+                <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 bg-primary rounded-full" />
+                <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 bg-primary rounded-full" />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
         <div className="flex items-center justify-between">
           <div>
@@ -372,14 +451,6 @@ function GerarExportarContent() {
           </Card>
         </TabsContent>
       </Tabs>
-
-      <EntityEditModal
-        isOpen={isEntityModalOpen}
-        onClose={() => setIsEntityModalOpen(false)}
-        onConfirm={handleConfirmGeneration}
-        selectedTemplates={templates?.filter(t => selectedTemplates.includes(t.id)) || []}
-        extractedEntities={{}} // Context comes from File Search
-      />
 
       {selectedContract && (
         <ContractPreviewModal

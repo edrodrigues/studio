@@ -87,53 +87,56 @@ const generateContractInDocsFlow = ai.defineFlow(
         outputSchema: GenerateContractInDocsOutputSchema,
     },
     async (input) => {
-        // Step 1: Read the document content to provide context to the AI
-        const templateContent = await getDocumentContent(input.accessToken, input.documentId);
-        
-        // Step 2: Check if File Search is enabled for this project
-        let hasFileSearch = false;
-        let fileSearchStoreId = null;
-        
-        if (input.projectId) {
-            const projectDoc = await db.collection('projects').doc(input.projectId).get();
-            if (projectDoc.exists && projectDoc.data()?.fileSearchStoreId) {
-                hasFileSearch = true;
-                fileSearchStoreId = projectDoc.data()?.fileSearchStoreId;
-            }
-        }
-
-        // Step 3: Ask AI for replacements
-        const { output } = await findReplacementsPrompt({ 
-            templateContent, 
-            extractedEntities: input.extractedEntities,
-            hasFileSearch
-        });
-        
-        if (!output || !output.replacements) {
-            throw new Error('AI failed to find any replacements.');
-        }
-        
-        // Step 4: Convert AI replacements to Google Docs batchUpdate requests
-        const requests = output.replacements.map(r => ({
-            replaceAllText: {
-                replaceText: r.replacement,
-                containsText: {
-                    text: r.match,
-                    matchCase: false
+        try {
+            // Step 1: Read the document content to provide context to the AI
+            const templateContent = await getDocumentContent(input.accessToken, input.documentId);
+            
+            // Step 2: Check if File Search is enabled for this project
+            let hasFileSearch = false;
+            
+            if (input.projectId) {
+                const projectDoc = await db.collection('projects').doc(input.projectId).get();
+                if (projectDoc.exists && projectDoc.data()?.isSyncedToFileSearch) {
+                    hasFileSearch = true;
                 }
             }
-        }));
-        
-        // Step 5: Apply updates to the document if any were found
-        if (requests.length > 0) {
-            await batchUpdateDocument(input.accessToken, input.documentId, requests);
+
+            // Step 3: Ask AI for replacements
+            const { output } = await findReplacementsPrompt({ 
+                templateContent, 
+                extractedEntities: input.extractedEntities,
+                hasFileSearch
+            });
+            
+            if (!output || !output.replacements) {
+                throw new Error('A IA não conseguiu identificar os campos para preenchimento.');
+            }
+            
+            // Step 4: Convert AI replacements to Google Docs batchUpdate requests
+            const requests = output.replacements.map(r => ({
+                replaceAllText: {
+                    replaceText: r.replacement,
+                    containsText: {
+                        text: r.match,
+                        matchCase: false
+                    }
+                }
+            }));
+            
+            // Step 5: Apply updates to the document if any were found
+            if (requests.length > 0) {
+                await batchUpdateDocument(input.accessToken, input.documentId, requests);
+            }
+            
+            return {
+                success: true,
+                documentLink: `https://docs.google.com/document/d/${input.documentId}/edit`,
+                replacementsApplied: requests.length,
+            };
+        } catch (error: any) {
+            console.error('Error in generateContractInDocsFlow:', error);
+            throw new Error(error.message || 'Falha no processamento da IA para o Google Docs');
         }
-        
-        return {
-            success: true,
-            documentLink: `https://docs.google.com/document/d/${input.documentId}/edit`,
-            replacementsApplied: requests.length,
-        };
     }
 );
 

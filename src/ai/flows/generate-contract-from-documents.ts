@@ -61,10 +61,15 @@ const generateContractFromDocumentsFlow = ai.defineFlow(
     outputSchema: GenerateContractFromDocumentsOutputSchema,
   },
   async input => {
-    const {output} = await generateContractPrompt(input);
-    if (!output) {
-      throw new Error('AI failed to generate a contract draft.');
+    try {
+      const {output} = await generateContractPrompt(input);
+      if (!output) {
+        throw new Error('A IA falhou ao gerar a minuta do contrato.');
+      }
+      return output;
+    } catch (error: any) {
+      console.error('Error in generateContractFromDocumentsFlow:', error);
+      throw new Error(error.message || 'Falha no processamento da IA para geração do contrato');
     }
-    return output;
   }
 );

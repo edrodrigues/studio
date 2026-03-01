@@ -103,25 +103,31 @@ export async function handleGenerateContract(input: {
   documents?: { name: string; dataUri: string }[];
 }) {
   try {
+    console.log('handleGenerateContract: Starting validation');
     const validatedData = generateContractSchema.safeParse(input);
 
     if (!validatedData.success) {
-      console.error('Validation failed', validatedData.error.flatten());
+      console.error('handleGenerateContract: Validation failed', validatedData.error.flatten());
       return { success: false, error: 'Dados de arquivo inválidos.' };
     }
 
+    console.log('handleGenerateContract: Preparing documents');
     const documentsForFlow = await prepareDocumentsForFlow(validatedData.data);
 
     if (documentsForFlow.length === 0) {
+      console.warn('handleGenerateContract: No documents provided');
       return { success: false, error: 'Nenhum documento fornecido para geração.' };
     }
 
+    console.log(`handleGenerateContract: Calling generateContractFromDocuments with ${documentsForFlow.length} docs`);
     const result = await generateContractFromDocuments({
       documents: documentsForFlow,
     });
+    
+    console.log('handleGenerateContract: Generation successful');
     return { success: true, data: result };
   } catch (error) {
-    console.error('Error generating contract:', error);
+    console.error('handleGenerateContract: CRITICAL ERROR', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Falha ao gerar o contrato.';
     return { success: false, error: errorMessage };

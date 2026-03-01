@@ -2,8 +2,9 @@
 
 import { useState, useMemo, useTransition, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { collection, addDoc, doc, deleteDoc, query, where } from "firebase/firestore";
+import { collection, addDoc, doc, deleteDoc, query, where, getDoc, increment } from "firebase/firestore";
 import { 
+
   FilePlus2, Loader2, CheckCircle2, FileText, LayoutTemplate, 
   ArrowRight, Wand2, Eye, Pencil, Trash2, MoreHorizontal, 
   ExternalLink, GitCompareArrows, Download
@@ -169,18 +170,22 @@ function GerarExportarContent() {
               clientName || "Cliente", editedEntities, currentProjectId
             );
 
-            await addDoc(collection(firestore, 'users', user.uid, 'filledContracts'), {
-              projectId: currentProjectId,
-              contractModelId: template.id,
-              clientName: clientName || "Cliente",
-              filledData: JSON.stringify({ entities: editedEntities }),
-              name: result.fileName,
-              markdownContent: "",
-              googleDocLink: result.documentLink,
-              googleDocId: result.documentId,
-              createdAt: new Date().toISOString(),
-            });
-            generatedSuccessfully = true;
+            if (result.success && result.documentId) {
+              await addDoc(collection(firestore, 'users', user.uid, 'filledContracts'), {
+                projectId: currentProjectId,
+                contractModelId: template.id,
+                clientName: clientName || "Cliente",
+                filledData: JSON.stringify({ entities: editedEntities }),
+                name: result.fileName,
+                markdownContent: "",
+                googleDocLink: result.documentLink,
+                googleDocId: result.documentId,
+                createdAt: new Date().toISOString(),
+              });
+              generatedSuccessfully = true;
+            } else {
+              lastErrorMessage = result.error || "Erro na integração com Google Docs.";
+            }
           } else {
             // Markdown Flow
             const result = await handleGenerateContract({
@@ -208,7 +213,6 @@ function GerarExportarContent() {
           if (generatedSuccessfully) {
             // Increment contract count in project
             if (currentProjectId && currentProjectId !== "default-project") {
-              const { increment } = await import('firebase/firestore');
               const projectRef = doc(firestore, 'projects', currentProjectId);
               await updateDoc(projectRef, {
                 contractCount: increment(1),
@@ -216,7 +220,8 @@ function GerarExportarContent() {
               });
             }
             successCount++;
-          } else {
+          }
+ else {
             errorCount++;
           }
         } catch (e) {

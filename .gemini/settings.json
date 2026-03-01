@@ -11,6 +11,14 @@
         "firebase-tools@latest",
         "mcp"
       ]
+    },
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "ctx7sk-3b24219a-cc8c-4cb2-ba96-c44a33773f19"
+      },
+      "enabled": true
     }
   }
 }

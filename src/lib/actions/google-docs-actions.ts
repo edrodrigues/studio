@@ -49,6 +49,9 @@ export async function generateContractDoc(
         };
     } catch (error: any) {
         console.error('Error in generateContractDoc Server Action:', error);
-        throw new Error(error.message || 'Failed to generate Google Doc');
+        return {
+            success: false,
+            error: error.message || 'Failed to generate Google Doc'
+        };
     }
 }

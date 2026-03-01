@@ -50,6 +50,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { cn, isValidDate, safeNewDate } from "@/lib/utils";
 import type { Project, ProjectRole } from '@/lib/types';
 
 // Role badge component
@@ -161,16 +162,17 @@ function ProjectCard({
         <div className="flex items-center justify-between w-full">
           <RoleBadge role={project.myRole} />
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Clock className="h-3 w-3" />
+            <Clock className="h-3.5 w-3.5" />
             <span>
-              {project.updatedAt
-                ? formatDistanceToNow(new Date(project.updatedAt), {
+              {isValidDate(project.updatedAt)
+                ? formatDistanceToNow(safeNewDate(project.updatedAt)!, {
                     addSuffix: true,
                     locale: ptBR,
                   })
                 : 'Nunca'}
             </span>
           </div>
+
         </div>
       </CardFooter>
     </Card>
@@ -231,10 +233,12 @@ function InviteNotification({
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Por {invite.invitedByName} •{' '}
-                    {formatDistanceToNow(new Date(invite.invitedAt), {
-                      addSuffix: true,
-                      locale: ptBR,
-                    })}
+                    {isValidDate(invite.invitedAt)
+                      ? formatDistanceToNow(safeNewDate(invite.invitedAt)!, {
+                          addSuffix: true,
+                          locale: ptBR,
+                        })
+                      : 'Agora'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

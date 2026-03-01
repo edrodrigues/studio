@@ -5,6 +5,25 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Safely creates a Date object from a value.
+ * Returns null if the value is invalid.
+ */
+export function safeNewDate(value: any): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Checks if a value is a valid date that can be formatted.
+ */
+export function isValidDate(value: any): boolean {
+  if (!value) return false;
+  const date = new Date(value);
+  return !isNaN(date.getTime());
+}
+
 export const fileToDataURI = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

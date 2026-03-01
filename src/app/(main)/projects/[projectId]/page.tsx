@@ -46,6 +46,7 @@ import {
 } from '@/hooks/use-projects';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProjectDocumentsUploader } from './components/ProjectDocumentsUploader';
+import { isValidDate, safeNewDate } from "@/lib/utils";
 
 // Active users indicator
 function ActiveUsersIndicator({ projectId }: { projectId: string }) {
@@ -373,8 +374,8 @@ function ContractsTab({ projectId }: { projectId: string }) {
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {contract.date
-                    ? format(new Date(contract.date), "dd/MM/yyyy 'às' HH:mm")
+                  {isValidDate(contract.date)
+                    ? format(safeNewDate(contract.date)!, "dd/MM/yyyy 'às' HH:mm")
                     : 'Data desconhecida'}
                 </p>
               </div>
@@ -465,7 +466,7 @@ function ActivityTab({ projectId }: { projectId: string }) {
               <span className="font-medium">{activity.targetName}</span>
             </p>
             <p className="text-xs text-muted-foreground">
-              {activity.timestamp ? formatDistanceToNow(new Date(activity.timestamp), {
+              {isValidDate(activity.timestamp) ? formatDistanceToNow(safeNewDate(activity.timestamp)!, {
                 addSuffix: true,
                 locale: ptBR,
               }) : 'Agora'}

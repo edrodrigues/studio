@@ -24,7 +24,7 @@ import { handleGenerateContract } from "@/lib/actions";
 import { generateContractDoc } from "@/lib/actions/google-docs-actions";
 import { useAuthContext } from "@/context/auth-context";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
-import { cn, extractGoogleDocId } from "@/lib/utils";
+import { cn, extractGoogleDocId, isValidDate, safeNewDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -344,8 +344,8 @@ function GerarExportarContent() {
                         )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {c.createdAt && !isNaN(new Date(c.createdAt).getTime()) 
-                          ? format(new Date(c.createdAt), "dd/MM/yyyy HH:mm") 
+                        {isValidDate(c.createdAt) 
+                          ? format(safeNewDate(c.createdAt)!, "dd/MM/yyyy HH:mm") 
                           : "-"}
                       </TableCell>
                       <TableCell>

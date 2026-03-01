@@ -1,3 +1,4 @@
+import '@/env-setup';
 import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { join } from 'path';

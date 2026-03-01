@@ -10,9 +10,12 @@ if (fs.existsSync(envLocalPath)) {
 
     // Handle multi-line FIREBASE_SERVICE_ACCOUNT which dotenv might truncate
     if (content.includes('FIREBASE_SERVICE_ACCOUNT={')) {
-        const match = content.match(/FIREBASE_SERVICE_ACCOUNT=({[\s\S]*?^})/m);
-        if (match && match[1]) {
-            process.env.FIREBASE_SERVICE_ACCOUNT = match[1];
+        // Find the start of the JSON
+        const startIndex = content.indexOf('FIREBASE_SERVICE_ACCOUNT={') + 'FIREBASE_SERVICE_ACCOUNT='.length;
+        // Find the matching closing brace (simple approach for this specific case)
+        const lastBraceIndex = content.lastIndexOf('}');
+        if (lastBraceIndex > startIndex) {
+            process.env.FIREBASE_SERVICE_ACCOUNT = content.substring(startIndex, lastBraceIndex + 1);
         }
     }
 }

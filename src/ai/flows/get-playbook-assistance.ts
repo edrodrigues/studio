@@ -135,32 +135,73 @@ async function generateWithFileSearch(
     history: { role: string; content: string }[],
     playbookContent: string,
     fileSearchStoreId: string,
-): Promise<string> {
-    const contents = [
-        ...history.map(m => ({
-            role: m.role === 'model' ? 'model' as const : 'user' as const,
-            parts: [{ text: m.content }],
-        })),
-        { role: 'user' as const, parts: [{ text: query }] },
-    ];
+): Promise<{ answer: string; error?: string }> {
+    console.log('[ALEX FileSearch] === START ===');
+    console.log('[ALEX FileSearch] Store ID:', fileSearchStoreId);
+    console.log('[ALEX FileSearch] Query:', query.substring(0, 100));
+    console.log('[ALEX FileSearch] History length:', history.length);
+    
+    try {
+        const contents = [
+            ...history.map(m => ({
+                role: m.role === 'model' ? 'model' as const : 'user' as const,
+                parts: [{ text: m.content }],
+            })),
+            { role: 'user' as const, parts: [{ text: query }] },
+        ];
 
-    const systemInstruction = buildSystemInstruction(playbookContent, true);
+        const systemInstruction = buildSystemInstruction(playbookContent, true);
 
-    const response = await genaiClient.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents,
-        config: {
-            tools: [{
-                fileSearch: {
-                    fileSearchStoreNames: [fileSearchStoreId],
-                },
-            }],
-            systemInstruction,
-            temperature: 0.3,
-        },
-    });
+        console.log('[ALEX FileSearch] Calling Google GenAI API...');
+        
+        const response = await genaiClient.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents,
+            config: {
+                tools: [
+                    {
+                        fileSearch: {
+                            fileSearchStoreNames: [fileSearchStoreId],
+                        },
+                    },
+                ],
+                systemInstruction,
+                temperature: 0.3,
+            },
+        });
 
-    return response.text ?? 'Desculpe, não consegui gerar uma resposta.';
+        console.log('[ALEX FileSearch] Response received');
+        console.log('[ALEX FileSearch] Response text length:', response.text?.length ?? 0);
+        
+        const responseObj = response as unknown as { toolCalls?: unknown[] };
+        if (responseObj.toolCalls && responseObj.toolCalls.length > 0) {
+            console.log('[ALEX FileSearch] Tool calls returned:', JSON.stringify(responseObj.toolCalls, null, 2));
+        }
+
+        if (!response.text) {
+            console.warn('[ALEX FileSearch] No text in response, checking candidates...');
+            console.log('[ALEX FileSearch] Response:', JSON.stringify(response, null, 2));
+        }
+
+        console.log('[ALEX FileSearch] === END ===');
+        return { answer: response.text ?? 'Desculpe, não consegui gerar uma resposta.' };
+    } catch (error) {
+        console.error('[ALEX FileSearch] === ERROR ===');
+        console.error('[ALEX FileSearch] Error name:', error instanceof Error ? error.name : 'Unknown');
+        console.error('[ALEX FileSearch] Error message:', error instanceof Error ? error.message : String(error));
+        
+        if (error instanceof Error && error.cause) {
+            console.error('[ALEX FileSearch] Error cause:', error.cause);
+        }
+        
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao buscar nos documentos';
+        console.error('[ALEX FileSearch] === END ERROR ===');
+        
+        return { 
+            answer: 'Desculpe, houve um problema ao buscar nos documentos indexados.', 
+            error: errorMessage 
+        };
+    }
 }
 
 const getPlaybookAssistanceFlow = ai.defineFlow(
@@ -181,14 +222,19 @@ const getPlaybookAssistanceFlow = ai.defineFlow(
                 const projectData = projectDoc.data();
 
                 if (projectData?.isSyncedToFileSearch && projectData?.fileSearchStoreId) {
-                    const answer = await generateWithFileSearch(
+                    const result = await generateWithFileSearch(
                         input.query,
                         history,
                         playbookContent,
                         projectData.fileSearchStoreId,
                     );
-                    usedFileSearch = true;
-                    return { answer, usedFileSearch };
+                    
+                    if (result.error) {
+                        console.error('[ALEX] File Search failed, falling back to Playbook:', result.error);
+                    } else {
+                        usedFileSearch = true;
+                        return { answer: result.answer, usedFileSearch };
+                    }
                 }
             } catch (error) {
                 console.error('Error accessing File Search for project, falling back to Playbook only:', error);

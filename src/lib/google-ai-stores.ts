@@ -71,15 +71,30 @@ export async function uploadFileToProjectStore(projectId: string, fileBuffer: Bu
       }
     });
 
-    console.log(`Upload concluído. Resposta da operação:`, JSON.stringify(operation, null, 2));
+    console.log(`Upload iniciado. Operation name:`, (operation as any).name || 'unknown');
 
-    // Para o teste, vamos apenas retornar sucesso se chegamos aqui
-    // A indexação acontece em background no Google.
+    // Aguardar a indexação completar (poll for completion)
+    let pollCount = 0;
+    const maxPolls = 30; // Max 30 * 2 seconds = 60 seconds
+    
+    while (!(operation as any).done && pollCount < maxPolls) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      pollCount++;
+      console.log(`[FileSearch] Poll ${pollCount}: indexing in progress...`);
+    }
+
+    if (!(operation as any).done) {
+      console.warn(`[FileSearch] Indexing not completed after ${pollCount * 2} seconds, returning anyway`);
+    } else {
+      console.log(`[FileSearch] Indexing completed successfully!`);
+    }
+
     return { 
       success: true, 
       storeId, 
       fileName,
-      operationName: (operation as any).name 
+      operationName: (operation as any).name,
+      indexingComplete: (operation as any).done
     };
   } catch (error) {
     console.error(`Erro ao sincronizar arquivo ${fileName}:`, error);

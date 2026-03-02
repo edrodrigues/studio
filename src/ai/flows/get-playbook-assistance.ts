@@ -27,6 +27,7 @@ export type GetPlaybookAssistanceInput = z.infer<typeof GetPlaybookAssistanceInp
 
 const GetPlaybookAssistanceOutputSchema = z.object({
     answer: z.string().describe('The answer from the AI based on the playbook.'),
+    usedFileSearch: z.boolean().describe('Whether File Search was used to answer the query.'),
 });
 
 export type GetPlaybookAssistanceOutput = z.infer<typeof GetPlaybookAssistanceOutputSchema>;
@@ -151,7 +152,7 @@ async function generateWithFileSearch(
         config: {
             tools: [{
                 fileSearch: {
-                    fileSearchStoreIds: [fileSearchStoreId],
+                    fileSearchStoreNames: [fileSearchStoreId],
                 },
             }],
             systemInstruction,
@@ -171,6 +172,7 @@ const getPlaybookAssistanceFlow = ai.defineFlow(
     async input => {
         const playbookContent = loadPlaybookContent();
         const history = input.history ?? [];
+        let usedFileSearch = false;
 
         // Check if the project has a File Search Store
         if (input.projectId) {
@@ -185,7 +187,8 @@ const getPlaybookAssistanceFlow = ai.defineFlow(
                         playbookContent,
                         projectData.fileSearchStoreId,
                     );
-                    return { answer };
+                    usedFileSearch = true;
+                    return { answer, usedFileSearch };
                 }
             } catch (error) {
                 console.error('Error accessing File Search for project, falling back to Playbook only:', error);
@@ -201,6 +204,6 @@ const getPlaybookAssistanceFlow = ai.defineFlow(
         if (!output) {
             throw new Error('AI failed to generate an answer.');
         }
-        return output;
+        return { answer: output.answer, usedFileSearch };
     }
 );

@@ -403,6 +403,32 @@ export async function handleSyncToFileSearch(input: {
   }
 }
 
+export interface DocumentIndexingStatus {
+  isSynced: boolean;
+  storeId: string | null;
+  lastSyncedAt: Date | string | null;
+}
+
+export async function checkDocumentIndexingStatus(projectId: string): Promise<DocumentIndexingStatus> {
+  try {
+    const projectDoc = await db.collection('projects').doc(projectId).get();
+    const data = projectDoc.data();
+    
+    return {
+      isSynced: data?.isSyncedToFileSearch || false,
+      storeId: data?.fileSearchStoreId || null,
+      lastSyncedAt: data?.lastSyncedAt || null,
+    };
+  } catch (error) {
+    console.error('Error checking document indexing status:', error);
+    return {
+      isSynced: false,
+      storeId: null,
+      lastSyncedAt: null,
+    };
+  }
+}
+
 export async function handleExtractEntitiesAction(input: {
   projectId?: string;
   userId?: string;

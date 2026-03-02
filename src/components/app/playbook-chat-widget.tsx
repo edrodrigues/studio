@@ -22,7 +22,7 @@ import {
     XCircle,
     Clock
 } from "lucide-react";
-import { handleGetPlaybookAssistance, handleSavePlaybookFeedback } from "@/lib/actions";
+import { handleGetPlaybookAssistance, handleSavePlaybookFeedback, checkDocumentIndexingStatus } from "@/lib/actions";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -55,6 +55,12 @@ export function PlaybookChatWidget() {
     const indexedDocs = useMemo(() => documents?.filter(d => d.status === DocumentStatus.INDEXED) ?? [], [documents]);
     const [isOpen, setIsOpen] = useState(false);
     const [docsExpanded, setDocsExpanded] = useState(false);
+    const [indexingStatus, setIndexingStatus] = useState<{
+        isSynced: boolean;
+        storeId: string | null;
+        lastSyncedAt: Date | string | null;
+    } | null>(null);
+    const [lastAnswerUsedFileSearch, setLastAnswerUsedFileSearch] = useState<boolean | null>(null);
     const [messages, setMessages] = useState<Message[]>([
         {
             role: "model",
@@ -74,6 +80,16 @@ export function PlaybookChatWidget() {
             }
         }
     }, [messages, isOpen, isPending]);
+
+    useEffect(() => {
+        async function fetchIndexingStatus() {
+            if (projectId) {
+                const status = await checkDocumentIndexingStatus(projectId);
+                setIndexingStatus(status);
+            }
+        }
+        fetchIndexingStatus();
+    }, [projectId]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -105,6 +121,7 @@ export function PlaybookChatWidget() {
                     timestamp: new Date()
                 };
                 setMessages((prev) => [...prev, assistantMessage]);
+                setLastAnswerUsedFileSearch(res.data.usedFileSearch ?? false);
             } else {
                 const errorMessage: Message = {
                     role: "model",
@@ -264,6 +281,38 @@ export function PlaybookChatWidget() {
                                 </motion.div>
                             )}
                         </div>
+
+                        {/* File Search Status Indicator */}
+                        {projectId && indexingStatus && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className={cn(
+                                    "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium",
+                                    indexingStatus.isSynced && indexingStatus.storeId
+                                        ? "bg-green-500/10 text-green-400 border border-green-500/20"
+                                        : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                                )}
+                            >
+                                {indexingStatus.isSynced && indexingStatus.storeId ? (
+                                    <>
+                                        <CheckCircle2 className="h-3 w-3 shrink-0" />
+                                        <span>Documentos Indexados</span>
+                                        {lastAnswerUsedFileSearch === true && (
+                                            <span className="ml-1 opacity-60">(usando busca)</span>
+                                        )}
+                                        {lastAnswerUsedFileSearch === false && (
+                                            <span className="ml-1 opacity-60">(playbook)</span>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        <Clock className="h-3 w-3 shrink-0" />
+                                        <span>Documentos Não Indexados</span>
+                                    </>
+                                )}
+                            </motion.div>
+                        )}
 
                         {/* Chat Area */}
                         <ScrollArea className="flex-1 p-5 bg-transparent" ref={scrollAreaRef}>

@@ -86,6 +86,10 @@ export interface Project {
   // Contract configuration
   contractType?: string;
   processType?: string;
+  // File Search (Google AI)
+  isSyncedToFileSearch?: boolean;
+  fileSearchStoreId?: string;
+  lastSyncedAt?: string;
 }
 
 export interface ProjectMember {

@@ -5,7 +5,7 @@ import path from "node:path";
 import os from "node:os";
 
 // Inicializa o cliente do Google GenAI (Unified SDK)
-const client = new GoogleGenAI({
+export const genaiClient = new GoogleGenAI({
   apiKey: process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "",
   vertexai: false // Usando a API direta da ML Dev (AI Studio)
 });
@@ -25,7 +25,7 @@ export async function getOrCreateProjectStore(projectId: string) {
   console.log(`Criando novo File Search Store para o projeto: ${projectId}`);
   
   try {
-    const fileSearchStore = await client.fileSearchStores.create({
+    const fileSearchStore = await genaiClient.fileSearchStores.create({
       config: {
         displayName: `Store_Project_${projectId}`
       }
@@ -62,7 +62,7 @@ export async function uploadFileToProjectStore(projectId: string, fileBuffer: Bu
 
     console.log(`Fazendo upload de ${fileName} para o store ${storeId}...`);
 
-    const operation = await client.fileSearchStores.uploadToFileSearchStore({
+    const operation = await genaiClient.fileSearchStores.uploadToFileSearchStore({
       file: tempFilePath,
       fileSearchStoreName: storeId,
       config: {

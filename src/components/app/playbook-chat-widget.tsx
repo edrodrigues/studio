@@ -1,13 +1,11 @@
-
 "use client";
 
-import { useState, useTransition, useRef, useEffect } from "react";
+import { useState, useTransition, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-    Bot,
     Loader2,
     Send,
     X,
@@ -17,13 +15,22 @@ import {
     Meh,
     Frown,
     Check,
-    Sparkles
+    Sparkles,
+    FolderOpen,
+    ChevronDown,
+    CheckCircle2,
+    XCircle,
+    Clock
 } from "lucide-react";
 import { handleGetPlaybookAssistance, handleSavePlaybookFeedback } from "@/lib/actions";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useAuthContext } from "@/context/auth-context";
+import { useParams, useSearchParams } from "next/navigation";
+import { useProject, useProjectDocuments } from "@/hooks/use-projects";
+import { DocumentStatus } from "@/lib/types";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 
 interface Message {
     role: "user" | "model";
@@ -32,9 +39,22 @@ interface Message {
     feedback?: 'positive' | 'neutral' | 'negative';
 }
 
+function useCurrentProjectId(): string | undefined {
+    const params = useParams();
+    const searchParams = useSearchParams();
+    const fromPath = params?.projectId as string | undefined;
+    const fromQuery = searchParams.get('projectId');
+    return fromPath || fromQuery || undefined;
+}
+
 export function PlaybookChatWidget() {
     const { user } = useAuthContext();
+    const projectId = useCurrentProjectId();
+    const { project } = useProject(projectId ?? null);
+    const { documents } = useProjectDocuments(projectId ?? null);
+    const indexedDocs = useMemo(() => documents?.filter(d => d.status === DocumentStatus.INDEXED) ?? [], [documents]);
     const [isOpen, setIsOpen] = useState(false);
+    const [docsExpanded, setDocsExpanded] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
         {
             role: "model",
@@ -67,13 +87,15 @@ export function PlaybookChatWidget() {
 
         const newMessages = [...messages, userMessage];
         setMessages(newMessages);
+        const currentInput = input;
         setInput("");
 
         startTransition(async () => {
             const history = newMessages.map(m => ({ role: m.role, content: m.content }));
             const res = await handleGetPlaybookAssistance({
-                query: input,
+                query: currentInput,
                 history: history.slice(-6),
+                projectId,
             });
 
             if (res.success && res.data) {
@@ -146,44 +168,101 @@ export function PlaybookChatWidget() {
                         className="fixed bottom-6 right-6 w-[400px] h-[600px] flex flex-col rounded-3xl overflow-hidden glass dark:glass-dark shadow-[0_20px_50px_rgba(0,0,0,0.3)] z-50"
                     >
                         {/* Header */}
-                        <div className="bg-primary/90 p-5 flex items-center justify-between text-primary-foreground backdrop-blur-sm">
-                            <div className="flex items-center gap-3">
-                                <div className="relative">
-                                    <Avatar className="h-12 w-12 border-2 border-white/20 shadow-lg">
-                                        <AvatarImage src="/bot-avatar.png" alt="Alex" />
-                                        <AvatarFallback className="bg-accent text-accent-foreground font-serif font-bold text-lg">AX</AvatarFallback>
-                                    </Avatar>
-                                    <motion.div
-                                        animate={{ scale: [1, 1.2, 1] }}
-                                        transition={{ repeat: Infinity, duration: 2 }}
-                                        className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-400 border-2 border-primary rounded-full"
-                                    />
+                        <div className="bg-primary/90 p-5 flex flex-col gap-2 text-primary-foreground backdrop-blur-sm">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                        <Avatar className="h-12 w-12 border-2 border-white/20 shadow-lg">
+                                            <AvatarImage src="/bot-avatar.png" alt="Alex" />
+                                            <AvatarFallback className="bg-accent text-accent-foreground font-serif font-bold text-lg">AX</AvatarFallback>
+                                        </Avatar>
+                                        <motion.div
+                                            animate={{ scale: [1, 1.2, 1] }}
+                                            transition={{ repeat: Infinity, duration: 2 }}
+                                            className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-400 border-2 border-primary rounded-full"
+                                        />
+                                    </div>
+                                    <div>
+                                        <h2 className="font-serif font-bold text-xl leading-none flex items-center gap-1.5">
+                                            Alex <Sparkles className="h-3.5 w-3.5 text-accent" />
+                                        </h2>
+                                        <p className="text-[10px] opacity-70 mt-1 uppercase tracking-[0.2em] font-medium">IA do V-Lab Studio</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h2 className="font-serif font-bold text-xl leading-none flex items-center gap-1.5">
-                                        Alex <Sparkles className="h-3.5 w-3.5 text-accent" />
-                                    </h2>
-                                    <p className="text-[10px] opacity-70 mt-1 uppercase tracking-[0.2em] font-medium">IA do V-Lab Studio</p>
+                                <div className="flex items-center gap-1">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-9 w-9 hover:bg-white/10 text-white rounded-full"
+                                        onClick={() => setIsOpen(false)}
+                                    >
+                                        <Minus className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-9 w-9 hover:bg-white/10 text-white rounded-full"
+                                        onClick={() => setIsOpen(false)}
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </Button>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-1">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-9 w-9 hover:bg-white/10 text-white rounded-full"
-                                    onClick={() => setIsOpen(false)}
+                            {projectId && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -4 }}
+                                    animate={{ opacity: 1, y: 0 }}
                                 >
-                                    <Minus className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-9 w-9 hover:bg-white/10 text-white rounded-full"
-                                    onClick={() => setIsOpen(false)}
-                                >
-                                    <X className="h-4 w-4" />
-                                </Button>
-                            </div>
+                                    <Collapsible open={docsExpanded} onOpenChange={setDocsExpanded}>
+                                        <CollapsibleTrigger className="w-full flex items-center gap-1.5 bg-white/10 hover:bg-white/15 transition-colors rounded-lg px-2.5 py-1.5 text-[10px] font-medium tracking-wider cursor-pointer">
+                                            <FolderOpen className="h-3 w-3 shrink-0" />
+                                            <span className="truncate flex-1 text-left">
+                                                {project?.name ? (
+                                                    <><span className="font-bold">{project.name}</span> — Playbook + Documentos</>
+                                                ) : (
+                                                    <>Contexto do projeto ativo — Playbook + Documentos</>
+                                                )}
+                                            </span>
+                                            {indexedDocs.length > 0 && (
+                                                <span className="bg-white/15 rounded-full px-1.5 py-0.5 text-[9px] tabular-nums shrink-0">
+                                                    {indexedDocs.length}
+                                                </span>
+                                            )}
+                                            <ChevronDown className={cn(
+                                                "h-3 w-3 shrink-0 transition-transform duration-200",
+                                                docsExpanded && "rotate-180"
+                                            )} />
+                                        </CollapsibleTrigger>
+                                        <CollapsibleContent>
+                                            <div className="mt-1.5 bg-white/5 rounded-lg px-2.5 py-2 space-y-1 max-h-[120px] overflow-y-auto">
+                                                {documents && documents.length > 0 ? (
+                                                    documents.map(doc => (
+                                                        <div key={doc.id} className="flex items-center gap-1.5 text-[10px] opacity-80">
+                                                            {doc.status === DocumentStatus.INDEXED && (
+                                                                <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-green-400" />
+                                                            )}
+                                                            {doc.status === DocumentStatus.PROCESSING && (
+                                                                <Loader2 className="h-2.5 w-2.5 shrink-0 text-amber-400 animate-spin" />
+                                                            )}
+                                                            {doc.status === DocumentStatus.ERROR && (
+                                                                <XCircle className="h-2.5 w-2.5 shrink-0 text-red-400" />
+                                                            )}
+                                                            {doc.status === DocumentStatus.UPLOADED && (
+                                                                <Clock className="h-2.5 w-2.5 shrink-0 opacity-50" />
+                                                            )}
+                                                            <span className="truncate">{doc.name}</span>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <p className="text-[10px] opacity-50 italic">
+                                                        Nenhum documento no projeto. Faça upload de documentos primeiro.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </CollapsibleContent>
+                                    </Collapsible>
+                                </motion.div>
+                            )}
                         </div>
 
                         {/* Chat Area */}
@@ -283,7 +362,7 @@ export function PlaybookChatWidget() {
                                                 handleSubmit(e);
                                             }
                                         }}
-                                        placeholder="Tire suas dúvidas agora..."
+                                        placeholder={projectId ? "Pergunte sobre o Playbook ou os documentos do projeto..." : "Tire suas dúvidas agora..."}
                                         className="w-full bg-transparent border-none focus:ring-0 text-sm p-3 resize-none max-h-32 min-h-[44px] font-outfit"
                                         disabled={isPending}
                                         rows={1}

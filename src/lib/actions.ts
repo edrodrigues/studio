@@ -146,11 +146,13 @@ const getPlaybookChatSchema = z.object({
     role: z.enum(['user', 'model']),
     content: z.string(),
   })).optional(),
+  projectId: z.string().optional(),
 });
 
 export async function handleGetPlaybookAssistance(input: {
   query: string;
   history?: { role: 'user' | 'model'; content: string }[];
+  projectId?: string;
 }) {
   try {
     const validatedData = getPlaybookChatSchema.safeParse(input);

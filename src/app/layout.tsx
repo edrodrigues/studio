@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { AuthProvider } from '@/context/auth-context';
 import { PlaybookChatWidget } from '@/components/app/playbook-chat-widget';
+import { Suspense } from 'react';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -37,7 +38,9 @@ export default function RootLayout({
         <FirebaseClientProvider>
           <AuthProvider>
             {children}
-            <PlaybookChatWidget />
+            <Suspense>
+              <PlaybookChatWidget />
+            </Suspense>
           </AuthProvider>
         </FirebaseClientProvider>
         <Toaster />

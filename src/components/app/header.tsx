@@ -23,7 +23,7 @@ import { useAuthContext } from "@/context/auth-context"
 import { useProject } from "@/hooks/use-projects";
 
 const navLinks = [
-  { href: "/", label: "Comece Aqui" },
+  { href: "/como-usar", label: "Comece Aqui" },
   { href: "/projects", label: "Meus Projetos" },
   { href: "/modelos", label: "Gerenciar Modelos" },
   { href: "/gerar-exportar", label: "Gerar e Revisar" },
@@ -39,13 +39,13 @@ function NavLink({ href, label }: { href: string; label: string }) {
   const projectId = projectIdFromPath || projectIdFromQuery;
 
   const isActive =
-    (href === "/" && pathname === "/") ||
+    (href === "/como-usar" && pathname === "/como-usar") ||
     (href === "/projects" && (pathname.startsWith("/projects"))) ||
-    (href !== "/" && href !== "/projects" && pathname.startsWith(href));
+    (href !== "/" && href !== "/como-usar" && href !== "/projects" && pathname.startsWith(href));
 
-  // If we have a project ID, append it to links that are not the root or the projects list itself
+  // If we have a project ID, append it to links that are not the root, como-usar, or the projects list itself
   // This allows keeping project context when moving between pages like 'Gerar e Revisar'
-  const finalHref = projectId && href !== "/" && href !== "/projects" 
+  const finalHref = projectId && href !== "/" && href !== "/como-usar" && href !== "/projects" 
     ? `${href}?projectId=${projectId}` 
     : href;
 

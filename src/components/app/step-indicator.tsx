@@ -7,7 +7,7 @@ import { Home, FolderOpen, FilePlus, CheckCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const steps = [
-  { href: "/", label: "Comece Aqui", icon: Home },
+  { href: "/como-usar", label: "Comece Aqui", icon: Home },
   { href: "/projects", label: "Documentos do Projeto", icon: FolderOpen },
   { href: "/gerar-exportar", label: "Gerar e Revisar", icon: FilePlus },
 ];

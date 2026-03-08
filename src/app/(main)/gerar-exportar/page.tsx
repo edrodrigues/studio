@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { collection, addDoc, doc, deleteDoc, query, where, getDoc, increment } from "firebase/firestore";
+import { collection, addDoc, doc, deleteDoc, query, where, getDoc, increment, updateDoc } from "firebase/firestore";
 import { 
 
   FilePlus2, Loader2, CheckCircle2, FileText, LayoutTemplate, 
@@ -275,7 +275,6 @@ function GerarExportarContent() {
       
       // Decrement contract count in project
       if (contractProjectId && contractProjectId !== "default-project") {
-        const { increment } = await import('firebase/firestore');
         const projectRef = doc(firestore, 'projects', contractProjectId);
         await updateDoc(projectRef, {
           contractCount: increment(-1),

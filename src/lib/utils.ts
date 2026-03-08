@@ -34,6 +34,14 @@ export const fileToDataURI = (file: File): Promise<string> => {
 };
 
 /**
+ * Removes accents and special characters from a string.
+ */
+export function removeAccents(str: string): string {
+  if (!str) return '';
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
  * Extracts a Google Doc ID from a shared link.
  * Matches both full links (https://docs.google.com/document/d/ID/edit)
  * and the ID directly.

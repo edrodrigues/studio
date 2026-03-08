@@ -47,6 +47,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProjectDocumentsUploader } from './components/ProjectDocumentsUploader';
 import { isValidDate, safeNewDate } from "@/lib/utils";
+import { CustomCopyModal } from '@/components/app/custom-copy-modal';
 
 // Active users indicator
 function ActiveUsersIndicator({ projectId }: { projectId: string }) {
@@ -255,11 +256,12 @@ function SyncTab({ projectId }: { projectId: string }) {
 }
 
 // Contracts tab content – merges projectContracts + user's filledContracts
-function ContractsTab({ projectId }: { projectId: string }) {
+function ContractsTab({ projectId, projectName }: { projectId: string, projectName: string }) {
   const { contracts: projectContracts, isLoading: projectLoading } = useProjectContracts(projectId);
   const { canEdit } = usePermission(projectId);
   const { user } = useUser();
   const { firestore } = useFirebase();
+  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
 
   // Also fetch user-scope filled contracts (generated via /gerar-exportar)
   const filledContractsQuery = useMemoFirebase(() => {
@@ -362,14 +364,27 @@ function ContractsTab({ projectId }: { projectId: string }) {
           {allContracts.length} contrato{allContracts.length !== 1 ? 's' : ''} gerado{allContracts.length !== 1 ? 's' : ''}
         </p>
         {canEdit && (
-          <Button size="sm" asChild>
-            <Link href={`/gerar-exportar?projectId=${projectId}`}>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setIsCopyModalOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              Gerar novo
-            </Link>
-          </Button>
+              Cópia Customizada
+            </Button>
+            <Button size="sm" asChild>
+              <Link href={`/gerar-exportar?projectId=${projectId}`}>
+                <Plus className="mr-2 h-4 w-4" />
+                Gerar novo
+              </Link>
+            </Button>
+          </div>
         )}
       </div>
+
+      <CustomCopyModal 
+        isOpen={isCopyModalOpen} 
+        onClose={() => setIsCopyModalOpen(false)}
+        projectId={projectId}
+        projectName={projectName}
+      />
 
       {allContracts.map((contract) => {
         const originalDocLink = contract.contractModelId
@@ -698,7 +713,7 @@ export default function ProjectDetailPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">Contratos Gerados</h2>
           </div>
-          <ContractsTab projectId={projectId} />
+          <ContractsTab projectId={projectId} projectName={project.name} />
         </TabsContent>
 
         <TabsContent value="activity">

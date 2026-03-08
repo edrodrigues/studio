@@ -36,6 +36,7 @@ import { saveAs } from "file-saver";
 import { exportToDocx } from "@/lib/export";
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from "framer-motion";
+import { CustomCopyModal } from "@/components/app/custom-copy-modal";
 
 const ContractPreviewModal = dynamic(() => import('@/components/app/contract-preview-modal').then(mod => mod.ContractPreviewModal), { ssr: false });
 const ComparisonModal = dynamic(() => import('@/components/app/comparison-modal').then(mod => mod.ComparisonModal), { ssr: false });
@@ -54,6 +55,19 @@ function GerarExportarContent() {
   
   const [isGenerating, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState("gerar");
+  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
+  const [projectName, setProjectName] = useState("Projeto");
+
+  // Fetch project name if projectId exists
+  useEffect(() => {
+    if (projectIdFromUrl && firestore) {
+      getDoc(doc(firestore, "projects", projectIdFromUrl)).then((docSnap) => {
+        if (docSnap.exists()) {
+          setProjectName(docSnap.data().name);
+        }
+      });
+    }
+  }, [projectIdFromUrl, firestore]);
 
   // Selection States
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
@@ -418,11 +432,27 @@ function GerarExportarContent() {
           </div>
 
           <div className="flex flex-col items-center gap-4">
-            <Button size="lg" className="h-16 px-12 text-lg font-bold rounded-full" onClick={handleStartGeneration} disabled={selectedTemplates.length === 0 || isGenerating}>
-              {isGenerating ? <Loader2 className="mr-2 animate-spin" /> : <Wand2 className="mr-2" />}
-              Gerar Documentos com IA
-            </Button>
+            <div className="flex gap-4">
+              <Button size="lg" variant="outline" className="h-16 px-8 text-lg font-bold rounded-full" onClick={() => setIsCopyModalOpen(true)} disabled={isGenerating}>
+                <FilePlus2 className="mr-2" />
+                Cópia Customizada (Google Docs)
+              </Button>
+              <Button size="lg" className="h-16 px-12 text-lg font-bold rounded-full" onClick={handleStartGeneration} disabled={selectedTemplates.length === 0 || isGenerating}>
+                {isGenerating ? <Loader2 className="mr-2 animate-spin" /> : <Wand2 className="mr-2" />}
+                Gerar com Markdown
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A <strong>Cópia Customizada</strong> preenche um modelo no Google Docs. O <strong>Markdown</strong> gera um novo rascunho.
+            </p>
           </div>
+
+          <CustomCopyModal 
+            isOpen={isCopyModalOpen} 
+            onClose={() => setIsCopyModalOpen(false)}
+            projectId={currentProjectId}
+            projectName={projectName}
+          />
         </TabsContent>
 
         <TabsContent value="revisar" className="space-y-6">

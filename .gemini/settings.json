@@ -1,8 +1,12 @@
 {
   "mcpServers": {
     "cloudflare-api": {
-      "url": "https://mcp.cloudflare.com/mcp",
-      "type": "sse"
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.cloudflare.com/mcp"
+      ]
     },
     "firebase-mcp-server": {
       "command": "npx",
@@ -13,12 +17,11 @@
       ]
     },
     "context7": {
-      "type": "remote",
+      "type": "sse",
       "url": "https://mcp.context7.com/mcp",
       "headers": {
         "CONTEXT7_API_KEY": "ctx7sk-3b24219a-cc8c-4cb2-ba96-c44a33773f19"
-      },
-      "enabled": true
+      }
     }
   }
 }

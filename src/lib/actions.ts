@@ -12,7 +12,7 @@ import { convertDocumentsToSupportedFormats, convertBufferToSupportedDataUri } f
 import { db } from '@/lib/firebase-server';
 import { r2Client, R2_BUCKET_NAME } from '@/lib/r2';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
-import { ProjectDocument, ProjectRole } from './types';
+import { ProjectDocument, ProjectRole, DocumentStatus } from './types';
 import { getDownloadUrl } from './actions/storage-actions';
 import { z } from 'zod';
 
@@ -123,7 +123,7 @@ export async function handleGenerateContract(input: {
     const result = await generateContractFromDocuments({
       documents: documentsForFlow,
     });
-    
+
     console.log('handleGenerateContract: Generation successful');
     return { success: true, data: result };
   } catch (error) {
@@ -239,7 +239,7 @@ export async function handleGetAlexFeedback() {
       .orderBy('timestamp', 'desc')
       .limit(50)
       .get();
-    
+
     const feedbacks = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
@@ -364,29 +364,57 @@ export async function handleSyncToFileSearch(input: {
       documentsSnapshot.map(async (docSnap) => {
         if (!docSnap.exists) return null;
         const docData = docSnap.data() as ProjectDocument;
-        
-        let buffer: Buffer;
-        if (docData.storageProvider === 'r2') {
-          const command = new GetObjectCommand({
-            Bucket: R2_BUCKET_NAME,
-            Key: docData.storagePath,
-          });
-          const response = await r2Client.send(command);
-          if (!response.Body) return null;
-          buffer = Buffer.from(await response.Body.transformToByteArray());
-        } else {
-          const response = await fetch(docData.fileUrl);
-          if (!response.ok) return null;
-          buffer = Buffer.from(await response.arrayBuffer());
-        }
+        const docRef = db.collection('projectDocuments').doc(docSnap.id);
 
-        // Sincronizar com o File Search do Google
-        return await uploadFileToProjectStore(
-          projectId, 
-          buffer, 
-          docData.name, 
-          docData.mimeType
-        );
+        // Mark as PROCESSING before starting upload
+        await docRef.update({ status: DocumentStatus.PROCESSING });
+
+        try {
+          let buffer: Buffer;
+          if (docData.storageProvider === 'r2') {
+            const command = new GetObjectCommand({
+              Bucket: R2_BUCKET_NAME,
+              Key: docData.storagePath,
+            });
+            const response = await r2Client.send(command);
+            if (!response.Body) {
+              await docRef.update({ status: DocumentStatus.ERROR, processingError: 'Arquivo vazio ou não encontrado no R2.' });
+              return null;
+            }
+            buffer = Buffer.from(await response.Body.transformToByteArray());
+          } else {
+            const response = await fetch(docData.fileUrl);
+            if (!response.ok) {
+              await docRef.update({ status: DocumentStatus.ERROR, processingError: `Falha ao baixar arquivo: HTTP ${response.status}` });
+              return null;
+            }
+            buffer = Buffer.from(await response.arrayBuffer());
+          }
+
+          // Sincronizar com o File Search do Google
+          const result = await uploadFileToProjectStore(
+            projectId,
+            buffer,
+            docData.name,
+            docData.mimeType
+          );
+
+          // Update document status based on result
+          if (result.success) {
+            await docRef.update({ status: DocumentStatus.INDEXED, processingError: null });
+          } else {
+            await docRef.update({ status: DocumentStatus.ERROR, processingError: result.error || 'Falha na sincronização com o File Search.' });
+          }
+
+          return result;
+        } catch (docError) {
+          console.error(`Erro ao sincronizar documento ${docSnap.id}:`, docError);
+          await docRef.update({
+            status: DocumentStatus.ERROR,
+            processingError: docError instanceof Error ? docError.message : 'Erro desconhecido durante sincronização.',
+          });
+          return null;
+        }
       })
     );
 
@@ -413,7 +441,7 @@ export async function checkDocumentIndexingStatus(projectId: string): Promise<Do
   try {
     const projectDoc = await db.collection('projects').doc(projectId).get();
     const data = projectDoc.data();
-    
+
     return {
       isSynced: data?.isSyncedToFileSearch || false,
       storeId: data?.fileSearchStoreId || null,

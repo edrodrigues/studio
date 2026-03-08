@@ -268,6 +268,20 @@ function ContractsTab({ projectId }: { projectId: string }) {
   }, [user, firestore]);
   const { data: filledContracts, isLoading: filledLoading } = useCollection<Contract>(filledContractsQuery);
 
+  // Fetch templates so we can resolve the original doc link per contract
+  const templatesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'contractModels');
+  }, [firestore]);
+  const { data: templates } = useCollection<{ id: string; googleDocLink?: string }>(templatesQuery);
+
+  // Build a lookup map: templateId → original googleDocLink
+  const templateOriginalLinks = useMemo(() => {
+    const map: Record<string, string | undefined> = {};
+    (templates ?? []).forEach(t => { map[t.id] = t.googleDocLink; });
+    return map;
+  }, [templates]);
+
   const isLoading = projectLoading || filledLoading;
 
   // Normalise both sets into a single unified shape
@@ -276,7 +290,8 @@ function ContractsTab({ projectId }: { projectId: string }) {
       id: string;
       name: string;
       date: string | null;
-      googleDocLink?: string;
+      googleDocLink?: string;       // customized copy link
+      contractModelId?: string;     // to look up original template link
       markdownContent?: string;
       source: 'project' | 'user';
     }> = [];
@@ -286,6 +301,7 @@ function ContractsTab({ projectId }: { projectId: string }) {
       name: c.name,
       date: c.generatedAt ?? null,
       googleDocLink: c.googleDocLink ?? undefined,
+      contractModelId: c.templateId ?? undefined,
       markdownContent: c.markdownContent,
       source: 'project',
     }));
@@ -295,6 +311,7 @@ function ContractsTab({ projectId }: { projectId: string }) {
       name: c.name,
       date: c.createdAt ?? null,
       googleDocLink: c.googleDocLink ?? undefined,
+      contractModelId: (c as any).contractModelId ?? undefined,
       markdownContent: c.markdownContent,
       source: 'user',
     }));
@@ -354,55 +371,71 @@ function ContractsTab({ projectId }: { projectId: string }) {
         )}
       </div>
 
-      {allContracts.map((contract) => (
-        <Card key={`${contract.source}-${contract.id}`}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              {/* Icon */}
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                <FileText className="h-5 w-5 text-primary" />
-              </div>
+      {allContracts.map((contract) => {
+        const originalDocLink = contract.contractModelId
+          ? templateOriginalLinks[contract.contractModelId]
+          : undefined;
 
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-medium text-sm truncate">{contract.name}</p>
-                  {contract.googleDocLink && (
-                    <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 shrink-0">
-                      Google Docs
-                    </Badge>
-                  )}
+        return (
+          <Card key={`${contract.source}-${contract.id}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4">
+                {/* Icon */}
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <FileText className="h-5 w-5 text-primary" />
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {isValidDate(contract.date)
-                    ? format(safeNewDate(contract.date)!, "dd/MM/yyyy 'às' HH:mm")
-                    : 'Data desconhecida'}
-                </p>
-              </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-2 shrink-0">
-                {contract.googleDocLink && (
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={contract.googleDocLink} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                      Abrir
-                    </a>
-                  </Button>
-                )}
-                {!contract.googleDocLink && contract.source === 'project' && (
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/projects/${projectId}/contracts/${contract.id}`}>
-                      <Eye className="mr-1.5 h-3.5 w-3.5" />
-                      Visualizar
-                    </Link>
-                  </Button>
-                )}
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium text-sm truncate">{contract.name}</p>
+                    {contract.googleDocLink && (
+                      <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 shrink-0">
+                        Google Docs
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {isValidDate(contract.date)
+                      ? format(safeNewDate(contract.date)!, "dd/MM/yyyy 'às' HH:mm")
+                      : 'Data desconhecida'}
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                  {/* Button 1 – Original template document */}
+                  {originalDocLink ? (
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={originalDocLink} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                        Documento Original
+                      </a>
+                    </Button>
+                  ) : null}
+
+                  {/* Button 2 – Customized copy */}
+                  {contract.googleDocLink ? (
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={contract.googleDocLink} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                        Cópia Customizada
+                      </a>
+                    </Button>
+                  ) : contract.source === 'project' ? (
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/projects/${projectId}/contracts/${contract.id}`}>
+                        <Eye className="mr-1.5 h-3.5 w-3.5" />
+                        Cópia Customizada
+                      </Link>
+                    </Button>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

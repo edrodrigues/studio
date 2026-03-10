@@ -47,7 +47,6 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProjectDocumentsUploader } from './components/ProjectDocumentsUploader';
 import { isValidDate, safeNewDate } from "@/lib/utils";
-import { CustomCopyModal } from '@/components/app/custom-copy-modal';
 
 // Active users indicator
 function ActiveUsersIndicator({ projectId }: { projectId: string }) {

@@ -36,7 +36,6 @@ import { saveAs } from "file-saver";
 import { exportToDocx } from "@/lib/export";
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from "framer-motion";
-import { CustomCopyModal } from "@/components/app/custom-copy-modal";
 
 const ContractPreviewModal = dynamic(() => import('@/components/app/contract-preview-modal').then(mod => mod.ContractPreviewModal), { ssr: false });
 const ComparisonModal = dynamic(() => import('@/components/app/comparison-modal').then(mod => mod.ComparisonModal), { ssr: false });

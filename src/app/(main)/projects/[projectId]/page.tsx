@@ -260,7 +260,6 @@ function ContractsTab({ projectId, projectName }: { projectId: string, projectNa
   const { canEdit } = usePermission(projectId);
   const { user } = useUser();
   const { firestore } = useFirebase();
-  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
 
   // Also fetch user-scope filled contracts (generated via /gerar-exportar)
   const filledContractsQuery = useMemoFirebase(() => {
@@ -377,13 +376,6 @@ function ContractsTab({ projectId, projectName }: { projectId: string, projectNa
           </div>
         )}
       </div>
-
-      <CustomCopyModal 
-        isOpen={isCopyModalOpen} 
-        onClose={() => setIsCopyModalOpen(false)}
-        projectId={projectId}
-        projectName={projectName}
-      />
 
       {allContracts.map((contract) => {
         const originalDocLink = contract.contractModelId

@@ -54,7 +54,6 @@ function GerarExportarContent() {
   
   const [isGenerating, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState("gerar");
-  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
   const [projectName, setProjectName] = useState("Projeto");
 
   // Fetch project name if projectId exists
@@ -445,12 +444,6 @@ function GerarExportarContent() {
             </p>
           </div>
 
-          <CustomCopyModal 
-            isOpen={isCopyModalOpen} 
-            onClose={() => setIsCopyModalOpen(false)}
-            projectId={currentProjectId}
-            projectName={projectName}
-          />
         </TabsContent>
 
         <TabsContent value="revisar" className="space-y-6">

@@ -392,12 +392,33 @@ export async function handleSyncToFileSearch(input: {
             buffer = Buffer.from(await response.arrayBuffer());
           }
 
+          // Determinar MIME Type e se necessita de conversão
+          let uploadBuffer = buffer;
+          let uploadMimeType = getValidMimeType(docData.name, docData.mimeType);
+          let uploadName = docData.name;
+
+          // Se detectarmos que é text/plain mas não é um .txt nativo (ex: .docx, .xlsx que precisam usar mammoth)
+          if (
+            uploadMimeType === 'text/plain' && 
+            !docData.name.toLowerCase().endsWith('.txt') &&
+            !docData.name.toLowerCase().endsWith('.md')
+          ) {
+            try {
+              const { convertBufferToText } = await import('@/lib/document-converter');
+              const extractedText = await convertBufferToText(buffer, docData.mimeType, docData.name);
+              uploadBuffer = Buffer.from(extractedText, 'utf-8');
+              uploadName = docData.name + '.txt'; // Ajusta a extensão para a API do Google aceitar sem ressalvas
+            } catch (convError) {
+              console.warn(`Aviso: falhou convertendo arquivo ${docData.name} para texto puro:`, convError);
+            }
+          }
+
           // Sincronizar com o File Search do Google
           const result = await uploadFileToProjectStore(
             projectId,
-            buffer,
-            docData.name,
-            docData.mimeType
+            uploadBuffer,
+            uploadName,
+            uploadMimeType
           );
 
           // Update document status based on result

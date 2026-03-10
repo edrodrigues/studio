@@ -189,9 +189,10 @@ export function PlaybookChatWidget() {
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="relative">
-                                        <Avatar className="h-12 w-12 border-2 border-white/20 shadow-lg">
-                                            <AvatarImage src="/bot-avatar.png" alt="Alex" />
-                                            <AvatarFallback className="bg-accent text-accent-foreground font-serif font-bold text-lg">AX</AvatarFallback>
+                                        <Avatar className="h-12 w-12 border-2 border-white/20 shadow-lg bg-gradient-to-br from-primary/80 to-accent">
+                                            <AvatarFallback className="bg-transparent text-primary-foreground">
+                                                <Sparkles className="h-6 w-6" />
+                                            </AvatarFallback>
                                         </Avatar>
                                         <motion.div
                                             animate={{ scale: [1, 1.2, 1] }}

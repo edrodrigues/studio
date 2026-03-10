@@ -14,6 +14,7 @@ import { r2Client, R2_BUCKET_NAME } from '@/lib/r2';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { ProjectDocument, ProjectRole, DocumentStatus } from './types';
 import { getDownloadUrl } from './actions/storage-actions';
+import { getValidMimeType } from './mime-type-utils';
 import { z } from 'zod';
 
 const fileSchema = z.string().refine(s => s.startsWith('data:'), {
@@ -531,7 +532,7 @@ export async function handleAnalyzeDocumentConsistency(formData: FormData) {
         files.map(async (file) => {
           const arrayBuffer = await file.arrayBuffer();
           const buffer = Buffer.from(arrayBuffer);
-          const mimeType = file.type;
+          const mimeType = getValidMimeType(file.name, file.type);
           const dataUri = await convertBufferToSupportedDataUri(buffer, mimeType, file.name);
           return { url: dataUri };
         })

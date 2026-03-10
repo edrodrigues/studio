@@ -12,6 +12,7 @@ import {
 } from '@/lib/storage';
 import { DocumentStatus, ProjectDocument } from '@/lib/types';
 import { getUploadUrl } from '@/lib/actions/storage-actions';
+import { getValidMimeType } from '@/lib/mime-type-utils';
 
 export interface FileUploadState {
   isUploading: boolean;
@@ -124,7 +125,7 @@ export function useFileUpload(projectId: string | null): UseFileUploadReturn {
           uploadedBy: user.uid,
           uploadedAt: new Date().toISOString(),
           status: DocumentStatus.UPLOADED,
-          mimeType: file.type,
+          mimeType: getValidMimeType(file.name, file.type),
           storagePath: uploadUrlResult.key,
           storageProvider: 'r2',
           // Add custom fields for versioning

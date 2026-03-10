@@ -1,4 +1,5 @@
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject, FirebaseStorage } from 'firebase/storage';
+import { getValidMimeType } from './mime-type-utils';
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
 
@@ -163,7 +164,7 @@ export function uploadFileToStorage(
               downloadUrl,
               fileName: file.name,
               fileSize: file.size,
-              mimeType: file.type
+              mimeType: getValidMimeType(file.name, file.type)
             });
           } catch (error) {
             const enhancedError = new Error('Erro ao gerar link de download. Tente novamente.');

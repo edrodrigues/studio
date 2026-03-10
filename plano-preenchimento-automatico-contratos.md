@@ -166,17 +166,92 @@ interface PlaceholderMapping {
 
 ---
 
+## Correção de Bug: MIME Type Inválido para File Search
+
+### Problema
+Erro ao indexar documentos no Google File Search:
+```
+* UploadToFileSearchStoreRequest.mime_type: When provided, MIME type must be in a valid type/subtype format (e.g., 'text/plain', 'application/pdf').
+```
+
+### Causa
+O `file.type` do navegador pode estar vazio ou num formato inválido para arquivos como `.docx`, `.xlsx`, `.pptx`, etc.
+
+### Solução
+Criar um utilitário para mapear extensões de arquivo para MIME types válidos.
+
+**Arquivo:** `src/lib/mime-type-utils.ts` (novo)
+
+```typescript
+// MIME types suportados pelo Google File Search
+const SUPPORTED_MIME_TYPES = {
+  'text/plain': ['.txt', '.md'],
+  'text/markdown': ['.md'],
+  'application/pdf': ['.pdf'],
+  'text/html': ['.html', '.htm'],
+};
+
+const MIME_TYPE_MAP: Record<string, string> = {
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.pdf': 'application/pdf',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.html': 'text/html',
+  '.htm': 'text/html',
+};
+
+export function getValidMimeType(fileName: string, fallbackMimeType?: string): string {
+  const ext = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+  const mapped = MIME_TYPE_MAP[ext];
+
+  if (mapped && SUPPORTED_MIME_TYPES[mapped]) {
+    return mapped;
+  }
+
+  // Se o mimeType do navegador for válido, usar ele
+  if (fallbackMimeType && SUPPORTED_MIME_TYPES[fallbackMimeType]) {
+    return fallbackMimeType;
+  }
+
+  // Default para PDF ou texto plano
+  return ext === '.pdf' ? 'application/pdf' : 'text/plain';
+}
+```
+
+**Correção em:** `src/hooks/use-file-upload.ts` (linha 127)
+
+```typescript
+// Antes:
+mimeType: file.type,
+
+// Depois:
+import { getValidMimeType } from '@/lib/mime-type-utils';
+mimeType: getValidMimeType(file.name, file.type),
+```
+
+**Tarefas:**
+- [ ] Criar utilitário `src/lib/mime-type-utils.ts`
+- [ ] Atualizar `src/hooks/use-file-upload.ts` para usar o novo utilitário
+
+---
+
 ## Cronograma Estimado
 
 | Fase | Esforço | Descrição |
 |------|---------|------------|
+| Correção Bug | 1h | Corrigir MIME type inválido |
 | Fase 1 | 2h | Detector de placeholders |
 | Fase 2 | 4h | Serviço de cópia customizada |
 | Fase 3 | 3h | Interface na página do projeto |
 | Fase 4 | 2h | Interface na página Gerar/Revisar |
 | Fase 5 | 2h | Integração com File Search |
 | Testes | 3h | Testes unitários e integração |
-| **Total** | **~16h** | |
+| **Total** | **~17h** | |
 
 ---
 

@@ -413,19 +413,32 @@ export async function handleSyncToFileSearch(input: {
             }
           }
 
+          // Buscar documentName anterior para deletar versão antiga
+          const previousDocumentName = docData.fileSearchDocumentName || undefined;
+          
           // Sincronizar com o File Search do Google
           const result = await uploadFileToProjectStore(
             projectId,
             uploadBuffer,
             uploadName,
-            uploadMimeType
+            uploadMimeType,
+            previousDocumentName
           );
 
           // Update document status based on result
-          if (result.success) {
-            await docRef.update({ status: DocumentStatus.INDEXED, processingError: null });
+          if (result.success && result.indexingComplete) {
+            // Guardar o documentName para poder deletar em versões futuras
+            await docRef.update({ 
+              status: DocumentStatus.INDEXED, 
+              processingError: null,
+              fileSearchDocumentName: result.documentName,
+              fileSearchIndexedAt: new Date()
+            });
           } else {
-            await docRef.update({ status: DocumentStatus.ERROR, processingError: result.error || 'Falha na sincronização com o File Search.' });
+            await docRef.update({ 
+              status: DocumentStatus.ERROR, 
+              processingError: result.error || 'Falha na sincronização com o File Search.' 
+            });
           }
 
           return result;
@@ -440,13 +453,40 @@ export async function handleSyncToFileSearch(input: {
       })
     );
 
-    // After syncing, mark project as synced to enable File Search for ALEX
-    await db.collection('projects').doc(projectId).update({
-      isSyncedToFileSearch: true,
-      lastSyncedAt: new Date()
-    });
+    // Verificar se todos os documentos foram indexados com sucesso
+    const allSuccessful = syncResults.every(result => 
+      result !== null && result.success === true && result.indexingComplete === true
+    );
+    
+    const hasFailures = syncResults.some(result => 
+      result === null || result.success === false || result.indexingComplete === false
+    );
+    
+    // Só marca como sincronizado se TODOS os documentos foram indexados com sucesso
+    if (allSuccessful) {
+      await db.collection('projects').doc(projectId).update({
+        isSyncedToFileSearch: true,
+        lastSyncedAt: new Date(),
+        fileSearchSyncStatus: 'completed'
+      });
+      console.log(`[FileSearch] Projeto ${projectId} marcado como sincronizado com sucesso`);
+    } else if (hasFailures) {
+      // Se houve falhas, mantém como não sincronizado e registra o erro
+      await db.collection('projects').doc(projectId).update({
+        isSyncedToFileSearch: false,
+        lastSyncedAt: new Date(),
+        fileSearchSyncStatus: 'failed',
+        fileSearchSyncError: 'Alguns documentos falharam na indexação'
+      });
+      console.error(`[FileSearch] Projeto ${projectId} teve falhas na sincronização`);
+      return { 
+        success: false, 
+        error: 'Alguns documentos falharam na indexação. Verifique os logs para mais detalhes.',
+        results: syncResults 
+      };
+    }
 
-    return { success: true, results: syncResults };
+    return { success: allSuccessful, results: syncResults };
   } catch (error) {
     console.error('Error syncing to file search:', error);
     return { success: false, error: 'Falha ao sincronizar com o File Search.' };

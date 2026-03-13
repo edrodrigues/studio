@@ -90,6 +90,8 @@ export interface Project {
   isSyncedToFileSearch?: boolean;
   fileSearchStoreId?: string;
   lastSyncedAt?: string;
+  fileSearchSyncStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+  fileSearchSyncError?: string;
 }
 
 export interface ProjectMember {
@@ -127,6 +129,9 @@ export interface ProjectDocument {
   documentType: string;
   version: number;
   originalFileName: string;
+  // File Search (Google AI)
+  fileSearchDocumentName?: string;
+  fileSearchIndexedAt?: string;
 }
 
 export interface ProjectPlaceholder {

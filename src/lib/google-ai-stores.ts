@@ -48,19 +48,47 @@ export async function getOrCreateProjectStore(projectId: string) {
 }
 
 /**
- * Faz o upload de um arquivo para o File Search Store do projeto
+ * Deleta um documento do File Search Store
  */
-export async function uploadFileToProjectStore(projectId: string, fileBuffer: Buffer, fileName: string, mimeType: string) {
+export async function deleteDocumentFromStore(documentName: string): Promise<boolean> {
+  try {
+    console.log(`[FileSearch] Deletando documento anterior: ${documentName}`);
+    await genaiClient.files.delete({ name: documentName });
+    console.log(`[FileSearch] Documento deletado com sucesso`);
+    return true;
+  } catch (error) {
+    console.error(`[FileSearch] Erro ao deletar documento ${documentName}:`, error);
+    // Não falha o processo se a deleção falhar - continua com o upload
+    return false;
+  }
+}
+
+/**
+ * Faz o upload de um arquivo para o File Search Store do projeto
+ * Se houver uma versão anterior (previousDocumentName), ela será deletada primeiro
+ */
+export async function uploadFileToProjectStore(
+  projectId: string, 
+  fileBuffer: Buffer, 
+  fileName: string, 
+  mimeType: string,
+  previousDocumentName?: string
+) {
   let tempFilePath = "";
   try {
     const storeId = await getOrCreateProjectStore(projectId);
+    
+    // Deletar versão anterior se existir
+    if (previousDocumentName) {
+      await deleteDocumentFromStore(previousDocumentName);
+    }
     
     // Criar um arquivo temporário para o upload
     const tempDir = os.tmpdir();
     tempFilePath = path.join(tempDir, `upload_${Date.now()}_${fileName}`);
     fs.writeFileSync(tempFilePath, fileBuffer);
 
-    console.log(`Fazendo upload de ${fileName} para o store ${storeId}...`);
+    console.log(`[FileSearch] Fazendo upload de ${fileName} para o store ${storeId}...`);
 
     const operation = await genaiClient.fileSearchStores.uploadToFileSearchStore({
       file: tempFilePath,
@@ -71,34 +99,61 @@ export async function uploadFileToProjectStore(projectId: string, fileBuffer: Bu
       }
     });
 
-    console.log(`Upload iniciado. Operation name:`, (operation as any).name || 'unknown');
+    const operationName = (operation as any).name || 'unknown';
+    console.log(`[FileSearch] Upload iniciado. Operation name:`, operationName);
 
     // Aguardar a indexação completar (poll for completion)
+    // CORREÇÃO: Atualizar a operação a cada poll para verificar o status real
+    let currentOperation = operation;
     let pollCount = 0;
-    const maxPolls = 30; // Max 30 * 2 seconds = 60 seconds
+    const maxPolls = 60; // Max 60 * 2 seconds = 120 seconds (2 minutos)
     
-    while (!(operation as any).done && pollCount < maxPolls) {
+    while (!(currentOperation as any).done && pollCount < maxPolls) {
       await new Promise(resolve => setTimeout(resolve, 2000));
       pollCount++;
-      console.log(`[FileSearch] Poll ${pollCount}: indexing in progress...`);
+      
+      // CORREÇÃO: Buscar status atualizado da operação
+      try {
+        currentOperation = await genaiClient.operations.get({ 
+          operation: currentOperation 
+        }) as typeof operation;
+        console.log(`[FileSearch] Poll ${pollCount}/${maxPolls}: status=${(currentOperation as any).done ? 'completed' : 'processing'}`);
+      } catch (pollError) {
+        console.warn(`[FileSearch] Poll ${pollCount}: erro ao verificar status:`, pollError);
+      }
     }
 
-    if (!(operation as any).done) {
-      console.warn(`[FileSearch] Indexing not completed after ${pollCount * 2} seconds, returning anyway`);
+    const indexingComplete = (currentOperation as any).done === true;
+    const documentName = (currentOperation as any).response?.documentName || 
+                        (currentOperation as any).documentName || 
+                        null;
+
+    if (!indexingComplete) {
+      console.warn(`[FileSearch] Indexing not completed after ${pollCount * 2} seconds. Operation may still be processing.`);
     } else {
-      console.log(`[FileSearch] Indexing completed successfully!`);
+      console.log(`[FileSearch] Indexing completed successfully! Document: ${documentName}`);
     }
 
     return { 
-      success: true, 
+      success: indexingComplete, // Só retorna sucesso se indexação completou
       storeId, 
       fileName,
-      operationName: (operation as any).name,
-      indexingComplete: (operation as any).done
+      operationName,
+      documentName,
+      indexingComplete,
+      error: indexingComplete ? undefined : 'Indexing timeout - operation still processing'
     };
   } catch (error) {
-    console.error(`Erro ao sincronizar arquivo ${fileName}:`, error);
-    return { success: false, error: (error as Error).message };
+    console.error(`[FileSearch] Erro ao sincronizar arquivo ${fileName}:`, error);
+    return { 
+      success: false, 
+      error: (error as Error).message,
+      storeId: undefined,
+      fileName,
+      operationName: undefined,
+      documentName: undefined,
+      indexingComplete: false
+    };
   } finally {
     // Limpar arquivo temporário
     if (tempFilePath && fs.existsSync(tempFilePath)) {

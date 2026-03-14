@@ -52,13 +52,26 @@ export function PlaybookChatWidget() {
     const projectId = useCurrentProjectId();
     const { project } = useProject(projectId ?? null);
     const { documents } = useProjectDocuments(projectId ?? null);
-    const indexedDocs = useMemo(() => documents?.filter(d => d.status === DocumentStatus.INDEXED) ?? [], [documents]);
+    const indexedDocs = useMemo(() => {
+        const docs = documents?.filter(d => d.status === DocumentStatus.INDEXED) ?? [];
+        // Sort by indexed date, newest first
+        return docs.sort((a, b) => {
+            const dateA = a.fileSearchIndexedAt ? new Date(a.fileSearchIndexedAt).getTime() : 0;
+            const dateB = b.fileSearchIndexedAt ? new Date(b.fileSearchIndexedAt).getTime() : 0;
+            return dateB - dateA;
+        });
+    }, [documents]);
+    
+    // Get only the 5 most recent indexed documents for display
+    const recentIndexedDocs = useMemo(() => indexedDocs.slice(0, 5), [indexedDocs]);
     const [isOpen, setIsOpen] = useState(false);
     const [docsExpanded, setDocsExpanded] = useState(false);
     const [indexingStatus, setIndexingStatus] = useState<{
         isSynced: boolean;
         storeId: string | null;
         lastSyncedAt: Date | string | null;
+        syncStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+        syncError?: string;
     } | null>(null);
     const [lastAnswerUsedFileSearch, setLastAnswerUsedFileSearch] = useState<boolean | null>(null);
     const [messages, setMessages] = useState<Message[]>([
@@ -252,25 +265,33 @@ export function PlaybookChatWidget() {
                                             )} />
                                         </CollapsibleTrigger>
                                         <CollapsibleContent>
-                                            <div className="mt-1.5 bg-white/5 rounded-lg px-2.5 py-2 space-y-1 max-h-[120px] overflow-y-auto">
-                                                {documents && documents.length > 0 ? (
-                                                    documents.map(doc => (
-                                                        <div key={doc.id} className="flex items-center gap-1.5 text-[10px] opacity-80">
-                                                            {doc.status === DocumentStatus.INDEXED && (
-                                                                <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-green-400" />
-                                                            )}
-                                                            {doc.status === DocumentStatus.PROCESSING && (
-                                                                <Loader2 className="h-2.5 w-2.5 shrink-0 text-amber-400 animate-spin" />
-                                                            )}
-                                                            {doc.status === DocumentStatus.ERROR && (
-                                                                <XCircle className="h-2.5 w-2.5 shrink-0 text-red-400" />
-                                                            )}
-                                                            {doc.status === DocumentStatus.UPLOADED && (
-                                                                <Clock className="h-2.5 w-2.5 shrink-0 opacity-50" />
-                                                            )}
-                                                            <span className="truncate">{doc.name}</span>
+                                            <div className="mt-1.5 bg-white/5 rounded-lg px-2.5 py-2 space-y-1 max-h-[140px] overflow-y-auto">
+                                                {recentIndexedDocs.length > 0 ? (
+                                                    <>
+                                                        <div className="text-[9px] opacity-60 mb-1.5 px-0.5">
+                                                            Últimos documentos indexados:
                                                         </div>
-                                                    ))
+                                                        {recentIndexedDocs.map(doc => (
+                                                            <div key={doc.id} className="flex items-center gap-1.5 text-[10px]">
+                                                                <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-green-400" />
+                                                                <span className="truncate flex-1 opacity-90">{doc.name}</span>
+                                                                {doc.fileSearchIndexedAt && (
+                                                                    <span className="text-[8px] opacity-50 shrink-0">
+                                                                        {format(new Date(doc.fileSearchIndexedAt), "dd/MM HH:mm")}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                        {indexedDocs.length > 5 && (
+                                                            <div className="text-[9px] opacity-50 text-center pt-1">
+                                                                +{indexedDocs.length - 5} documentos indexados
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                ) : documents && documents.length > 0 ? (
+                                                    <p className="text-[10px] opacity-70 italic">
+                                                        Nenhum documento indexado ainda. Aguarde a sincronização.
+                                                    </p>
                                                 ) : (
                                                     <p className="text-[10px] opacity-50 italic">
                                                         Nenhum documento no projeto. Faça upload de documentos primeiro.
@@ -292,24 +313,31 @@ export function PlaybookChatWidget() {
                                     "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium",
                                     indexingStatus.isSynced && indexingStatus.storeId
                                         ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                                        : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                                        : indexingStatus.syncStatus === 'failed'
+                                            ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                                            : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
                                 )}
                             >
                                 {indexingStatus.isSynced && indexingStatus.storeId ? (
                                     <>
                                         <CheckCircle2 className="h-3 w-3 shrink-0" />
-                                        <span>Documentos Indexados</span>
+                                        <span>Contexto Ativo — {indexedDocs.length} documento{indexedDocs.length !== 1 ? 's' : ''}</span>
                                         {lastAnswerUsedFileSearch === true && (
-                                            <span className="ml-1 opacity-60">(usando busca)</span>
+                                            <span className="ml-1 opacity-60">(com busca)</span>
                                         )}
                                         {lastAnswerUsedFileSearch === false && (
                                             <span className="ml-1 opacity-60">(playbook)</span>
                                         )}
                                     </>
+                                ) : indexingStatus.syncStatus === 'failed' ? (
+                                    <>
+                                        <XCircle className="h-3 w-3 shrink-0" />
+                                        <span>Falha na sincronização</span>
+                                    </>
                                 ) : (
                                     <>
                                         <Clock className="h-3 w-3 shrink-0" />
-                                        <span>Documentos Não Indexados</span>
+                                        <span>Aguardando indexação...</span>
                                     </>
                                 )}
                             </motion.div>

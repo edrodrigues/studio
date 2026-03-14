@@ -15,6 +15,7 @@ import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { ProjectDocument, ProjectRole, DocumentStatus } from './types';
 import { getDownloadUrl } from './actions/storage-actions';
 import { getValidMimeType } from './mime-type-utils';
+import { prepareContractData as prepareContractDataUtil } from './entity-extraction';
 import { z } from 'zod';
 
 const fileSchema = z.string().refine(s => s.startsWith('data:'), {
@@ -497,6 +498,8 @@ export interface DocumentIndexingStatus {
   isSynced: boolean;
   storeId: string | null;
   lastSyncedAt: Date | string | null;
+  syncStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+  syncError?: string;
 }
 
 export async function checkDocumentIndexingStatus(projectId: string): Promise<DocumentIndexingStatus> {
@@ -507,6 +510,8 @@ export async function checkDocumentIndexingStatus(projectId: string): Promise<Do
     return {
       isSynced: data?.isSyncedToFileSearch || false,
       storeId: data?.fileSearchStoreId || null,
+      syncStatus: data?.fileSearchSyncStatus,
+      syncError: data?.fileSearchSyncError,
       lastSyncedAt: data?.lastSyncedAt || null,
     };
   } catch (error) {
@@ -617,5 +622,25 @@ export async function handleAnalyzeDocumentConsistency(formData: FormData) {
         ? error.message
         : 'Falha ao analisar a consistência dos documentos.';
     return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Prepara dados para geração de contrato extraindo entidades dos documentos
+ */
+export async function prepareContractData(input: {
+  projectId: string;
+  documentIds: string[];
+}) {
+  try {
+    console.log('[actions] Preparando dados para contrato:', input);
+    const result = await prepareContractDataUtil(input);
+    return result;
+  } catch (error) {
+    console.error('[actions] Erro ao preparar dados:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro ao preparar dados'
+    };
   }
 }

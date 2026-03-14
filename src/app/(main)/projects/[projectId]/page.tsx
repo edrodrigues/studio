@@ -363,9 +363,11 @@ function ContractsTab({ projectId, projectName }: { projectId: string, projectNa
         </p>
         {canEdit && (
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setIsCopyModalOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Cópia Customizada
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/gerar-exportar?projectId=${projectId}`}>
+                <Plus className="mr-2 h-4 w-4" />
+                Gerar Cópia
+              </Link>
             </Button>
             <Button size="sm" asChild>
               <Link href={`/gerar-exportar?projectId=${projectId}`}>

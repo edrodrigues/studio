@@ -4,10 +4,9 @@ import { useState, useMemo, useTransition, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, doc, deleteDoc, query, where, getDoc, increment, updateDoc } from "firebase/firestore";
 import { 
-
   FilePlus2, Loader2, CheckCircle2, FileText, LayoutTemplate, 
   ArrowRight, Wand2, Eye, Pencil, Trash2, MoreHorizontal, 
-  ExternalLink, GitCompareArrows, Download
+  ExternalLink, GitCompareArrows, Download, AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,10 +17,13 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { useCollection, useFirebase, useUser, useMemoFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { type ProjectDocument, type Template, type Contract } from "@/lib/types";
-import { handleGenerateContract } from "@/lib/actions";
+import { handleGenerateContract, prepareContractData } from "@/lib/actions";
 import { generateContractDoc } from "@/lib/actions/google-docs-actions";
 import { useAuthContext } from "@/context/auth-context";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
@@ -77,6 +79,13 @@ function GerarExportarContent() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
   const [startInEditMode, setStartInEditMode] = useState(false);
+  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
+  const [editableEntities, setEditableEntities] = useState<Record<string, string>>({});
+  const [isExtractingForCopy, setIsExtractingForCopy] = useState(false);
+
+  // Entity Extraction States
+  const [extractedEntities, setExtractedEntities] = useState<Record<string, string>>({});
+  const [entityExtractionStatus, setEntityExtractionStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   // Queries
   const projectDocsQuery = useMemoFirebase(() => {
@@ -113,7 +122,7 @@ function GerarExportarContent() {
     });
   }, [contracts]);
 
-  // Handlers
+// Handlers
   const handleDocToggle = (id: string) => {
     setSelectedDocs(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
@@ -122,7 +131,121 @@ function GerarExportarContent() {
     setSelectedTemplates(prev => prev.includes(id) ? prev.filter(tid => tid !== id) : [...prev, id]);
   };
 
-  const handleStartGeneration = () => {
+  // Open Copy Custom Modal - extracts entities first
+  const handleOpenCopyModal = async () => {
+    if (selectedTemplates.length === 0 || !templates) {
+      toast({ variant: "destructive", title: "Selecione ao menos um modelo." });
+      return;
+    }
+
+    if (selectedDocs.length === 0) {
+      toast({ 
+        variant: "destructive", 
+        title: "Documentos não selecionados", 
+        description: "Por favor, selecione ao menos um documento inicial." 
+      });
+      return;
+    }
+
+    const hasGoogleDoc = selectedTemplates.some(id => {
+      const t = templates.find(temp => temp.id === id);
+      return t?.googleDocLink && extractGoogleDocId(t.googleDocLink);
+    });
+
+    if (!hasGoogleDoc) {
+      toast({
+        variant: "destructive",
+        title: "Modelo sem Google Docs",
+        description: "A Cópia Customizada requer pelo menos um modelo com Google Docs configurado."
+      });
+      return;
+    }
+
+    if (!accessToken) {
+      toast({
+        title: "Login com Google Necessário",
+        description: "Conecte sua conta para usar a Cópia Customizada.",
+        action: <Button variant="outline" size="sm" onClick={() => signInWithGoogle()}>Conectar</Button>,
+      });
+      return;
+    }
+
+    // Extract entities before opening modal
+    setIsExtractingForCopy(true);
+    try {
+      const result = await prepareContractData({
+        projectId: currentProjectId,
+        documentIds: selectedDocs
+      });
+
+      if (result.success && result.entities) {
+        setEditableEntities(result.entities);
+        setIsCopyModalOpen(true);
+      } else {
+        // Open modal anyway with empty entities - user can fill manually
+        setEditableEntities({});
+        setIsCopyModalOpen(true);
+        toast({
+          variant: "default",
+          title: "Aviso",
+          description: "Não foi possível extrair entidades. Você pode preencher manualmente."
+        });
+      }
+    } catch (error) {
+      console.error('[CopyModal] Erro ao extrair entidades:', error);
+      setEditableEntities({});
+      setIsCopyModalOpen(true);
+    } finally {
+      setIsExtractingForCopy(false);
+    }
+  };
+
+  // Handle copy with edited entities
+  const handleGenerateCopyWithEntities = () => {
+    setIsCopyModalOpen(false);
+    handleConfirmGeneration(editableEntities);
+  };
+
+  // Function to extract entities from selected documents
+  const extractEntitiesForGeneration = async () => {
+    if (selectedDocs.length === 0) return;
+    
+    setEntityExtractionStatus('loading');
+    
+    try {
+      const result = await prepareContractData({
+        projectId: currentProjectId,
+        documentIds: selectedDocs
+      });
+      
+      if (result.success && result.entities) {
+        setExtractedEntities(result.entities);
+        setEntityExtractionStatus('success');
+        
+        if (result.entityCount === 0) {
+          toast({
+            variant: "default",
+            title: "Atenção",
+            description: "Os documentos selecionados não possuem entidades extraídas. O contrato será gerado sem preenchimento automático."
+          });
+        } else {
+          console.log(`[GerarExportar] ${result.entityCount} entidades extraídas de ${result.documentCount} documentos`);
+        }
+      } else {
+        setEntityExtractionStatus('error');
+        toast({
+          variant: "destructive",
+          title: "Erro na extração",
+          description: result.error || "Não foi possível extrair entidades dos documentos"
+        });
+      }
+    } catch (error) {
+      setEntityExtractionStatus('error');
+      console.error('[GerarExportar] Erro ao extrair entidades:', error);
+    }
+  };
+
+  const handleStartGeneration = async () => {
     if (selectedTemplates.length === 0 || !templates) {
       toast({ variant: "destructive", title: "Selecione ao menos um modelo." });
       return;
@@ -151,8 +274,11 @@ function GerarExportarContent() {
       return;
     }
 
-    // Directly start generation without modal
-    handleConfirmGeneration({});
+    // Extract entities before starting generation
+    await extractEntitiesForGeneration();
+
+    // Start generation with extracted entities
+    handleConfirmGeneration(extractedEntities);
   };
 
   const handleConfirmGeneration = (editedEntities: Record<string, any>) => {
@@ -187,12 +313,21 @@ function GerarExportarContent() {
                 projectId: currentProjectId,
                 contractModelId: template.id,
                 clientName: clientName || "Cliente",
-                filledData: JSON.stringify({ entities: editedEntities }),
+                filledData: JSON.stringify({ 
+                  entities: editedEntities,
+                  sourceDocuments: selectedDocs,
+                  extractionDate: new Date().toISOString()
+                }),
                 name: result.fileName,
                 markdownContent: "",
                 googleDocLink: result.documentLink,
                 googleDocId: result.documentId,
                 createdAt: new Date().toISOString(),
+                // NOVOS CAMPOS
+                sourceDocumentIds: selectedDocs,
+                entityCount: Object.keys(editedEntities).length,
+                generationMethod: 'google-docs',
+                templateName: template.name
               });
               generatedSuccessfully = true;
             } else {
@@ -211,10 +346,19 @@ function GerarExportarContent() {
                 projectId: currentProjectId,
                 contractModelId: template.id,
                 clientName: clientName || "Cliente",
-                filledData: JSON.stringify({ entities: editedEntities }),
+                filledData: JSON.stringify({ 
+                  entities: editedEntities,
+                  sourceDocuments: selectedDocs,
+                  extractionDate: new Date().toISOString()
+                }),
                 name: `Contrato de ${template.name}`,
                 markdownContent: result.data?.contractDraft || "",
                 createdAt: new Date().toISOString(),
+                // NOVOS CAMPOS
+                sourceDocumentIds: selectedDocs,
+                entityCount: Object.keys(editedEntities).length,
+                generationMethod: 'markdown-ai',
+                templateName: template.name
               });
               generatedSuccessfully = true;
             } else {
@@ -428,10 +572,43 @@ function GerarExportarContent() {
             </Card>
           </div>
 
+          {/* Entity Extraction Status */}
+          {selectedDocs.length > 0 && selectedTemplates.length > 0 && (
+            <div className="flex flex-col items-center gap-2 w-full max-w-md">
+              {entityExtractionStatus === 'loading' && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Extraindo dados dos documentos...</span>
+                </div>
+              )}
+              
+              {entityExtractionStatus === 'success' && Object.keys(extractedEntities).length > 0 && (
+                <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950/30 px-4 py-2 rounded-lg border border-green-200 dark:border-green-800">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>{Object.keys(extractedEntities).length} entidades extraídas e prontas para uso</span>
+                </div>
+              )}
+              
+              {entityExtractionStatus === 'success' && Object.keys(extractedEntities).length === 0 && (
+                <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-4 py-2 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>Documentos sem entidades extraídas. O contrato será gerado sem preenchimento automático.</span>
+                </div>
+              )}
+              
+              {entityExtractionStatus === 'error' && (
+                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950/30 px-4 py-2 rounded-lg border border-red-200 dark:border-red-800">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>Erro ao extrair entidades. Continuando sem dados dos documentos.</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-col items-center gap-4">
             <div className="flex gap-4">
-              <Button size="lg" variant="outline" className="h-16 px-8 text-lg font-bold rounded-full" onClick={() => setIsCopyModalOpen(true)} disabled={isGenerating}>
-                <FilePlus2 className="mr-2" />
+              <Button size="lg" variant="outline" className="h-16 px-8 text-lg font-bold rounded-full" onClick={handleOpenCopyModal} disabled={selectedTemplates.length === 0 || isGenerating || isExtractingForCopy}>
+                {isExtractingForCopy ? <Loader2 className="mr-2 animate-spin" /> : <FilePlus2 className="mr-2" />}
                 Cópia Customizada (Google Docs)
               </Button>
               <Button size="lg" className="h-16 px-12 text-lg font-bold rounded-full" onClick={handleStartGeneration} disabled={selectedTemplates.length === 0 || isGenerating}>
@@ -468,6 +645,8 @@ function GerarExportarContent() {
                   <TableRow>
                     <TableHead className="w-[40px]"><Checkbox /></TableHead>
                     <TableHead>Nome</TableHead>
+                    <TableHead>Origem</TableHead>
+                    <TableHead>Entidades</TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead className="w-[100px]">Ações</TableHead>
                   </TableRow>
@@ -484,6 +663,29 @@ function GerarExportarContent() {
                           <a href={c.googleDocLink} target="_blank" className="block text-[10px] text-blue-500 hover:underline flex items-center gap-1 mt-1">
                             <ExternalLink className="h-2 w-2" /> Google Docs
                           </a>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {c.generationMethod === 'google-docs' ? (
+                          <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700 border-blue-200">Google Docs</Badge>
+                        ) : c.generationMethod === 'markdown-ai' ? (
+                          <Badge variant="outline" className="text-[9px] bg-purple-50 text-purple-700 border-purple-200">IA (Markdown)</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                        {c.sourceDocumentIds && (
+                          <span className="block text-[9px] text-muted-foreground mt-1">
+                            {c.sourceDocumentIds.length} doc(s)
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {c.entityCount !== undefined ? (
+                          <span className={c.entityCount > 0 ? "text-green-600 font-medium" : "text-muted-foreground"}>
+                            {c.entityCount > 0 ? `${c.entityCount} preench.` : 'Sem dados'}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
@@ -504,7 +706,7 @@ function GerarExportarContent() {
                   ))}
                   {sortedContracts.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                         Nenhum documento gerado ainda para este projeto.
                       </TableCell>
                     </TableRow>
@@ -531,6 +733,71 @@ function GerarExportarContent() {
         onOpenChange={setIsComparisonOpen}
         contracts={sortedContracts.filter(c => selectedContracts.includes(c.id))}
       />
+
+      {/* Copy Custom Modal */}
+      <Dialog open={isCopyModalOpen} onOpenChange={setIsCopyModalOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FilePlus2 className="h-5 w-5" />
+              Cópia Customizada
+            </DialogTitle>
+            <DialogDescription>
+              Revise e edite as entidades extraídas antes de gerar o documento no Google Docs.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="text-sm text-muted-foreground">
+              <p className="mb-2">Entidades detectadas nos documentos selecionados:</p>
+              {Object.keys(editableEntities).length === 0 ? (
+                <p className="italic text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-lg">
+                  Nenhuma entidade detectada. Preencha manualmente os campos necessários no documento.
+                </p>
+              ) : (
+                <div className="max-h-[300px] overflow-y-auto space-y-2 bg-muted/30 p-3 rounded-lg">
+                  {Object.entries(editableEntities).map(([key, value]) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground min-w-[120px] truncate">{key}:</span>
+                      <input
+                        type="text"
+                        value={value}
+                        onChange={(e) => setEditableEntities(prev => ({ ...prev, [key]: e.target.value }))}
+                        className="flex-1 text-sm px-2 py-1 bg-background border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg">
+              <strong>Modelos selecionados:</strong> {selectedTemplates.length} modelo(s)
+              <br />
+              <strong>Documentos fonte:</strong> {selectedDocs.length} documento(s)
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCopyModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleGenerateCopyWithEntities} disabled={isGenerating}>
+              {isGenerating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Gerando...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="mr-2 h-4 w-4" />
+                  Gerar Documento
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

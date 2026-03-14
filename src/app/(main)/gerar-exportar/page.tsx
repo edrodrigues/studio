@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { useCollection, useFirebase, useUser, useMemoFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { type ProjectDocument, type Template, type Contract } from "@/lib/types";
+import { type ProjectDocument, type Template, type Contract, DocumentStatus } from "@/lib/types";
 import { handleGenerateContract, prepareContractData } from "@/lib/actions";
 import { generateContractDoc } from "@/lib/actions/google-docs-actions";
 import { useAuthContext } from "@/context/auth-context";
@@ -274,6 +274,73 @@ function GerarExportarContent() {
       return;
     }
 
+    // VALIDAÇÃO PRÉVIA DE TEMPLATES DO GOOGLE DOCS
+    const googleDocTemplates = selectedTemplates.filter(id => {
+      const t = templates.find(temp => temp.id === id);
+      return t?.googleDocLink && extractGoogleDocId(t.googleDocLink);
+    });
+
+    if (googleDocTemplates.length > 0 && accessToken) {
+      const invalidTemplates: string[] = [];
+      
+      for (const templateId of googleDocTemplates) {
+        const template = templates.find(t => t.id === templateId);
+        const googleDocId = template?.googleDocLink ? extractGoogleDocId(template.googleDocLink) : null;
+        
+        if (googleDocId) {
+          try {
+            // Verificar se o arquivo existe no Google Drive
+            const response = await fetch(
+              `https://www.googleapis.com/drive/v3/files/${googleDocId}?fields=id,name,mimeType`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Accept': 'application/json'
+                }
+              }
+            );
+            
+            if (!response.ok) {
+              if (response.status === 404) {
+                invalidTemplates.push(`"${template?.name}" - arquivo não encontrado`);
+              } else if (response.status === 403) {
+                invalidTemplates.push(`"${template?.name}" - sem permissão de acesso`);
+              } else if (response.status === 401) {
+                toast({
+                  variant: "destructive",
+                  title: "Sessão expirada",
+                  description: "Sua sessão do Google expirou. Por favor, faça login novamente.",
+                  action: <Button variant="outline" size="sm" onClick={() => signInWithGoogle()}>Reconectar</Button>,
+                });
+                return;
+              }
+            }
+          } catch (error) {
+            console.error('[GerarExportar] Erro ao validar template:', error);
+          }
+        }
+      }
+      
+      if (invalidTemplates.length > 0) {
+        toast({
+          variant: "destructive",
+          title: "Templates inválidos",
+          description: (
+            <div className="space-y-2">
+              <p>Os seguintes templates não puderam ser acessados:</p>
+              <ul className="list-disc pl-4 text-sm">
+                {invalidTemplates.map((t, i) => (
+                  <li key={i}>{t}</li>
+                ))}
+              </ul>
+              <p className="text-xs mt-2">Verifique se os arquivos existem no Google Drive e estão compartilhados corretamente.</p>
+            </div>
+          )
+        });
+        return;
+      }
+    }
+
     // Extract entities before starting generation
     await extractEntitiesForGeneration();
 
@@ -331,7 +398,17 @@ function GerarExportarContent() {
               });
               generatedSuccessfully = true;
             } else {
+              // Melhor tratamento de erros do Google Drive
               lastErrorMessage = result.error || "Erro na integração com Google Docs.";
+              
+              // Se houver instruções específicas para o usuário, adicionar ao toast
+              if (result.userInstructions && result.userInstructions.length > 0) {
+                console.error('[GerarExportar] Erro detalhado:', {
+                  type: result.errorType,
+                  message: result.error,
+                  technical: result.technicalDetails
+                });
+              }
             }
           } else {
             // Markdown Flow
@@ -530,7 +607,40 @@ function GerarExportarContent() {
                       {documents?.map(doc => (
                         <div key={doc.id} onClick={() => handleDocToggle(doc.id)} className={cn("flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50", selectedDocs.includes(doc.id) && "border-blue-500 bg-blue-50/50")}>
                           <Checkbox checked={selectedDocs.includes(doc.id)} />
-                          <div className="flex-1 truncate text-sm font-medium">{doc.name}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="truncate text-sm font-medium">{doc.name}</div>
+                            {/* Status de extração de entidades */}
+                            <div className="flex items-center gap-2 mt-1">
+                              {doc.entityExtractionStatus === 'processing' && (
+                                <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-amber-50 text-amber-700 border-amber-200">
+                                  <Loader2 className="h-2 w-2 animate-spin mr-1" />
+                                  Extraindo...
+                                </Badge>
+                              )}
+                              {doc.entityExtractionStatus === 'completed' && (doc.entityCount || 0) > 0 && (
+                                <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-green-50 text-green-700 border-green-200">
+                                  <CheckCircle2 className="h-2 w-2 mr-1" />
+                                  {doc.entityCount} entidades
+                                </Badge>
+                              )}
+                              {doc.entityExtractionStatus === 'completed' && (doc.entityCount || 0) === 0 && (
+                                <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-gray-50 text-gray-500 border-gray-200">
+                                  Sem entidades
+                                </Badge>
+                              )}
+                              {doc.entityExtractionStatus === 'failed' && (
+                                <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-red-50 text-red-700 border-red-200">
+                                  <AlertTriangle className="h-2 w-2 mr-1" />
+                                  Falha na extração
+                                </Badge>
+                              )}
+                              {!doc.entityExtractionStatus && doc.status === DocumentStatus.INDEXED && (
+                                <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-gray-50 text-gray-500 border-gray-200">
+                                  Indexado
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       ))}
                       {documents?.length === 0 && (

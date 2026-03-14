@@ -435,6 +435,51 @@ export async function handleSyncToFileSearch(input: {
               fileSearchDocumentName: result.documentName,
               fileSearchIndexedAt: new Date()
             });
+            
+            // EXTRAÇÃO AUTOMÁTICA DE ENTIDADES APÓS SINCRONIZAÇÃO
+            console.log(`[SyncToFileSearch] Iniciando extração automática de entidades para ${docData.name}`);
+            try {
+              await docRef.update({ entityExtractionStatus: 'processing' });
+              
+              // Preparar documento para extração
+              const extractionDocs = await prepareDocumentsForFlow({
+                projectId,
+                userId: input.userId,
+                documentIds: [docSnap.id]
+              });
+              
+              if (extractionDocs.length > 0) {
+                const extractionResult = await extractEntitiesFromDocuments({
+                  documents: extractionDocs
+                });
+                
+                if (extractionResult.extractedJson?.entities && Object.keys(extractionResult.extractedJson.entities).length > 0) {
+                  await docRef.update({
+                    extractedEntities: extractionResult.extractedJson.entities,
+                    entityExtractionStatus: 'completed',
+                    entityCount: Object.keys(extractionResult.extractedJson.entities).length
+                  });
+                  console.log(`[SyncToFileSearch] Extração concluída: ${Object.keys(extractionResult.extractedJson.entities).length} entidades em ${docData.name}`);
+                } else {
+                  await docRef.update({
+                    entityExtractionStatus: 'completed',
+                    entityCount: 0
+                  });
+                  console.log(`[SyncToFileSearch] Nenhuma entidade encontrada em ${docData.name}`);
+                }
+              } else {
+                await docRef.update({
+                  entityExtractionStatus: 'failed',
+                  entityExtractionError: 'Não foi possível preparar documento para extração'
+                });
+              }
+            } catch (extractError) {
+              console.error(`[SyncToFileSearch] Erro na extração automática de ${docData.name}:`, extractError);
+              await docRef.update({
+                entityExtractionStatus: 'failed',
+                entityExtractionError: extractError instanceof Error ? extractError.message : 'Erro interno'
+              });
+            }
           } else {
             await docRef.update({ 
               status: DocumentStatus.ERROR, 

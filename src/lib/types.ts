@@ -132,6 +132,10 @@ export interface ProjectDocument {
   // File Search (Google AI)
   fileSearchDocumentName?: string;
   fileSearchIndexedAt?: string;
+  // Entity Extraction
+  entityExtractionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+  entityExtractionError?: string;
+  entityCount?: number;
 }
 
 export interface ProjectPlaceholder {

@@ -27,7 +27,35 @@ export async function copyFile(accessToken: string, fileId: string, newName: str
         return response.data.id;
     } catch (error: any) {
         console.error('Error copying Google Drive file:', error);
-        throw error;
+        
+        // Traduzir erros comuns do Google Drive para mensagens amigáveis
+        const errorCode = error.code || error.status;
+        const errorMessage = error.message || '';
+        
+        if (errorCode === 404 || errorMessage.includes('notFound') || errorMessage.includes('not found')) {
+            throw new Error(`TEMPLATE_NOT_FOUND: O template não foi encontrado no Google Drive (ID: ${fileId}). Verifique se:
+1. O arquivo existe e não foi deletado
+2. Você tem permissão para acessá-lo
+3. O link do template está correto`);
+        }
+        
+        if (errorCode === 403 || errorMessage.includes('forbidden') || errorMessage.includes('Forbidden')) {
+            throw new Error(`PERMISSION_DENIED: Sem permissão para acessar o template (ID: ${fileId}). Verifique se:
+1. O arquivo foi compartilhado com você
+2. Você está logado com a conta correta
+3. O arquivo não está em modo restrito`);
+        }
+        
+        if (errorCode === 401 || errorMessage.includes('unauthorized') || errorMessage.includes('Invalid Credentials')) {
+            throw new Error('AUTH_EXPIRED: Sessão expirada ou inválida. Por favor, faça login novamente com sua conta Google.');
+        }
+        
+        if (errorCode === 400 || errorMessage.includes('badRequest') || errorMessage.includes('Invalid')) {
+            throw new Error(`INVALID_REQUEST: ID do arquivo inválido (${fileId}). Verifique se o link do template está correto.`);
+        }
+        
+        // Erro genérico com informações técnicas
+        throw new Error(`GOOGLE_DRIVE_ERROR: Erro ao copiar template. ${errorMessage} (Código: ${errorCode || 'unknown'})`);
     }
 }
 

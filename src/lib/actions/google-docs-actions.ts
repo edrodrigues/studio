@@ -49,9 +49,50 @@ export async function generateContractDoc(
         };
     } catch (error: any) {
         console.error('Error in generateContractDoc Server Action:', error);
+        
+        // Extrair mensagem de erro amigável
+        let errorMessage = error.message || 'Failed to generate Google Doc';
+        let errorType = 'UNKNOWN_ERROR';
+        let userInstructions: string[] = [];
+        
+        if (errorMessage.includes('TEMPLATE_NOT_FOUND')) {
+            errorType = 'TEMPLATE_NOT_FOUND';
+            errorMessage = 'Template não encontrado no Google Drive';
+            userInstructions = [
+                'Verifique se o arquivo do template existe e não foi deletado',
+                'Confirme se você tem permissão para acessar o arquivo',
+                'Verifique se o link do template está correto na página de modelos'
+            ];
+        } else if (errorMessage.includes('PERMISSION_DENIED')) {
+            errorType = 'PERMISSION_DENIED';
+            errorMessage = 'Sem permissão para acessar o template';
+            userInstructions = [
+                'O arquivo deve ser compartilhado com você no Google Drive',
+                'Verifique se está logado com a conta Google correta',
+                'O proprietário do arquivo deve conceder permissão de leitura'
+            ];
+        } else if (errorMessage.includes('AUTH_EXPIRED')) {
+            errorType = 'AUTH_EXPIRED';
+            errorMessage = 'Sessão expirada';
+            userInstructions = [
+                'Faça logout e login novamente',
+                'Verifique se sua conta Google está conectada'
+            ];
+        } else if (errorMessage.includes('INVALID_REQUEST')) {
+            errorType = 'INVALID_REQUEST';
+            errorMessage = 'ID do template inválido';
+            userInstructions = [
+                'Verifique o link do Google Docs na configuração do modelo',
+                'O link deve ser um documento do Google Docs válido'
+            ];
+        }
+        
         return {
             success: false,
-            error: error.message || 'Failed to generate Google Doc'
+            error: errorMessage,
+            errorType,
+            userInstructions,
+            technicalDetails: error.message
         };
     }
 }

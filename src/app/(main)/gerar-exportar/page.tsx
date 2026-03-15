@@ -23,7 +23,7 @@ import {
 import { useCollection, useFirebase, useUser, useMemoFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { type ProjectDocument, type Template, type Contract, DocumentStatus } from "@/lib/types";
-import { handleGenerateContract, prepareContractData } from "@/lib/actions";
+import { prepareContractData } from "@/lib/actions";
 import { generateContractDoc } from "@/lib/actions/google-docs-actions";
 import { useAuthContext } from "@/context/auth-context";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
@@ -83,9 +83,7 @@ function GerarExportarContent() {
   const [editableEntities, setEditableEntities] = useState<Record<string, string>>({});
   const [isExtractingForCopy, setIsExtractingForCopy] = useState(false);
 
-  // Entity Extraction States
-  const [extractedEntities, setExtractedEntities] = useState<Record<string, string>>({});
-  const [entityExtractionStatus, setEntityExtractionStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  
 
   // Queries
   const projectDocsQuery = useMemoFirebase(() => {
@@ -206,147 +204,7 @@ function GerarExportarContent() {
     handleConfirmGeneration(editableEntities);
   };
 
-  // Function to extract entities from selected documents
-  const extractEntitiesForGeneration = async () => {
-    if (selectedDocs.length === 0) return;
-    
-    setEntityExtractionStatus('loading');
-    
-    try {
-      const result = await prepareContractData({
-        projectId: currentProjectId,
-        documentIds: selectedDocs
-      });
-      
-      if (result.success && result.entities) {
-        setExtractedEntities(result.entities);
-        setEntityExtractionStatus('success');
-        
-        if (result.entityCount === 0) {
-          toast({
-            variant: "default",
-            title: "Atenção",
-            description: "Os documentos selecionados não possuem entidades extraídas. O contrato será gerado sem preenchimento automático."
-          });
-        } else {
-          console.log(`[GerarExportar] ${result.entityCount} entidades extraídas de ${result.documentCount} documentos`);
-        }
-      } else {
-        setEntityExtractionStatus('error');
-        toast({
-          variant: "destructive",
-          title: "Erro na extração",
-          description: result.error || "Não foi possível extrair entidades dos documentos"
-        });
-      }
-    } catch (error) {
-      setEntityExtractionStatus('error');
-      console.error('[GerarExportar] Erro ao extrair entidades:', error);
-    }
-  };
-
-  const handleStartGeneration = async () => {
-    if (selectedTemplates.length === 0 || !templates) {
-      toast({ variant: "destructive", title: "Selecione ao menos um modelo." });
-      return;
-    }
-
-    if (selectedDocs.length === 0) {
-      toast({ 
-        variant: "destructive", 
-        title: "Documentos não selecionados", 
-        description: "Por favor, selecione ao menos um documento inicial para fornecer contexto à IA." 
-      });
-      return;
-    }
-
-    const hasGoogleDoc = selectedTemplates.some(id => {
-      const t = templates.find(temp => temp.id === id);
-      return t?.googleDocLink && extractGoogleDocId(t.googleDocLink);
-    });
-
-    if (hasGoogleDoc && !accessToken) {
-      toast({
-        title: "Login com Google Necessário",
-        description: "Conecte sua conta para gerar no Google Docs.",
-        action: <Button variant="outline" size="sm" onClick={() => signInWithGoogle()}>Conectar</Button>,
-      });
-      return;
-    }
-
-    // VALIDAÇÃO PRÉVIA DE TEMPLATES DO GOOGLE DOCS
-    const googleDocTemplates = selectedTemplates.filter(id => {
-      const t = templates.find(temp => temp.id === id);
-      return t?.googleDocLink && extractGoogleDocId(t.googleDocLink);
-    });
-
-    if (googleDocTemplates.length > 0 && accessToken) {
-      const invalidTemplates: string[] = [];
-      
-      for (const templateId of googleDocTemplates) {
-        const template = templates.find(t => t.id === templateId);
-        const googleDocId = template?.googleDocLink ? extractGoogleDocId(template.googleDocLink) : null;
-        
-        if (googleDocId) {
-          try {
-            // Verificar se o arquivo existe no Google Drive
-            const response = await fetch(
-              `https://www.googleapis.com/drive/v3/files/${googleDocId}?fields=id,name,mimeType`,
-              {
-                headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Accept': 'application/json'
-                }
-              }
-            );
-            
-            if (!response.ok) {
-              if (response.status === 404) {
-                invalidTemplates.push(`"${template?.name}" - arquivo não encontrado`);
-              } else if (response.status === 403) {
-                invalidTemplates.push(`"${template?.name}" - sem permissão de acesso`);
-              } else if (response.status === 401) {
-                toast({
-                  variant: "destructive",
-                  title: "Sessão expirada",
-                  description: "Sua sessão do Google expirou. Por favor, faça login novamente.",
-                  action: <Button variant="outline" size="sm" onClick={() => signInWithGoogle()}>Reconectar</Button>,
-                });
-                return;
-              }
-            }
-          } catch (error) {
-            console.error('[GerarExportar] Erro ao validar template:', error);
-          }
-        }
-      }
-      
-      if (invalidTemplates.length > 0) {
-        toast({
-          variant: "destructive",
-          title: "Templates inválidos",
-          description: (
-            <div className="space-y-2">
-              <p>Os seguintes templates não puderam ser acessados:</p>
-              <ul className="list-disc pl-4 text-sm">
-                {invalidTemplates.map((t, i) => (
-                  <li key={i}>{t}</li>
-                ))}
-              </ul>
-              <p className="text-xs mt-2">Verifique se os arquivos existem no Google Drive e estão compartilhados corretamente.</p>
-            </div>
-          )
-        });
-        return;
-      }
-    }
-
-    // Extract entities before starting generation
-    await extractEntitiesForGeneration();
-
-    // Start generation with extracted entities
-    handleConfirmGeneration(extractedEntities);
-  };
+  
 
   const handleConfirmGeneration = (editedEntities: Record<string, any>) => {
     if (!user || !firestore || !templates) return;
@@ -411,36 +269,8 @@ function GerarExportarContent() {
               }
             }
           } else {
-            // Markdown Flow
-            const result = await handleGenerateContract({
-              projectId: currentProjectId,
-              userId: user.uid,
-              documentIds: selectedDocs,
-            });
-
-            if (result.success) {
-              await addDoc(collection(firestore, 'users', user.uid, 'filledContracts'), {
-                projectId: currentProjectId,
-                contractModelId: template.id,
-                clientName: clientName || "Cliente",
-                filledData: JSON.stringify({ 
-                  entities: editedEntities,
-                  sourceDocuments: selectedDocs,
-                  extractionDate: new Date().toISOString()
-                }),
-                name: `Contrato de ${template.name}`,
-                markdownContent: result.data?.contractDraft || "",
-                createdAt: new Date().toISOString(),
-                // NOVOS CAMPOS
-                sourceDocumentIds: selectedDocs,
-                entityCount: Object.keys(editedEntities).length,
-                generationMethod: 'markdown-ai',
-                templateName: template.name
-              });
-              generatedSuccessfully = true;
-            } else {
-              lastErrorMessage = result.error || "Erro desconhecido na geração.";
-            }
+            // Sem Google Docs configurado - pular este template
+            lastErrorMessage = "Modelo sem Google Docs configurado. Configure o link do Google Docs no modelo para gerar documentos.";
           }
 
           if (generatedSuccessfully) {
@@ -682,52 +512,15 @@ function GerarExportarContent() {
             </Card>
           </div>
 
-          {/* Entity Extraction Status */}
-          {selectedDocs.length > 0 && selectedTemplates.length > 0 && (
-            <div className="flex flex-col items-center gap-2 w-full max-w-md">
-              {entityExtractionStatus === 'loading' && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Extraindo dados dos documentos...</span>
-                </div>
-              )}
-              
-              {entityExtractionStatus === 'success' && Object.keys(extractedEntities).length > 0 && (
-                <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950/30 px-4 py-2 rounded-lg border border-green-200 dark:border-green-800">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span>{Object.keys(extractedEntities).length} entidades extraídas e prontas para uso</span>
-                </div>
-              )}
-              
-              {entityExtractionStatus === 'success' && Object.keys(extractedEntities).length === 0 && (
-                <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-4 py-2 rounded-lg border border-amber-200 dark:border-amber-800">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span>Documentos sem entidades extraídas. O contrato será gerado sem preenchimento automático.</span>
-                </div>
-              )}
-              
-              {entityExtractionStatus === 'error' && (
-                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950/30 px-4 py-2 rounded-lg border border-red-200 dark:border-red-800">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span>Erro ao extrair entidades. Continuando sem dados dos documentos.</span>
-                </div>
-              )}
-            </div>
-          )}
+          
 
           <div className="flex flex-col items-center gap-4">
-            <div className="flex gap-4">
-              <Button size="lg" variant="outline" className="h-16 px-8 text-lg font-bold rounded-full" onClick={handleOpenCopyModal} disabled={selectedTemplates.length === 0 || isGenerating || isExtractingForCopy}>
-                {isExtractingForCopy ? <Loader2 className="mr-2 animate-spin" /> : <FilePlus2 className="mr-2" />}
-                Cópia Customizada (Google Docs)
-              </Button>
-              <Button size="lg" className="h-16 px-12 text-lg font-bold rounded-full" onClick={handleStartGeneration} disabled={selectedTemplates.length === 0 || isGenerating}>
-                {isGenerating ? <Loader2 className="mr-2 animate-spin" /> : <Wand2 className="mr-2" />}
-                Gerar com Markdown
-              </Button>
-            </div>
+            <Button size="lg" className="h-16 px-12 text-lg font-bold rounded-full" onClick={handleOpenCopyModal} disabled={selectedTemplates.length === 0 || isGenerating || isExtractingForCopy}>
+              {isExtractingForCopy ? <Loader2 className="mr-2 animate-spin" /> : <Wand2 className="mr-2" />}
+              Gerar Documentos
+            </Button>
             <p className="text-xs text-muted-foreground">
-              A <strong>Cópia Customizada</strong> preenche um modelo no Google Docs. O <strong>Markdown</strong> gera um novo rascunho.
+              Gera documentos preenchendo os modelos Google Docs selecionados com os dados extraídos.
             </p>
           </div>
 
@@ -778,8 +571,6 @@ function GerarExportarContent() {
                       <TableCell className="text-xs">
                         {c.generationMethod === 'google-docs' ? (
                           <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700 border-blue-200">Google Docs</Badge>
-                        ) : c.generationMethod === 'markdown-ai' ? (
-                          <Badge variant="outline" className="text-[9px] bg-purple-50 text-purple-700 border-purple-200">IA (Markdown)</Badge>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}

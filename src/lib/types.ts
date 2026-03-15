@@ -323,7 +323,7 @@ export interface Contract {
   // NOVOS CAMPOS
   sourceDocumentIds?: string[]; // IDs dos documentos usados
   entityCount?: number; // Quantidade de entidades preenchidas
-  generationMethod?: 'google-docs' | 'markdown-ai';
+  generationMethod?: 'google-docs';
   templateName?: string; // Nome do template usado
   extractionDate?: string; // Data da extração das entidades
 }

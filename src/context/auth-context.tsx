@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             const provider = new GoogleAuthProvider();
             // Add scopes for Google Docs and Drive integration
-            provider.addScope("https://www.googleapis.com/auth/drive.file");
+            provider.addScope("https://www.googleapis.com/auth/drive.readonly");
             provider.addScope("https://www.googleapis.com/auth/documents");
             
             const result = await signInWithPopup(auth, provider);

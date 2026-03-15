@@ -2,7 +2,6 @@
 'use server';
 import 'dotenv/config';
 
-import { generateContractFromDocuments } from '@/ai/flows/generate-contract-from-documents';
 import { getAssistanceFromGemini } from '@/ai/flows/get-assistance-from-gemini';
 import { getDocumentFeedback } from '@/ai/flows/get-document-feedback';
 import { extractEntitiesFromDocuments } from '@/ai/flows/extract-entities-from-documents';
@@ -89,51 +88,6 @@ async function prepareDocumentsForFlow(input: {
   }
 
   return [];
-}
-
-const generateContractSchema = z.object({
-  projectId: z.string().optional(),
-  userId: z.string().optional(),
-  documentIds: z.array(z.string()).optional(),
-  documents: z.array(fileObjectSchema).optional(),
-});
-
-export async function handleGenerateContract(input: {
-  projectId?: string;
-  userId?: string;
-  documentIds?: string[];
-  documents?: { name: string; dataUri: string }[];
-}) {
-  try {
-    console.log('handleGenerateContract: Starting validation');
-    const validatedData = generateContractSchema.safeParse(input);
-
-    if (!validatedData.success) {
-      console.error('handleGenerateContract: Validation failed', validatedData.error.flatten());
-      return { success: false, error: 'Dados de arquivo inválidos.' };
-    }
-
-    console.log('handleGenerateContract: Preparing documents');
-    const documentsForFlow = await prepareDocumentsForFlow(validatedData.data);
-
-    if (documentsForFlow.length === 0) {
-      console.warn('handleGenerateContract: No documents provided');
-      return { success: false, error: 'Nenhum documento fornecido para geração.' };
-    }
-
-    console.log(`handleGenerateContract: Calling generateContractFromDocuments with ${documentsForFlow.length} docs`);
-    const result = await generateContractFromDocuments({
-      documents: documentsForFlow,
-    });
-
-    console.log('handleGenerateContract: Generation successful');
-    return { success: true, data: result };
-  } catch (error) {
-    console.error('handleGenerateContract: CRITICAL ERROR', error);
-    const errorMessage =
-      error instanceof Error ? error.message : 'Falha ao gerar o contrato.';
-    return { success: false, error: errorMessage };
-  }
 }
 
 const getAssistanceSchema = z.object({

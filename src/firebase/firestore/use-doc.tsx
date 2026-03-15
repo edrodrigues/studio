@@ -7,12 +7,41 @@ import {
   DocumentData,
   FirestoreError,
   DocumentSnapshot,
+  Timestamp,
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 /** Utility type to add an 'id' field to a given type T. */
 type WithId<T> = T & { id: string };
+
+/**
+ * Converts Firestore Timestamps in an object to ISO strings.
+ * This ensures data is serializable for React components.
+ */
+function convertTimestamps(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  
+  if (obj instanceof Timestamp) {
+    return obj.toDate().toISOString();
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => convertTimestamps(item));
+  }
+  
+  if (typeof obj === 'object') {
+    const converted: any = {};
+    for (const key of Object.keys(obj)) {
+      converted[key] = convertTimestamps(obj[key]);
+    }
+    return converted;
+  }
+  
+  return obj;
+}
 
 /**
  * Interface for the return value of the useDoc hook.
@@ -63,7 +92,8 @@ export function useDoc<T = any>(
       memoizedDocRef,
       (snapshot: DocumentSnapshot<DocumentData>) => {
         if (snapshot.exists()) {
-          setData({ ...(snapshot.data() as T), id: snapshot.id });
+          const data = snapshot.data();
+          setData({ ...(convertTimestamps(data) as T), id: snapshot.id });
         } else {
           // Document does not exist
           setData(null);

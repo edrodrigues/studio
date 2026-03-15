@@ -2,12 +2,13 @@
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
-import { FileText, Clock, CircleDollarSign, Loader2, Trash2, Upload, Download, File, MoreVertical, Trash, Eye } from 'lucide-react';
+import { FileText, Clock, CircleDollarSign, Plus, Loader2, Trash2, Upload, Download, File, MoreVertical, Trash, Eye } from 'lucide-react';
 import { fileToDataURI } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { FileUploader } from '@/components/app/file-uploader';
 import { handleSyncToFileSearch } from '@/lib/actions';
@@ -96,6 +97,12 @@ const DOCUMENT_TYPES = {
     },
     getDescription: (contractType: string) => 'Valores e distribuição de recursos.',
   },
+  extraDocument: {
+    key: 'extraDocument',
+    icon: <Plus size={24} />,
+    getTitle: (contractType: string) => 'Documento Extra',
+    getDescription: (contractType: string) => 'Documento adicional para comparação.',
+  },
 };
 
 export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploaderProps) {
@@ -104,11 +111,15 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
   const [contractType, setContractType] = useState<string>('');
   const [processType, setProcessType] = useState<string>('');
 
+  // State for extra document toggle
+  const [extraDocumentEnabled, setExtraDocumentEnabled] = useState(false);
+
   // State for file handling
   const [files, setFiles] = useState<{ [key: string]: File | null }>({
     planOfWork: null,
     termOfExecution: null,
     budgetSpreadsheet: null,
+    extraDocument: null,
   });
   const [uploadingType, setUploadingType] = useState<string | null>(null);
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
@@ -260,9 +271,11 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
       planOfWork: null,
       termOfExecution: null,
       budgetSpreadsheet: null,
+      extraDocument: null,
     });
     setContractType('');
     setProcessType('');
+    setExtraDocumentEnabled(false);
     toast({
       title: 'Dados limpos',
       description: 'Todos os arquivos e seleções foram removidos.',
@@ -543,6 +556,20 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
                 </RadioGroup>
               </div>
             )}
+
+            <div className="flex items-center justify-between pt-4 border-t">
+              <div className="space-y-0.5">
+                <Label className="text-base font-medium" htmlFor="extra-document-toggle">Documento Extra</Label>
+                <p className="text-sm text-muted-foreground">
+                  Adicionar um documento extra para análise e comparação
+                </p>
+              </div>
+              <Switch
+                id="extra-document-toggle"
+                checked={extraDocumentEnabled}
+                onCheckedChange={setExtraDocumentEnabled}
+              />
+            </div>
           </CardContent>
         </Card>
 
@@ -550,6 +577,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
           {renderDocumentCard('planOfWork', DOCUMENT_TYPES.planOfWork)}
           {renderDocumentCard('termOfExecution', DOCUMENT_TYPES.termOfExecution)}
           {renderDocumentCard('budgetSpreadsheet', DOCUMENT_TYPES.budgetSpreadsheet)}
+          {extraDocumentEnabled && renderDocumentCard('extraDocument', DOCUMENT_TYPES.extraDocument)}
         </div>
 
         <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">

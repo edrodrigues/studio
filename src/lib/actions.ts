@@ -503,15 +503,27 @@ export interface DocumentIndexingStatus {
 
 export async function checkDocumentIndexingStatus(projectId: string): Promise<DocumentIndexingStatus> {
   try {
+    const { db } = await import('@/lib/firebase-server');
+    const { Timestamp } = await import('firebase-admin/firestore');
+    
     const projectDoc = await db.collection('projects').doc(projectId).get();
     const data = projectDoc.data();
+
+    const lastSyncedAt = data?.lastSyncedAt;
+    let convertedLastSyncedAt: string | null = null;
+    
+    if (lastSyncedAt instanceof Timestamp) {
+      convertedLastSyncedAt = lastSyncedAt.toDate().toISOString();
+    } else if (lastSyncedAt) {
+      convertedLastSyncedAt = String(lastSyncedAt);
+    }
 
     return {
       isSynced: data?.isSyncedToFileSearch || false,
       storeId: data?.fileSearchStoreId || null,
       syncStatus: data?.fileSearchSyncStatus,
       syncError: data?.fileSearchSyncError,
-      lastSyncedAt: data?.lastSyncedAt || null,
+      lastSyncedAt: convertedLastSyncedAt,
     };
   } catch (error) {
     console.error('Error checking document indexing status:', error);

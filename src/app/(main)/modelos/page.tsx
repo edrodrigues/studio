@@ -2,8 +2,8 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Plus, File as FileIcon, Trash2, Copy, Check } from "lucide-react";
-import { collection, doc, addDoc } from "firebase/firestore";
+import { Plus, File as FileIcon, Trash2, Copy, Check, Wand2, FileText, Loader2 } from "lucide-react";
+import { collection, doc, addDoc, query, where } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,15 @@ import { cn } from "@/lib/utils";
 import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase";
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { handleExtractTemplateFromDocument } from "@/lib/actions";
 
 
 const contractTypeOptions = [
@@ -137,9 +146,22 @@ export default function ModelosPage() {
 
     const { data: templates, isLoading } = useCollection<Template>(templatesQuery);
 
+    // Query for user's documents to extract templates from
+    const documentsQuery = useMemoFirebase(() => {
+        if (!user || !firestore) return null;
+        return collection(firestore, 'projectDocuments');
+    }, [user, firestore]);
+    const { data: allDocuments } = useCollection<any>(documentsQuery);
+
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
     const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
     const { toast } = useToast();
+
+    // Extract template dialog state
+    const [isExtractDialogOpen, setIsExtractDialogOpen] = useState(false);
+    const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+    const [isExtracting, setIsExtracting] = useState(false);
+    const [extractedTemplate, setExtractedTemplate] = useState<string | null>(null);
 
     // Effect to select the first template by default
     useEffect(() => {
@@ -177,6 +199,67 @@ export default function ModelosPage() {
         };
         startEditing(newTemplate);
     }, [startEditing]);
+
+    // Extract template handlers
+    const handleOpenExtractDialog = useCallback(() => {
+        setIsExtractDialogOpen(true);
+        setSelectedDocumentId(null);
+        setExtractedTemplate(null);
+    }, []);
+
+    const handleExtractTemplate = useCallback(async () => {
+        if (!selectedDocumentId || !user) return;
+
+        setIsExtracting(true);
+        try {
+            const result = await handleExtractTemplateFromDocument({
+                documentId: selectedDocumentId,
+                projectId: '', // Not needed for extraction
+                userId: user.uid,
+            });
+
+            if (result.success && result.templateContent) {
+                setExtractedTemplate(result.templateContent);
+                toast({
+                    title: "Template Extraído!",
+                    description: "O template foi extraído com sucesso. Clique em 'Usar este Template' para criar um novo modelo.",
+                });
+            } else {
+                toast({
+                    variant: "destructive",
+                    title: "Erro",
+                    description: result.error || "Não foi possível extrair o template.",
+                });
+            }
+        } catch (error) {
+            toast({
+                variant: "destructive",
+                title: "Erro",
+                description: "Ocorreu um erro ao extrair o template.",
+            });
+        } finally {
+            setIsExtracting(false);
+        }
+    }, [selectedDocumentId, user, toast]);
+
+    const handleUseExtractedTemplate = useCallback(() => {
+        if (!extractedTemplate) return;
+
+        const selectedDoc = allDocuments?.find(d => d.id === selectedDocumentId);
+        const newTemplate: Template = {
+            id: `new-${Date.now()}`,
+            name: `Template de ${selectedDoc?.originalFileName || 'Documento'}`,
+            description: `Template extraído automaticamente em ${new Date().toLocaleDateString('pt-BR')}`,
+            markdownContent: extractedTemplate,
+            googleDocLink: "",
+            projectDocLink: "",
+            contractTypes: [],
+            isNew: true,
+        };
+        
+        setIsExtractDialogOpen(false);
+        startEditing(newTemplate);
+    }, [extractedTemplate, selectedDocumentId, allDocuments, startEditing]);
 
     const handleSelectTemplate = useCallback((id: string) => {
         if (editingTemplate && !window.confirm("Você tem alterações não salvas. Deseja descartá-las?")) {
@@ -291,9 +374,14 @@ export default function ModelosPage() {
         <div className="flex h-[calc(100vh-4rem)] bg-transparent">
             {/* Sidebar */}
             <aside className="w-1/4 min-w-[250px] max-w-[300px] border-r bg-background/80 p-4 flex flex-col">
-                <Button className="w-full mb-4" onClick={handleNewTemplate} disabled={!user}>
-                    <Plus className="mr-2 h-4 w-4" /> Novo Modelo
-                </Button>
+                <div className="space-y-2 mb-4">
+                    <Button className="w-full" onClick={handleNewTemplate} disabled={!user}>
+                        <Plus className="mr-2 h-4 w-4" /> Novo Modelo
+                    </Button>
+                    <Button variant="outline" className="w-full" onClick={handleOpenExtractDialog} disabled={!user || !allDocuments?.length}>
+                        <Wand2 className="mr-2 h-4 w-4" /> Criar de Documento
+                    </Button>
+                </div>
                 <h2 className="text-lg font-semibold mb-2 px-2">Modelos Salvos</h2>
                 <div className="overflow-y-auto flex-1">
                     {isLoading ? <p className="p-2 text-sm text-muted-foreground">Carregando...</p> : (
@@ -348,6 +436,11 @@ export default function ModelosPage() {
                             <div className="text-center">
                                 <h3 className="text-xl font-semibold">Selecione um modelo para editar</h3>
                                 <p className="text-muted-foreground mt-2">Escolha um modelo na barra lateral para visualizar e editar, ou clique em "Novo Modelo" para começar do zero.</p>
+                                <div className="mt-6 space-y-2">
+                                    <Button variant="outline" onClick={handleOpenExtractDialog} disabled={!allDocuments?.length}>
+                                        <Wand2 className="mr-2 h-4 w-4" /> Criar template de um documento
+                                    </Button>
+                                </div>
                             </div>
                         </Card>
                     )}
@@ -355,6 +448,109 @@ export default function ModelosPage() {
             </main>
 
         </div>
+
+        {/* Extract Template Dialog */}
+        <Dialog open={isExtractDialogOpen} onOpenChange={setIsExtractDialogOpen}>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Criar Template de Documento</DialogTitle>
+                    <DialogDescription>
+                        Selecione um documento para extrair um modelo genérico. A IA identificará as variáveis e as substituirá por placeholders.
+                    </DialogDescription>
+                </DialogHeader>
+                
+                {!extractedTemplate ? (
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>Selecione um documento</Label>
+                            <div className="space-y-2 max-h-60 overflow-y-auto border rounded-md p-2">
+                                {allDocuments?.filter(d => d.status === 'uploaded' || d.status === 'indexed').length === 0 ? (
+                                    <p className="text-sm text-muted-foreground p-2">
+                                        Nenhum documento disponível. Carregue documentos em um projeto primeiro.
+                                    </p>
+                                ) : (
+                                    allDocuments?.filter(d => d.status === 'uploaded' || d.status === 'indexed').map(doc => (
+                                        <div
+                                            key={doc.id}
+                                            className={cn(
+                                                "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
+                                                selectedDocumentId === doc.id
+                                                    ? "bg-primary/10 border border-primary"
+                                                    : "hover:bg-muted"
+                                            )}
+                                            onClick={() => setSelectedDocumentId(doc.id)}
+                                        >
+                                            <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium truncate">{doc.originalFileName}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {doc.documentType} • v{doc.version}
+                                                </p>
+                                            </div>
+                                            {selectedDocumentId === doc.id && (
+                                                <Check className="h-4 w-4 text-primary shrink-0" />
+                                            )}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-4 py-4">
+                        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3">
+                            <p className="text-sm text-emerald-800 dark:text-emerald-200 font-medium">
+                                Template extraído com sucesso!
+                            </p>
+                            <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
+                                O template foi gerado e está pronto para ser personalizado.
+                            </p>
+                        </div>
+                        <div className="bg-muted rounded-lg p-4 max-h-60 overflow-y-auto">
+                            <pre className="text-xs whitespace-pre-wrap font-mono">
+                                {extractedTemplate}
+                            </pre>
+                        </div>
+                    </div>
+                )}
+
+                <DialogFooter>
+                    {!extractedTemplate ? (
+                        <>
+                            <Button variant="outline" onClick={() => setIsExtractDialogOpen(false)}>
+                                Cancelar
+                            </Button>
+                            <Button onClick={handleExtractTemplate} disabled={!selectedDocumentId || isExtracting}>
+                                {isExtracting ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Extraindo...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Wand2 className="mr-2 h-4 w-4" />
+                                        Extrair Template
+                                    </>
+                                )}
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button variant="outline" onClick={() => {
+                                setExtractedTemplate(null);
+                                setSelectedDocumentId(null);
+                            }}>
+                                Extrair Outro
+                            </Button>
+                            <Button onClick={handleUseExtractedTemplate}>
+                                <Check className="mr-2 h-4 w-4" />
+                                Usar este Template
+                            </Button>
+                        </>
+                    )}
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
 

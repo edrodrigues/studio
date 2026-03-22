@@ -10,10 +10,14 @@ import {
   Archive,
   AlertTriangle,
   Loader2,
+  RefreshCw,
+  FileSearch,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Dialog,
   DialogContent,
@@ -23,28 +27,35 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { useProject, usePermission } from '@/hooks/use-projects';
 import { ProjectStatus } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { doc, deleteDoc, getFirestore } from 'firebase/firestore';
-import { useFirebase, useUser } from '@/firebase';
+import { doc, deleteDoc, getFirestore, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirebase } from '@/firebase';
+import { useToast } from '@/hooks/use-toast';
+import { handleSyncToFileSearch } from '@/lib/actions';
+import { Progress } from '@/components/ui/progress';
 
 export default function ProjectSettingsPage() {
   const params = useParams();
   const router = useRouter();
   const projectId = params.projectId as string;
   const { firestore } = useFirebase();
-  const { user } = useUser();
 
   const { project, isLoading, error, updateProject } = useProject(projectId);
   const { canEdit, isOwner } = usePermission(projectId);
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const { toast } = useToast();
 
   const handleArchive = async () => {
     if (!project || !canEdit) return;
@@ -74,6 +85,35 @@ export default function ProjectSettingsPage() {
     } catch (error) {
       console.error('Failed to delete project:', error);
       setIsDeleting(false);
+    }
+  };
+
+  const handleSync = async () => {
+    if (!projectId || isSyncing) return;
+    setIsSyncing(true);
+    setSyncProgress(0);
+    try {
+      setSyncProgress(20);
+      const result = await handleSyncToFileSearch({ projectId });
+      setSyncProgress(80);
+      if (result.success) {
+        setSyncProgress(100);
+        if (firestore) {
+          await updateDoc(doc(firestore, 'projects', projectId), {
+            lastSyncedAt: serverTimestamp(),
+            isSyncedToFileSearch: true,
+            fileSearchSyncStatus: 'completed',
+          });
+        }
+        toast({ title: 'Sincronização concluída', description: 'Os documentos foram sincronizados com sucesso.' });
+      } else {
+        throw new Error('Sync failed');
+      }
+    } catch (error) {
+      console.error('Sync failed:', error);
+      toast({ title: 'Erro na sincronização', description: 'Não foi possível sincronizar os documentos.', variant: 'destructive' });
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -146,6 +186,90 @@ export default function ProjectSettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Sync Configuration Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              Configuração de Sincronização
+            </CardTitle>
+            <CardDescription>
+              Sincronize documentos com o índice ALEX para pesquisa e análise inteligente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="font-medium">Estado da Sincronização</div>
+                <div className="text-sm text-muted-foreground">
+                  Última sincronização:{' '}
+                  {project.lastSyncedAt
+                    ? new Date(project.lastSyncedAt).toLocaleString('pt-PT')
+                    : 'Nunca sincronizado'}
+                </div>
+              </div>
+              <Badge
+                variant={project.isSyncedToFileSearch ? 'default' : 'secondary'}
+                className={project.isSyncedToFileSearch ? 'bg-green-500' : ''}
+              >
+                {project.isSyncedToFileSearch ? (
+                  <>
+                    <CheckCircle2 className="mr-1 h-3 w-3" /> Sincronizado
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="mr-1 h-3 w-3" /> Não Sincronizado
+                  </>
+                )}
+              </Badge>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  {isSyncing ? 'A sincronizar...' : 'Sincronização manual'}
+                </span>
+                {isSyncing && <span className="font-medium">{syncProgress}%</span>}
+              </div>
+              {isSyncing && <Progress value={syncProgress} className="h-2" />}
+              <p className="text-xs text-muted-foreground">
+                A sincronização indexa todos os documentos do projeto no ALEX para pesquisa semântica e análise de contratos.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleSync}
+                disabled={isSyncing || !canEdit}
+              >
+                {isSyncing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sincronizando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Sincronizar Agora
+                  </>
+                )}
+              </Button>
+            </div>
+
+            <Alert>
+              <FileSearch className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                Os documentos são sincronizados automaticamente após upload. Use esta opção para sincronização manual ou
+                para recuperar de erros de sincronização.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+
         {/* Archive Section */}
         <Card>
           <CardHeader>

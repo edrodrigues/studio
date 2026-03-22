@@ -21,7 +21,16 @@ import {
   Database,
   ExternalLink,
   Eye,
+  History,
+  ChevronDown,
+  ChevronRight,
+  Download,
 } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,8 +56,25 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProjectDocumentsUploader } from './components/ProjectDocumentsUploader';
 import { isValidDate, safeNewDate } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-// Active users indicator
+const VIEW_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  documents: 'Documentos',
+  sync: 'Sincronização',
+  contracts: 'Contratos',
+  activity: 'Atividade',
+  settings: 'Configurações',
+  placeholders: 'Variáveis',
+  members: 'Membros',
+};
+
+// Active users indicator with enhanced UI
 function ActiveUsersIndicator({ projectId }: { projectId: string }) {
   const { activeUsers, updatePresence } = usePresence(projectId);
 
@@ -61,24 +87,84 @@ function ActiveUsersIndicator({ projectId }: { projectId: string }) {
   const otherUsers = activeUsers.filter(u => u.userId !== activeUsers[0]?.userId);
 
   return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <div className="flex -space-x-2">
-        {otherUsers.slice(0, 3).map((user) => (
-          <Avatar key={user.userId} className="h-6 w-6 border-2 border-background">
-            <AvatarImage src={user.userPhotoURL} />
-            <AvatarFallback className="text-xs">
-              {user.userName?.charAt(0) || '?'}
-            </AvatarFallback>
-          </Avatar>
-        ))}
+    <TooltipProvider>
+      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+          <span className="text-sm font-medium">
+            {otherUsers.length} online
+          </span>
+        </div>
+        
+        <div className="flex -space-x-3">
+          {otherUsers.slice(0, 5).map((user, index) => (
+            <Tooltip key={user.userId}>
+              <TooltipTrigger asChild>
+                <div className="relative">
+                  <Avatar 
+                    className="h-8 w-8 border-2 border-background ring-2 ring-background"
+                    style={{ zIndex: 10 - index }}
+                  >
+                    <AvatarImage src={user.userPhotoURL} />
+                    <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                      {user.userName?.charAt(0)?.toUpperCase() || '?'}
+                    </AvatarFallback>
+                  </Avatar>
+                  {/* Online indicator dot */}
+                  <span className="absolute bottom-0 right-0 h-2.5 w-2.5 bg-emerald-500 border-2 border-background rounded-full"></span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="space-y-1">
+                <p className="font-medium">{user.userName}</p>
+                {user.currentView && (
+                  <p className="text-xs text-muted-foreground">
+                    📄 {VIEW_LABELS[user.currentView] || user.currentView}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Visto há {formatTimeAgo(user.lastSeenAt)}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          ))}
+          {otherUsers.length > 5 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-muted border-2 border-background text-xs font-medium">
+                  +{otherUsers.length - 5}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{otherUsers.length - 5} mais</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </div>
-      <span>
-        {otherUsers.length === 1
-          ? `${otherUsers[0].userName} está online`
-          : `${otherUsers.length} pessoas online`}
-      </span>
-    </div>
+    </TooltipProvider>
   );
+}
+
+function formatTimeAgo(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  
+  if (diffMins < 1) return 'alguns segundos';
+  if (diffMins === 1) return '1 minuto';
+  if (diffMins < 60) return `${diffMins} minutos`;
+  
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours === 1) return '1 hora';
+  if (diffHours < 24) return `${diffHours} horas`;
+  
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return '1 dia';
+  return `${diffDays} dias`;
 }
 
 // Documents tab content
@@ -94,6 +180,7 @@ const SYNC_STATUS_CONFIG = {
     color: 'text-emerald-600',
     bg: 'bg-emerald-50 dark:bg-emerald-950/30',
     badge: 'default' as const,
+    isIndexed: true,
   },
   [DocumentStatus.PROCESSING]: {
     label: 'Processando',
@@ -101,6 +188,7 @@ const SYNC_STATUS_CONFIG = {
     color: 'text-amber-600',
     bg: 'bg-amber-50 dark:bg-amber-950/30',
     badge: 'secondary' as const,
+    isIndexed: false,
   },
   [DocumentStatus.UPLOADED]: {
     label: 'Aguardando Sync',
@@ -108,6 +196,7 @@ const SYNC_STATUS_CONFIG = {
     color: 'text-blue-600',
     bg: 'bg-blue-50 dark:bg-blue-950/30',
     badge: 'outline' as const,
+    isIndexed: false,
   },
   [DocumentStatus.ERROR]: {
     label: 'Erro',
@@ -115,6 +204,7 @@ const SYNC_STATUS_CONFIG = {
     color: 'text-red-600',
     bg: 'bg-red-50 dark:bg-red-950/30',
     badge: 'destructive' as const,
+    isIndexed: false,
   },
 };
 
@@ -125,9 +215,10 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   other: 'Outro',
 };
 
-// Sync tab content
+// Sync tab content with version grouping
 function SyncTab({ projectId }: { projectId: string }) {
   const { documents, isLoading } = useProjectDocuments(projectId);
+  const { user } = useUser();
 
   const formatDate = (dateStr: string) =>
     new Date(dateStr).toLocaleString('pt-BR', {
@@ -163,9 +254,111 @@ function SyncTab({ projectId }: { projectId: string }) {
     );
   }
 
+  // Group documents by type
+  const documentsByType = useMemo(() => {
+    const groups: Record<string, typeof documents> = {};
+    documents.forEach(doc => {
+      const type = doc.documentType || 'other';
+      if (!groups[type]) groups[type] = [];
+      groups[type].push(doc);
+    });
+    // Sort each group by version descending
+    Object.keys(groups).forEach(type => {
+      groups[type].sort((a, b) => b.version - a.version);
+    });
+    return groups;
+  }, [documents]);
+
   const indexedCount = documents.filter((d) => d.status === DocumentStatus.INDEXED).length;
   const processingCount = documents.filter((d) => d.status === DocumentStatus.PROCESSING).length;
   const errorCount = documents.filter((d) => d.status === DocumentStatus.ERROR).length;
+
+  const formatIndexedDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+  const handleDownload = async (doc: any) => {
+    if (!user) return;
+    try {
+      const { getDownloadUrl } = await import('@/lib/actions/storage-actions');
+      let downloadUrl = doc.fileUrl;
+      if (doc.storageProvider === 'r2') {
+        const result = await getDownloadUrl(projectId, user.uid, doc.storagePath);
+        if (result.success && result.url) {
+          downloadUrl = result.url;
+        }
+      }
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = doc.originalFileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Download error:', error);
+    }
+  };
+
+  const renderDocumentVersion = (doc: any, isLatest: boolean) => {
+    const statusCfg = SYNC_STATUS_CONFIG[doc.status as DocumentStatus] ?? SYNC_STATUS_CONFIG[DocumentStatus.UPLOADED];
+    const StatusIcon = statusCfg.icon;
+    const isIndexed = doc.status === DocumentStatus.INDEXED;
+
+    return (
+      <div 
+        key={doc.id} 
+        className={`flex items-start gap-3 py-3 ${!isLatest ? 'border-t border-border/50' : ''}`}
+      >
+        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${statusCfg.bg}`}>
+          <StatusIcon className={`h-4 w-4 ${statusCfg.color} ${doc.status === DocumentStatus.PROCESSING ? 'animate-spin' : ''}`} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm truncate">{doc.originalFileName}</span>
+            {!isLatest && (
+              <Badge variant="outline" className="text-xs bg-muted/50">
+                v{doc.version} (anterior)
+              </Badge>
+            )}
+            {isIndexed && isLatest && (
+              <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 text-xs shrink-0">
+                <span className="mr-1">✨</span> No contexto ALEX
+              </Badge>
+            )}
+            {!isIndexed && (
+              <Badge variant={statusCfg.badge} className="text-xs shrink-0">
+                {statusCfg.label}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-muted-foreground">
+            <span>Enviado: {formatDate(doc.uploadedAt)}</span>
+            {isIndexed && doc.fileSearchIndexedAt && (
+              <>
+                <span>•</span>
+                <span className="text-emerald-600 dark:text-emerald-400">Indexado: {formatIndexedDate(doc.fileSearchIndexedAt)}</span>
+              </>
+            )}
+            <span>•</span>
+            <span>{formatFileSize(doc.fileSize)}</span>
+          </div>
+        </div>
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => handleDownload(doc)}
+          className="shrink-0"
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -176,7 +369,7 @@ function SyncTab({ projectId }: { projectId: string }) {
             <CheckCircle2 className="h-8 w-8 text-emerald-600 shrink-0" />
             <div>
               <p className="text-2xl font-bold">{indexedCount}</p>
-              <p className="text-xs text-muted-foreground">Indexados</p>
+              <p className="text-xs text-muted-foreground">No contexto do ALEX</p>
             </div>
           </CardContent>
         </Card>
@@ -200,53 +393,77 @@ function SyncTab({ projectId }: { projectId: string }) {
         </Card>
       </div>
 
-      {/* Document list */}
-      <div className="space-y-3">
-        {documents.map((doc) => {
-          const statusCfg = SYNC_STATUS_CONFIG[doc.status as DocumentStatus] ?? SYNC_STATUS_CONFIG[DocumentStatus.UPLOADED];
-          const StatusIcon = statusCfg.icon;
-          return (
-            <Card key={doc.id}>
-              <CardContent className="p-4">
-                <div className="flex items-start gap-4">
-                  {/* Status icon */}
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${statusCfg.bg}`}>
-                    <StatusIcon className={`h-5 w-5 ${statusCfg.color} ${doc.status === DocumentStatus.PROCESSING ? 'animate-spin' : ''}`} />
-                  </div>
+      {/* Info banner */}
+      {indexedCount > 0 && (
+        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+                {indexedCount} documento{indexedCount > 1 ? 's' : ''} disponível{indexedCount > 1 ? 'is' : ''} no contexto do ALEX
+              </p>
+              <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
+                Apenas a versão mais recente de cada tipo está no contexto do ALEX para garantir respostas atualizadas.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-sm truncate">{doc.originalFileName}</p>
-                      <Badge variant={statusCfg.badge} className="text-xs shrink-0">
-                        {statusCfg.label}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs shrink-0">
-                        v{doc.version}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      <span className="text-xs text-muted-foreground">
-                        {DOC_TYPE_LABELS[doc.documentType] ?? doc.documentType}
-                      </span>
-                      <span className="text-xs text-muted-foreground">•</span>
-                      <span className="text-xs text-muted-foreground">{formatFileSize(doc.fileSize)}</span>
-                      <span className="text-xs text-muted-foreground">•</span>
-                      <span className="text-xs text-muted-foreground">{formatDate(doc.uploadedAt)}</span>
-                      {doc.storageProvider === 'r2' && (
-                        <>
-                          <span className="text-xs text-muted-foreground">•</span>
-                          <span className="text-xs text-muted-foreground font-mono">Cloudflare R2</span>
-                        </>
+      {/* Document list grouped by type with version history */}
+      <div className="space-y-4">
+        {Object.entries(documentsByType).map(([type, docs]) => {
+          const latestDoc = docs[0];
+          const hasHistory = docs.length > 1;
+          const isLatestIndexed = latestDoc.status === DocumentStatus.INDEXED;
+
+          return (
+            <Collapsible key={type} defaultOpen={true}>
+              <Card className={isLatestIndexed ? 'border-emerald-200 dark:border-emerald-800' : ''}>
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${isLatestIndexed ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-muted'}`}>
+                          <FileText className={`h-5 w-5 ${isLatestIndexed ? 'text-emerald-600' : 'text-muted-foreground'}`} />
+                        </div>
+                        <div className="text-left">
+                          <CardTitle className="text-base">
+                            {DOC_TYPE_LABELS[type] || type}
+                          </CardTitle>
+                          <CardDescription>
+                            {docs.length} versão{docs.length > 1 ? 'ões' : ''} • 
+                            {isLatestIndexed ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium"> Última versão no ALEX</span>
+                            ) : (
+                              <span className="text-amber-600"> Sincronize para adicionar ao ALEX</span>
+                            )}
+                          </CardDescription>
+                        </div>
+                      </div>
+                      {hasHistory && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <History className="h-4 w-4" />
+                          <span className="text-sm">Histórico</span>
+                          <ChevronDown className="h-4 w-4 data-[state=open]:rotate-180 transition-transform" />
+                        </div>
                       )}
                     </div>
-                    {doc.status === DocumentStatus.ERROR && doc.processingError && (
-                      <p className="text-xs text-red-600 mt-1">{doc.processingError}</p>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    {renderDocumentVersion(latestDoc, true)}
+                    {hasHistory && (
+                      <div className="pl-11">
+                        <p className="text-xs text-muted-foreground mb-2">Versões anteriores:</p>
+                        {docs.slice(1).map(doc => renderDocumentVersion(doc, false))}
+                      </div>
                     )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           );
         })}
       </div>
@@ -448,9 +665,86 @@ function ContractsTab({ projectId, projectName }: { projectId: string, projectNa
   );
 }
 
-// Activity tab content
+// Activity tab content with filters and grouping
 function ActivityTab({ projectId }: { projectId: string }) {
-  const { activities, isLoading } = useActivity(projectId, 20);
+  const { activities, isLoading, hasMore, loadMore } = useActivity(projectId, 30);
+  const [filterAction, setFilterAction] = useState<string | null>(null);
+
+  const ACTION_CONFIG: Record<string, { label: string; icon: any; color: string; bgColor: string }> = {
+    created: { label: 'criou', icon: Plus, color: 'text-emerald-600', bgColor: 'bg-emerald-100 dark:bg-emerald-900/30' },
+    uploaded: { label: 'enviou', icon: FileText, color: 'text-blue-600', bgColor: 'bg-blue-100 dark:bg-blue-900/30' },
+    extracted: { label: 'extraiu entidades de', icon: Activity, color: 'text-purple-600', bgColor: 'bg-purple-100 dark:bg-purple-900/30' },
+    edited: { label: 'editou', icon: FileText, color: 'text-amber-600', bgColor: 'bg-amber-100 dark:bg-amber-900/30' },
+    generated: { label: 'gerou', icon: FileText, color: 'text-cyan-600', bgColor: 'bg-cyan-100 dark:bg-cyan-900/30' },
+    shared: { label: 'compartilhou', icon: Users, color: 'text-indigo-600', bgColor: 'bg-indigo-100 dark:bg-indigo-900/30' },
+    joined: { label: 'entrou em', icon: Users, color: 'text-green-600', bgColor: 'bg-green-100 dark:bg-green-900/30' },
+    left: { label: 'saiu de', icon: Users, color: 'text-gray-600', bgColor: 'bg-gray-100 dark:bg-gray-900/30' },
+    exported: { label: 'exportou', icon: Download, color: 'text-teal-600', bgColor: 'bg-teal-100 dark:bg-teal-900/30' },
+    deleted: { label: 'excluiu', icon: XCircle, color: 'text-red-600', bgColor: 'bg-red-100 dark:bg-red-900/30' },
+    synced: { label: 'sincronizou', icon: RefreshCw, color: 'text-violet-600', bgColor: 'bg-violet-100 dark:bg-violet-900/30' },
+    role_changed: { label: 'alterou cargo de', icon: Users, color: 'text-orange-600', bgColor: 'bg-orange-100 dark:bg-orange-900/30' },
+    commented: { label: 'comentou em', icon: FileText, color: 'text-pink-600', bgColor: 'bg-pink-100 dark:bg-pink-900/30' },
+  };
+
+  const getDefaultConfig = (action: string) => ({
+    label: action,
+    icon: Activity,
+    color: 'text-gray-600',
+    bgColor: 'bg-gray-100 dark:bg-gray-900/30',
+  });
+
+  // Group activities by time period
+  const groupedActivities = useMemo(() => {
+    if (!activities) return {};
+    
+    const filtered = filterAction 
+      ? activities.filter(a => a.action === filterAction)
+      : activities;
+    
+    const groups: Record<string, typeof filtered> = {
+      hoje: [],
+      ontem: [],
+      'esta-semana': [],
+      'este-mes': [],
+      anteriores: [],
+    };
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    filtered.forEach(activity => {
+      const activityDate = safeNewDate(activity.timestamp);
+      if (!activityDate) {
+        groups.hoje.push(activity);
+        return;
+      }
+      
+      if (activityDate >= today) {
+        groups.hoje.push(activity);
+      } else if (activityDate >= yesterday) {
+        groups.ontem.push(activity);
+      } else if (activityDate >= weekAgo) {
+        groups['esta-semana'].push(activity);
+      } else if (activityDate >= monthAgo) {
+        groups['este-mes'].push(activity);
+      } else {
+        groups.anteriores.push(activity);
+      }
+    });
+    
+    return groups;
+  }, [activities, filterAction]);
+
+  const GROUP_LABELS: Record<string, string> = {
+    hoje: 'Hoje',
+    ontem: 'Ontem',
+    'esta-semana': 'Esta semana',
+    'este-mes': 'Este mês',
+    anteriores: 'Anteriores',
+  };
 
   if (isLoading) {
     return (
@@ -476,45 +770,88 @@ function ActivityTab({ projectId }: { projectId: string }) {
     );
   }
 
-  const getActionLabel = (action: string) => {
-    const labels: Record<string, string> = {
-      created: 'criou',
-      uploaded: 'enviou',
-      extracted: 'extraiu',
-      edited: 'editou',
-      generated: 'gerou',
-      shared: 'compartilhou',
-      joined: 'entrou em',
-      left: 'saiu de',
-      exported: 'exportou',
-      deleted: 'excluiu',
-    };
-    return labels[action] || action;
-  };
-
   return (
     <div className="space-y-4">
-      {activities.map((activity) => (
-        <div key={activity.id} className="flex items-start gap-3">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={activity.userPhotoURL} />
-            <AvatarFallback>{activity.userName?.charAt(0) || '?'}</AvatarFallback>
-          </Avatar>
-          <div className="flex-1">
-            <p className="text-sm">
-              <span className="font-medium">{activity.userName}</span>{' '}
-              {getActionLabel(activity.action)}{' '}
-              <span className="font-medium">{activity.targetName}</span>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {isValidDate(activity.timestamp) ? formatDistanceToNow(safeNewDate(activity.timestamp)!, {
-                addSuffix: true,
-                locale: ptBR,
-              }) : 'Agora'}
-            </p>
+      {/* Filter buttons */}
+      <div className="flex flex-wrap gap-2 pb-2 border-b">
+        <Button
+          variant={filterAction === null ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterAction(null)}
+        >
+          Todas
+        </Button>
+        {Object.entries(ACTION_CONFIG).slice(0, 6).map(([action, config]) => {
+          const Icon = config.icon;
+          return (
+            <Button
+              key={action}
+              variant={filterAction === action ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setFilterAction(filterAction === action ? null : action)}
+              className="gap-1"
+            >
+              <Icon className="h-3 w-3" />
+              {config.label}
+            </Button>
+          );
+        })}
+      </div>
+
+      {/* Activity groups */}
+      {Object.entries(groupedActivities).map(([group, groupActivities]) => {
+        if (groupActivities.length === 0) return null;
+        
+        return (
+          <div key={group}>
+            <h3 className="text-sm font-medium text-muted-foreground mb-3 sticky top-0 bg-background py-1">
+              {GROUP_LABELS[group]}
+            </h3>
+            <div className="space-y-3">
+              {groupActivities.map((activity) => {
+                const config = ACTION_CONFIG[activity.action] || getDefaultConfig(activity.action);
+                const Icon = config.icon;
+                
+                return (
+                  <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${config.bgColor}`}>
+                      <Icon className={`h-4 w-4 ${config.color}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm">
+                        <span className="font-medium">{activity.userName}</span>{' '}
+                        <span className="text-muted-foreground">{config.label}</span>{' '}
+                        <span className="font-medium">{activity.targetName}</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {isValidDate(activity.timestamp) ? formatDistanceToNow(safeNewDate(activity.timestamp)!, {
+                          addSuffix: true,
+                          locale: ptBR,
+                        }) : 'Agora'}
+                      </p>
+                    </div>
+                    <Avatar className="h-7 w-7 shrink-0">
+                      <AvatarImage src={activity.userPhotoURL} />
+                      <AvatarFallback className="text-xs">
+                        {activity.userName?.charAt(0)?.toUpperCase() || '?'}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                );
+              })}
+            </div>
           </div>
+        );
+      })}
+
+      {/* Load more button */}
+      {hasMore && (
+        <div className="flex justify-center pt-4">
+          <Button variant="outline" onClick={loadMore}>
+            Carregar mais
+          </Button>
         </div>
-      ))}
+      )}
     </div>
   );
 }

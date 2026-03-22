@@ -7,6 +7,7 @@ import { getDocumentFeedback } from '@/ai/flows/get-document-feedback';
 import { extractEntitiesFromDocuments } from '@/ai/flows/extract-entities-from-documents';
 import { analyzeDocumentConsistency } from '@/ai/flows/analyze-document-consistency';
 import { getPlaybookAssistance } from '@/ai/flows/get-playbook-assistance';
+import { extractTemplateFromDocument } from '@/ai/flows/extract-template-from-document';
 import { convertDocumentsToSupportedFormats, convertBufferToSupportedDataUri } from '@/lib/document-converter';
 import { db } from '@/lib/firebase-server';
 import { r2Client, R2_BUCKET_NAME } from '@/lib/r2';
@@ -670,6 +671,75 @@ export async function prepareContractData(input: {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Erro ao preparar dados'
+    };
+  }
+}
+
+/**
+ * Extrai um modelo genérico de um contrato preenchido usando IA
+ */
+export async function handleExtractTemplateFromDocument(input: {
+  documentId: string;
+  projectId: string;
+  userId: string;
+}): Promise<{ success: boolean; templateContent?: string; error?: string }> {
+  try {
+    console.log('[actions] Extraindo template do documento:', input.documentId);
+
+    // Fetch document from Firestore
+    const docRef = db.collection('projectDocuments').doc(input.documentId);
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      return { success: false, error: 'Documento não encontrado.' };
+    }
+
+    const docData = docSnap.data() as ProjectDocument;
+    let documentContent: string;
+
+    // Get document content from storage
+    if (docData.storageProvider === 'r2') {
+      const command = new GetObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: docData.storagePath,
+      });
+      const response = await r2Client.send(command);
+      if (!response.Body) {
+        return { success: false, error: 'Arquivo vazio ou não encontrado no R2.' };
+      }
+      const buffer = Buffer.from(await response.Body.transformToByteArray());
+
+      // Convert to text if necessary
+      const mimeType = getValidMimeType(docData.name, docData.mimeType);
+      if (mimeType === 'text/plain') {
+        documentContent = buffer.toString('utf-8');
+      } else {
+        const { convertBufferToText } = await import('@/lib/document-converter');
+        documentContent = await convertBufferToText(buffer, docData.mimeType, docData.name);
+      }
+    } else {
+      // Firebase storage
+      const response = await fetch(docData.fileUrl);
+      if (!response.ok) {
+        return { success: false, error: `Falha ao baixar arquivo: HTTP ${response.status}` };
+      }
+      documentContent = await response.text();
+    }
+
+    // Extract template using AI
+    const result = await extractTemplateFromDocument({
+      documentContent: documentContent,
+    });
+
+    return {
+      success: true,
+      templateContent: result.templateContent,
+    };
+  } catch (error) {
+    console.error('[actions] Erro ao extrair template:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro ao extrair template do documento.',
     };
   }
 }

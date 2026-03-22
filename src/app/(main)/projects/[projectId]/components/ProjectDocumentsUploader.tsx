@@ -131,7 +131,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
   const { documentsByType, isLoading: isLoadingDocs } = useDocumentsByType(projectId);
   const { updateDocument } = useProjectDocuments(projectId);
 
-  // Load contract types from project on mount
+  // Load project settings on mount
   useEffect(() => {
     if (project) {
       if (project.contractType) {
@@ -139,6 +139,10 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
       }
       if (project.processType) {
         setProcessType(project.processType);
+      }
+      // Load extra document toggle state
+      if (typeof project.extraDocumentEnabled === 'boolean') {
+        setExtraDocumentEnabled(project.extraDocumentEnabled);
       }
     }
   }, [project]);
@@ -159,7 +163,17 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
     try {
       await updateProject({ processType: value });
     } catch (error) {
-      console.error('Failed to save process type:', error);
+      console.error('Failed to save contract type:', error);
+    }
+  };
+
+  // Save extra document toggle state
+  const handleExtraDocumentToggle = async (enabled: boolean) => {
+    setExtraDocumentEnabled(enabled);
+    try {
+      await updateProject({ extraDocumentEnabled: enabled });
+    } catch (error) {
+      console.error('Failed to save extra document setting:', error);
     }
   };
 
@@ -567,7 +581,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
               <Switch
                 id="extra-document-toggle"
                 checked={extraDocumentEnabled}
-                onCheckedChange={setExtraDocumentEnabled}
+                onCheckedChange={handleExtraDocumentToggle}
               />
             </div>
           </CardContent>

@@ -368,16 +368,34 @@ export async function handleSyncToFileSearch(input: {
             }
           }
 
-          // Buscar documentName anterior para deletar versão antiga
-          const previousDocumentName = docData.fileSearchDocumentName || undefined;
+          // Buscar TODAS as versões anteriores indexadas do MESMO tipo de documento
+          // para garantir que apenas a versão mais recente fique no File Search
+          const previousVersionsSnapshot = await db
+            .collection('projectDocuments')
+            .where('projectId', '==', projectId)
+            .where('documentType', '==', docData.documentType)
+            .where('status', '==', DocumentStatus.INDEXED)
+            .get();
+          
+          // Coletar todos os fileSearchDocumentName das versões anteriores
+          const previousDocumentNames: string[] = [];
+          previousVersionsSnapshot.forEach((doc) => {
+            const data = doc.data() as ProjectDocument;
+            if (data.fileSearchDocumentName && doc.id !== docSnap.id) {
+              previousDocumentNames.push(data.fileSearchDocumentName);
+            }
+          });
+          
+          console.log(`[SyncToFileSearch] Encontradas ${previousDocumentNames.length} versões anteriores de ${docData.documentType} para deletar`);
           
           // Sincronizar com o File Search do Google
+          // Passando TODAS as versões anteriores para deletar
           const result = await uploadFileToProjectStore(
             projectId,
             uploadBuffer,
             uploadName,
             uploadMimeType,
-            previousDocumentName
+            previousDocumentNames.length > 0 ? previousDocumentNames : undefined
           );
 
           // Update document status based on result

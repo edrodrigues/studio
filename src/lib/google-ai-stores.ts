@@ -64,23 +64,45 @@ export async function deleteDocumentFromStore(documentName: string): Promise<boo
 }
 
 /**
+ * Deleta múltiplos documentos do File Search Store
+ */
+export async function deleteDocumentsFromStore(documentNames: string[]): Promise<{ success: string[]; failed: string[] }> {
+  const results = { success: [] as string[], failed: [] as string[] };
+  
+  for (const documentName of documentNames) {
+    try {
+      console.log(`[FileSearch] Deletando documento anterior: ${documentName}`);
+      await genaiClient.files.delete({ name: documentName });
+      console.log(`[FileSearch] Documento deletado com sucesso: ${documentName}`);
+      results.success.push(documentName);
+    } catch (error) {
+      console.error(`[FileSearch] Erro ao deletar documento ${documentName}:`, error);
+      results.failed.push(documentName);
+    }
+  }
+  
+  return results;
+}
+
+/**
  * Faz o upload de um arquivo para o File Search Store do projeto
- * Se houver uma versão anterior (previousDocumentName), ela será deletada primeiro
+ * Se houver versões anteriores (previousDocumentNames), elas serão deletadas primeiro
  */
 export async function uploadFileToProjectStore(
   projectId: string, 
   fileBuffer: Buffer, 
   fileName: string, 
   mimeType: string,
-  previousDocumentName?: string
+  previousDocumentNames?: string[]
 ) {
   let tempFilePath = "";
   try {
     const storeId = await getOrCreateProjectStore(projectId);
     
-    // Deletar versão anterior se existir
-    if (previousDocumentName) {
-      await deleteDocumentFromStore(previousDocumentName);
+    // Deletar versões anteriores se existirem
+    if (previousDocumentNames && previousDocumentNames.length > 0) {
+      console.log(`[FileSearch] Deletando ${previousDocumentNames.length} versões anteriores do documento`);
+      await deleteDocumentsFromStore(previousDocumentNames);
     }
     
     // Criar um arquivo temporário para o upload

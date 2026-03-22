@@ -58,7 +58,7 @@ const analyzeDocumentConsistencyPrompt = ai.definePrompt({
     output: { schema: AnalyzeDocumentConsistencyOutputSchema },
     config: {
         maxOutputTokens: 8192,
-        temperature: 0.7,
+        temperature: 0.5,
     },
     prompt: `{{systemPrompt}}
 

@@ -14,6 +14,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { 
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { 
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger 
+} from "@/components/ui/tooltip";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -82,6 +87,10 @@ function GerarExportarContent() {
   const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
   const [editableEntities, setEditableEntities] = useState<Record<string, string>>({});
   const [isExtractingForCopy, setIsExtractingForCopy] = useState(false);
+  const [customLinks, setCustomLinks] = useState<Record<string, string>>({});
+
+  const contractTypeFilter = searchParams.get('contractType');
+  const processTypeFilter = searchParams.get('processType');
 
   
 
@@ -110,6 +119,25 @@ function GerarExportarContent() {
   const { data: documents, isLoading: isLoadingDocs } = useCollection<ProjectDocument>(projectDocsQuery);
   const { data: templates, isLoading: isLoadingTemplates } = useCollection<Template>(templatesQuery);
   const { data: contracts, isLoading: isLoadingContracts } = useCollection<Contract>(filledContractsQuery);
+
+  const filteredTemplates = useMemo(() => {
+    if (!templates) return [];
+    if (!contractTypeFilter) return templates;
+    
+    return templates.filter(t => {
+      // If contractType matches or if it's explicitly for this processType
+      const matchType = t.contractTypes?.some(type => 
+        type.toLowerCase() === contractTypeFilter.toLowerCase()
+      );
+      
+      // If there's a more specific filter for process type in certain scenarios
+      if (processTypeFilter && t.contractTypes?.includes(processTypeFilter)) {
+        return true;
+      }
+
+      return matchType;
+    });
+  }, [templates, contractTypeFilter, processTypeFilter]);
 
   const sortedContracts = useMemo(() => {
     if (!contracts) return [];
@@ -221,7 +249,9 @@ function GerarExportarContent() {
           continue;
         }
 
-        const googleDocId = template.googleDocLink ? extractGoogleDocId(template.googleDocLink) : null;
+        const customLink = customLinks[templateId];
+        const linkToUse = (customLink && customLink.trim().length > 0) ? customLink : template.googleDocLink;
+        const googleDocId = linkToUse ? extractGoogleDocId(linkToUse) : null;
 
         try {
           let generatedSuccessfully = false;
@@ -490,21 +520,115 @@ function GerarExportarContent() {
                 <CardTitle className="flex items-center gap-2 text-xl">
                   <LayoutTemplate className="text-purple-500" /> 2. Modelos de Contrato
                 </CardTitle>
-                <CardDescription>Escolha os templates para preenchimento.</CardDescription>
+                <CardDescription>
+                  {contractTypeFilter 
+                    ? `Filtrados por: ${contractTypeFilter.toUpperCase()}` 
+                    : "Escolha os templates para preenchimento."}
+                </CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
-                <ScrollArea className="h-[350px] pr-4">
-                  {isLoadingTemplates ? <Loader2 className="animate-spin mx-auto mt-10" /> : (
-                    <div className="space-y-2">
-                      {templates?.map(t => (
-                        <div key={t.id} onClick={() => handleTemplateToggle(t.id)} className={cn("flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50", selectedTemplates.includes(t.id) && "border-purple-500 bg-purple-50/50")}>
-                          <Checkbox checked={selectedTemplates.includes(t.id)} />
-                          <div className="flex-1">
-                            <div className="text-sm font-medium">{t.name}</div>
-                            {t.googleDocLink && <Badge variant="outline" className="text-[9px] h-3 px-1 mt-1 text-blue-600">Google Docs Ready</Badge>}
+                <ScrollArea className="h-[450px] pr-4">
+                  {isLoadingTemplates ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-4">
+                      <Loader2 className="animate-spin h-8 w-8 text-purple-500" />
+                      <p className="text-sm text-muted-foreground">Carregando modelos...</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                      {filteredTemplates?.map(t => (
+                        <Card 
+                          key={t.id} 
+                          className={cn(
+                            "relative overflow-hidden border transition-all duration-200 hover:shadow-md", 
+                            selectedTemplates.includes(t.id) 
+                              ? "border-purple-500 bg-purple-50/20 ring-1 ring-purple-500/20" 
+                              : "border-border/60 hover:border-purple-300"
+                          )}
+                        >
+                          <div className="p-4 space-y-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center gap-3">
+                                <Checkbox 
+                                  id={`template-${t.id}`}
+                                  checked={selectedTemplates.includes(t.id)} 
+                                  onCheckedChange={() => handleTemplateToggle(t.id)}
+                                  className="h-5 w-5 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
+                                />
+                                <Label htmlFor={`template-${t.id}`} className="font-bold text-sm leading-none cursor-pointer hover:text-purple-700 transition-colors">
+                                  {t.name}
+                                </Label>
+                              </div>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      asChild 
+                                      className="h-8 w-8 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                      disabled={!t.googleDocLink}
+                                    >
+                                      <a 
+                                        href={t.googleDocLink} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        aria-label="Ver documento original"
+                                      >
+                                        <ExternalLink className="h-4 w-4" />
+                                      </a>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Ver documento original</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
+
+                            <p className="text-[11px] text-muted-foreground line-clamp-2 px-1">
+                              {t.description || "Sem descrição disponível para este modelo."}
+                            </p>
+
+                            <div className="space-y-2 pt-1">
+                              <Label 
+                                htmlFor={`custom-link-${t.id}`}
+                                className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground/70 pl-1"
+                              >
+                                Link Customizado (Opcional)
+                              </Label>
+                              <div className="flex gap-2">
+                                <Input 
+                                  id={`custom-link-${t.id}`}
+                                  placeholder="Cole o link do seu Google Doc..."
+                                  className="h-9 text-xs bg-background/50 border-border/40 focus-visible:ring-purple-500/30"
+                                  value={customLinks[t.id] || ''}
+                                  onChange={(e) => setCustomLinks(prev => ({ ...prev, [t.id]: e.target.value }))}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {selectedTemplates.includes(t.id) && (
+                            <motion.div 
+                              layoutId={`selected-indicator-${t.id}`}
+                              className="absolute left-0 top-0 bottom-0 w-1 bg-purple-500"
+                            />
+                          )}
+                        </Card>
+                      ))}
+                      {filteredTemplates?.length === 0 && (
+                        <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 px-10">
+                          <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center">
+                            <LayoutTemplate className="w-8 h-8 text-muted-foreground/50" />
+                          </div>
+                          <div className="space-y-1">
+                            <h3 className="font-semibold text-sm">Nenhum modelo encontrado</h3>
+                            <p className="text-xs text-muted-foreground max-w-[200px]">
+                              Não existem modelos cadastrados para o tipo <strong>{contractTypeFilter}</strong>.
+                            </p>
                           </div>
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                 </ScrollArea>

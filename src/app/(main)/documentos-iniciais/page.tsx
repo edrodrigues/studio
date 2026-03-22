@@ -88,8 +88,13 @@ export default function DocumentosIniciaisPage() {
             description: 'Os documentos agora estão disponíveis como contexto para o ALEX.',
           });
           
-          // Advance to "Gerar Documentos"
-          router.push('/gerar-exportar');
+          // Advance to "Gerar Documentos" with contract type context
+          const queryParams = new URLSearchParams();
+          if (contractType) queryParams.set('contractType', contractType);
+          if (processType) queryParams.set('processType', processType);
+          if (projectId) queryParams.set('projectId', projectId);
+
+          router.push(`/gerar-exportar?${queryParams.toString()}`);
         } else {
           throw new Error(result.error || 'Falha na sincronização.');
         }

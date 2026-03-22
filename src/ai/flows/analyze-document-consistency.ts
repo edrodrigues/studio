@@ -34,7 +34,7 @@ const AnalyzeDocumentConsistencyOutputSchema = z.object({
         .describe('A percentage from 0 to 100 indicating how aligned the documents are.'),
     analysis: z
         .string()
-        .describe('Detailed analysis of the document consistency in Markdown format.'),
+        .describe('Detailed and exhaustive analysis of the document consistency in Markdown format.'),
     suggestions: z
         .array(z.string())
         .describe('A list of actionable suggestions to improve document alignment.'),
@@ -62,11 +62,11 @@ const analyzeDocumentConsistencyPrompt = ai.definePrompt({
     },
     prompt: `{{systemPrompt}}
 
-Analise os documentos fornecidos e verifique o alinhamento entre eles com base nos critérios especificados no prompt do sistema.
+Analise os documentos fornecidos e verifique o alinhamento entre eles de forma detalhada e exaustiva com base nos critérios especificados no prompt do sistema.
 
 Você DEVE retornar:
 1. **consistencyPercentage**: Um número de 0 a 100 indicando o percentual de alinhamento entre os documentos.
-2. **analysis**: Uma análise detalhada em formato Markdown explicando os pontos de alinhamento e desalinhamento encontrados.
+2. **analysis**: Uma análise detalhada e exaustiva em formato Markdown explicando os pontos de alinhamento e desalinhamento encontrados.
 3. **suggestions**: Uma lista de sugestões práticas e específicas para melhorar o alinhamento entre os documentos.
 
 Os documentos para análise são:

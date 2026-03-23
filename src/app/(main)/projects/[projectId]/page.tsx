@@ -231,6 +231,22 @@ function SyncTab({ projectId }: { projectId: string }) {
       minute: '2-digit',
     });
 
+  // Group documents by type
+  const documentsByType = useMemo(() => {
+    if (!documents) return {};
+    const groups: Record<string, typeof documents> = {};
+    documents.forEach(doc => {
+      const type = doc.documentType || 'other';
+      if (!groups[type]) groups[type] = [];
+      groups[type].push(doc);
+    });
+    // Sort each group by version descending
+    Object.keys(groups).forEach(type => {
+      groups[type].sort((a, b) => b.version - a.version);
+    });
+    return groups;
+  }, [documents]);
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -255,21 +271,6 @@ function SyncTab({ projectId }: { projectId: string }) {
       </Card>
     );
   }
-
-  // Group documents by type
-  const documentsByType = useMemo(() => {
-    const groups: Record<string, typeof documents> = {};
-    documents.forEach(doc => {
-      const type = doc.documentType || 'other';
-      if (!groups[type]) groups[type] = [];
-      groups[type].push(doc);
-    });
-    // Sort each group by version descending
-    Object.keys(groups).forEach(type => {
-      groups[type].sort((a, b) => b.version - a.version);
-    });
-    return groups;
-  }, [documents]);
 
   const indexedCount = documents.filter((d) => d.status === DocumentStatus.INDEXED).length;
   const processingCount = documents.filter((d) => d.status === DocumentStatus.PROCESSING).length;

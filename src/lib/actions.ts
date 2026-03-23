@@ -743,3 +743,67 @@ export async function handleExtractTemplateFromDocument(input: {
     };
   }
 }
+
+/**
+ * Schema para validação da atualização de link do template
+ */
+const updateTemplateLinkSchema = z.object({
+  templateId: z.string().min(1, "ID do template é obrigatório"),
+  projectDocLink: z.string().url("URL inválida").optional(),
+  projectId: z.string().optional(),
+});
+
+/**
+ * Atualiza o link customizado (projectDocLink) de um template de contrato
+ */
+export async function handleUpdateTemplateLink(input: {
+  templateId: string;
+  projectDocLink?: string;
+  projectId?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const validatedData = updateTemplateLinkSchema.safeParse(input);
+    if (!validatedData.success) {
+      const errorMessage = validatedData.error.errors.map(e => e.message).join(', ');
+      return { success: false, error: errorMessage };
+    }
+
+    const { templateId, projectDocLink, projectId } = validatedData.data;
+
+    // Buscar documento do template
+    const templateRef = db.collection('contractModels').doc(templateId);
+    const templateSnap = await templateRef.get();
+
+    if (!templateSnap.exists) {
+      return { success: false, error: 'Template não encontrado.' };
+    }
+
+    // Preparar dados de atualização
+    const updateData: { projectDocLink?: string; updatedAt: Date; updatedByProjectId?: string } = {
+      updatedAt: new Date(),
+    };
+
+    if (projectDocLink) {
+      updateData.projectDocLink = projectDocLink;
+    } else {
+      // Se não houver link, remove o campo
+      updateData.projectDocLink = undefined;
+    }
+
+    if (projectId) {
+      updateData.updatedByProjectId = projectId;
+    }
+
+    // Atualizar no Firestore
+    await templateRef.update(updateData);
+
+    console.log(`[actions] Link do template ${templateId} atualizado com sucesso`);
+    return { success: true };
+  } catch (error) {
+    console.error('[actions] Erro ao atualizar link do template:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro ao atualizar link do template.',
+    };
+  }
+}

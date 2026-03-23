@@ -14,10 +14,11 @@ import {
   FileSearch,
   CheckCircle2,
   XCircle,
+  FileSignature,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useProject, usePermission } from '@/hooks/use-projects';
@@ -39,6 +47,13 @@ import { useFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { handleSyncToFileSearch } from '@/lib/actions';
 import { Progress } from '@/components/ui/progress';
+
+const contractTypeOptions = [
+  "TED",
+  "Acordo de Parceria (Lei de Inovação)",
+  "Acordo de Parceria (Embrapii)",
+  "Contrato de Extensão Tecnológica (Prestação de Serviços Técnicos)"
+];
 
 export default function ProjectSettingsPage() {
   const params = useParams();
@@ -117,6 +132,20 @@ export default function ProjectSettingsPage() {
     }
   };
 
+  const handleUpdateContractType = async (contractType: string) => {
+    if (!project || !canEdit) return;
+    try {
+      await updateProject({
+        contractType,
+        updatedAt: new Date().toISOString(),
+      });
+      toast({ title: 'Configuração salva', description: 'O tipo de contrato foi atualizado com sucesso.' });
+    } catch (error) {
+      console.error('Failed to update contract type:', error);
+      toast({ title: 'Erro', description: 'Não foi possível salvar a configuração.', variant: 'destructive' });
+    }
+  };
+
   if (error) {
     return (
       <div className="container py-8">
@@ -186,6 +215,48 @@ export default function ProjectSettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Contract Type Configuration Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileSignature className="h-5 w-5" />
+              Configuração do Contrato
+            </CardTitle>
+            <CardDescription>
+              Escolha o tipo de contrato para este projeto. Os modelos disponíveis serão filtrados com base nesta escolha.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="contract-type">Tipo de Contrato</Label>
+              <Select
+                value={project.contractType || ''}
+                onValueChange={handleUpdateContractType}
+                disabled={!canEdit}
+              >
+                <SelectTrigger id="contract-type" className="w-full">
+                  <SelectValue placeholder="Selecione um tipo de contrato..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {contractTypeOptions.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {project.contractType && (
+              <Alert>
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  Tipo selecionado: <strong>{project.contractType}</strong>. Os modelos compatíveis serão exibidos na aba Contratos.
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Sync Configuration Section */}
         <Card>
           <CardHeader>

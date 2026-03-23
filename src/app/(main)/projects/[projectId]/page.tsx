@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronRight,
   Download,
+  FileSignature,
 } from 'lucide-react';
 import {
   Collapsible,
@@ -55,6 +56,7 @@ import {
 } from '@/hooks/use-projects';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProjectDocumentsUploader } from './components/ProjectDocumentsUploader';
+import { TemplatesGrid } from './components/TemplatesGrid';
 import { isValidDate, safeNewDate } from "@/lib/utils";
 import {
   Tooltip,
@@ -471,8 +473,8 @@ function SyncTab({ projectId }: { projectId: string }) {
   );
 }
 
-// Contracts tab content – merges projectContracts + user's filledContracts
-function ContractsTab({ projectId, projectName }: { projectId: string, projectName: string }) {
+// Contracts tab content – shows templates as cards + generated contracts history
+function ContractsTab({ projectId, project }: { projectId: string, project: { name: string, contractType?: string } }) {
   const { contracts: projectContracts, isLoading: projectLoading } = useProjectContracts(projectId);
   const { canEdit } = usePermission(projectId);
   const { user } = useUser();
@@ -485,20 +487,6 @@ function ContractsTab({ projectId, projectName }: { projectId: string, projectNa
   }, [user, firestore]);
   const { data: filledContracts, isLoading: filledLoading } = useCollection<Contract>(filledContractsQuery);
 
-  // Fetch templates so we can resolve the original doc link per contract
-  const templatesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'contractModels');
-  }, [firestore]);
-  const { data: templates } = useCollection<{ id: string; googleDocLink?: string }>(templatesQuery);
-
-  // Build a lookup map: templateId → original googleDocLink
-  const templateOriginalLinks = useMemo(() => {
-    const map: Record<string, string | undefined> = {};
-    (templates ?? []).forEach(t => { map[t.id] = t.googleDocLink; });
-    return map;
-  }, [templates]);
-
   const isLoading = projectLoading || filledLoading;
 
   // Normalise both sets into a single unified shape
@@ -507,9 +495,7 @@ function ContractsTab({ projectId, projectName }: { projectId: string, projectNa
       id: string;
       name: string;
       date: string | null;
-      googleDocLink?: string;       // customized copy link
-      contractModelId?: string;     // to look up original template link
-      markdownContent?: string;
+      googleDocLink?: string;
       source: 'project' | 'user';
     }> = [];
 
@@ -518,8 +504,6 @@ function ContractsTab({ projectId, projectName }: { projectId: string, projectNa
       name: c.name,
       date: c.generatedAt ?? null,
       googleDocLink: c.googleDocLink ?? undefined,
-      contractModelId: c.templateId ?? undefined,
-      markdownContent: c.markdownContent,
       source: 'project',
     }));
 
@@ -528,8 +512,6 @@ function ContractsTab({ projectId, projectName }: { projectId: string, projectNa
       name: c.name,
       date: c.createdAt ?? null,
       googleDocLink: c.googleDocLink ?? undefined,
-      contractModelId: (c as any).contractModelId ?? undefined,
-      markdownContent: c.markdownContent,
       source: 'user',
     }));
 
@@ -540,127 +522,110 @@ function ContractsTab({ projectId, projectName }: { projectId: string, projectNa
     });
   }, [projectContracts, filledContracts]);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-20 w-full" />
-        ))}
-      </div>
-    );
-  }
-
-  if (allContracts.length === 0) {
+  // If contract type is not configured, show configuration prompt
+  if (!project.contractType) {
     return (
       <Card className="border-dashed">
-        <CardContent className="py-10 text-center">
-          <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Nenhum contrato gerado</h3>
-          <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-            Gere documentos usando os modelos disponíveis na aba "Gerar e Revisar".
+        <CardContent className="py-12 text-center">
+          <FileSignature className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-xl font-semibold mb-2">Configurar Tipo de Contrato</h3>
+          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+            Este projeto ainda não possui um tipo de contrato definido. Configure-o para visualizar os modelos disponíveis.
           </p>
-          {canEdit && (
-            <Button asChild>
-              <Link href={`/gerar-exportar?projectId=${projectId}`}>
-                <Plus className="mr-2 h-4 w-4" />
-                Gerar novo contrato
-              </Link>
-            </Button>
-          )}
+          <Button asChild>
+            <Link href={`/projects/${projectId}/settings`}>
+              <Settings className="mr-2 h-4 w-4" />
+              Configurar Tipo de Contrato
+            </Link>
+          </Button>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {allContracts.length} contrato{allContracts.length !== 1 ? 's' : ''} gerado{allContracts.length !== 1 ? 's' : ''}
-        </p>
-        {canEdit && (
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" asChild>
-              <Link href={`/gerar-exportar?projectId=${projectId}`}>
-                <Plus className="mr-2 h-4 w-4" />
-                Gerar Cópia
-              </Link>
-            </Button>
+    <div className="space-y-8">
+      {/* Templates Grid Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold">Modelos de Contrato</h3>
+            <p className="text-sm text-muted-foreground">
+              Modelos disponíveis para <strong>{project.contractType}</strong>
+            </p>
+          </div>
+          {canEdit && (
             <Button size="sm" asChild>
               <Link href={`/gerar-exportar?projectId=${projectId}`}>
                 <Plus className="mr-2 h-4 w-4" />
-                Gerar novo
+                Gerar Contrato
               </Link>
             </Button>
-          </div>
-        )}
+          )}
+        </div>
+
+        <TemplatesGrid
+          contractType={project.contractType}
+          projectId={projectId}
+          canEdit={canEdit}
+        />
       </div>
 
-      {allContracts.map((contract) => {
-        const originalDocLink = contract.contractModelId
-          ? templateOriginalLinks[contract.contractModelId]
-          : undefined;
+      {/* Generated Contracts Section */}
+      {allContracts.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Contratos Gerados</h3>
+            <p className="text-sm text-muted-foreground">
+              {allContracts.length} contrato{allContracts.length !== 1 ? 's' : ''} gerado{allContracts.length !== 1 ? 's' : ''}
+            </p>
+          </div>
 
-        return (
-          <Card key={`${contract.source}-${contract.id}`}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-4">
-                {/* Icon */}
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <FileText className="h-5 w-5 text-primary" />
-                </div>
+          <div className="space-y-3">
+            {allContracts.map((contract) => (
+              <Card key={`${contract.source}-${contract.id}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-4">
+                    {/* Icon */}
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <FileText className="h-5 w-5 text-primary" />
+                    </div>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-medium text-sm truncate">{contract.name}</p>
-                    {contract.googleDocLink && (
-                      <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 shrink-0">
-                        Google Docs
-                      </Badge>
-                    )}
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm truncate">{contract.name}</p>
+                        {contract.googleDocLink && (
+                          <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 shrink-0">
+                            Google Docs
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {isValidDate(contract.date)
+                          ? format(safeNewDate(contract.date)!, "dd/MM/yyyy 'às' HH:mm")
+                          : 'Data desconhecida'}
+                      </p>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {contract.googleDocLink ? (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={contract.googleDocLink} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                            Abrir
+                          </a>
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {isValidDate(contract.date)
-                      ? format(safeNewDate(contract.date)!, "dd/MM/yyyy 'às' HH:mm")
-                      : 'Data desconhecida'}
-                  </p>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                  {/* Button 1 – Original template document */}
-                  {originalDocLink ? (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={originalDocLink} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                        Documento Original
-                      </a>
-                    </Button>
-                  ) : null}
-
-                  {/* Button 2 – Customized copy */}
-                  {contract.googleDocLink ? (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={contract.googleDocLink} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                        Cópia Customizada
-                      </a>
-                    </Button>
-                  ) : contract.source === 'project' ? (
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/projects/${projectId}/contracts/${contract.id}`}>
-                        <Eye className="mr-1.5 h-3.5 w-3.5" />
-                        Cópia Customizada
-                      </Link>
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1040,10 +1005,7 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="contracts">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Contratos Gerados</h2>
-          </div>
-          <ContractsTab projectId={projectId} projectName={project.name} />
+          <ContractsTab projectId={projectId} project={project} />
         </TabsContent>
 
         <TabsContent value="activity">

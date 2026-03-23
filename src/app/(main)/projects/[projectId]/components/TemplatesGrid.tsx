@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { FileText, ExternalLink, Pencil, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,14 +21,31 @@ export function TemplatesGrid({ contractType, projectId, canEdit }: TemplatesGri
   const { firestore } = useFirebase();
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
 
+  // Normalise contract type to match database standards
+  const normalizedContractType = useMemo(() => {
+    if (!contractType) return '';
+    const type = contractType.toLowerCase();
+    
+    // Exact match map for common legacy/lowercase values
+    const typeMap: Record<string, string> = {
+      'ted': 'TED',
+      'acordo de parceria (lei de inovação)': 'Acordo de Parceria (Lei de Inovação)',
+      'acordo de parceria (embrapii)': 'Acordo de Parceria (Embrapii)',
+      'contrato de extensão tecnológica': 'Contrato de Extensão Tecnológica (Prestação de Serviços Técnicos)',
+      'contrato de extensão tecnológica (prestação de serviços técnicos)': 'Contrato de Extensão Tecnológica (Prestação de Serviços Técnicos)'
+    };
+
+    return typeMap[type] || contractType;
+  }, [contractType]);
+
   // Query templates that match the contract type
   const templatesQuery = useMemoFirebase(() => {
-    if (!firestore || !contractType) return null;
+    if (!firestore || !normalizedContractType) return null;
     return query(
       collection(firestore, 'contractModels'),
-      where('contractTypes', 'array-contains', contractType)
+      where('contractTypes', 'array-contains', normalizedContractType)
     );
-  }, [firestore, contractType]);
+  }, [firestore, normalizedContractType]);
 
   const { data: templates, isLoading } = useCollection<Template>(templatesQuery);
 

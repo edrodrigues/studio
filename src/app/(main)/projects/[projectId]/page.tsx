@@ -476,52 +476,7 @@ function SyncTab({ projectId }: { projectId: string }) {
 
 // Contracts tab content – shows templates as cards + generated contracts history
 function ContractsTab({ projectId, project }: { projectId: string, project: { name: string, contractType?: string } }) {
-  const { contracts: projectContracts, isLoading: projectLoading } = useProjectContracts(projectId);
   const { canEdit } = usePermission(projectId);
-  const { user } = useUser();
-  const { firestore } = useFirebase();
-
-  // Also fetch user-scope filled contracts (generated via /gerar-exportar)
-  const filledContractsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return collection(firestore, 'users', user.uid, 'filledContracts');
-  }, [user, firestore]);
-  const { data: filledContracts, isLoading: filledLoading } = useCollection<Contract>(filledContractsQuery);
-
-  const isLoading = projectLoading || filledLoading;
-
-  // Normalise both sets into a single unified shape
-  const allContracts = useMemo(() => {
-    const result: Array<{
-      id: string;
-      name: string;
-      date: string | null;
-      googleDocLink?: string;
-      source: 'project' | 'user';
-    }> = [];
-
-    (projectContracts ?? []).forEach(c => result.push({
-      id: c.id,
-      name: c.name,
-      date: c.generatedAt ?? null,
-      googleDocLink: c.googleDocLink ?? undefined,
-      source: 'project',
-    }));
-
-    (filledContracts ?? []).forEach(c => result.push({
-      id: c.id,
-      name: c.name,
-      date: c.createdAt ?? null,
-      googleDocLink: c.googleDocLink ?? undefined,
-      source: 'user',
-    }));
-
-    return result.sort((a, b) => {
-      const da = a.date ? new Date(a.date).getTime() : 0;
-      const db = b.date ? new Date(b.date).getTime() : 0;
-      return db - da;
-    });
-  }, [projectContracts, filledContracts]);
 
   // If contract type is not configured, show configuration prompt
   if (!project.contractType) {
@@ -555,14 +510,6 @@ function ContractsTab({ projectId, project }: { projectId: string, project: { na
               Modelos disponíveis para <strong>{project.contractType}</strong>
             </p>
           </div>
-          {canEdit && (
-            <Button size="sm" asChild>
-              <Link href={`/gerar-exportar?projectId=${projectId}`}>
-                <Plus className="mr-2 h-4 w-4" />
-                Gerar Contrato
-              </Link>
-            </Button>
-          )}
         </div>
 
         <TemplatesGrid
@@ -571,62 +518,6 @@ function ContractsTab({ projectId, project }: { projectId: string, project: { na
           canEdit={canEdit}
         />
       </div>
-
-      {/* Generated Contracts Section */}
-      {allContracts.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Contratos Gerados</h3>
-            <p className="text-sm text-muted-foreground">
-              {allContracts.length} contrato{allContracts.length !== 1 ? 's' : ''} gerado{allContracts.length !== 1 ? 's' : ''}
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {allContracts.map((contract) => (
-              <Card key={`${contract.source}-${contract.id}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-4">
-                    {/* Icon */}
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                      <FileText className="h-5 w-5 text-primary" />
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium text-sm truncate">{contract.name}</p>
-                        {contract.googleDocLink && (
-                          <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 shrink-0">
-                            Google Docs
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {isValidDate(contract.date)
-                          ? format(safeNewDate(contract.date)!, "dd/MM/yyyy 'às' HH:mm")
-                          : 'Data desconhecida'}
-                      </p>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      {contract.googleDocLink ? (
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={contract.googleDocLink} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                            Abrir
-                          </a>
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

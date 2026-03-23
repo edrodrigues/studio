@@ -371,186 +371,187 @@ export default function ModelosPage() {
     const isEditing = !!editingTemplate;
 
     return (
-        <div className="flex h-[calc(100vh-4rem)] bg-transparent">
-            {/* Sidebar */}
-            <aside className="w-1/4 min-w-[250px] max-w-[300px] border-r bg-background/80 p-4 flex flex-col">
-                <div className="space-y-2 mb-4">
-                    <Button className="w-full" onClick={handleNewTemplate} disabled={!user}>
-                        <Plus className="mr-2 h-4 w-4" /> Novo Modelo
-                    </Button>
-                    <Button variant="outline" className="w-full" onClick={handleOpenExtractDialog} disabled={!user || !allDocuments?.length}>
-                        <Wand2 className="mr-2 h-4 w-4" /> Criar de Documento
-                    </Button>
-                </div>
-                <h2 className="text-lg font-semibold mb-2 px-2">Modelos Salvos</h2>
-                <div className="overflow-y-auto flex-1">
-                    {isLoading ? <p className="p-2 text-sm text-muted-foreground">Carregando...</p> : (
-                        <ul className="space-y-1">
-                            {templates?.map((template) => (
-                                <li key={template.id}>
-                                    <div
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={() => handleSelectTemplate(template.id)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleSelectTemplate(template.id)}
-                                        className={cn(
-                                            "w-full text-left p-2 rounded-md transition-colors text-sm flex justify-between items-center group cursor-pointer",
-                                            selectedTemplateId === template.id && !isEditing
-                                                ? "bg-primary text-primary-foreground"
-                                                : "hover:bg-muted"
-                                        )}
-                                    >
-                                        <span className="truncate">{template.name}</span>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                            onClick={(e) => handleDeleteTemplate(e, template.id)}
-                                            aria-label={`Deletar modelo ${template.name}`}
-                                        >
-                                            <Trash2
-                                                className="h-4 w-4"
-                                                aria-hidden="true"
-                                            />
-                                        </Button>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
-            </aside>
-
-            {/* Main Content */}
-            <main className="flex-1 p-8 overflow-y-auto">
-                <div className="space-y-8">
-                    {isEditing ? (
-                        <TemplateEditor
-                            template={editingTemplate}
-                            onTemplateChange={handleTemplateChange}
-                            onSave={handleSaveTemplate}
-                            onCancel={handleCancelEditing}
-                        />
-                    ) : (
-                        <Card className="flex items-center justify-center p-8 border-dashed bg-card/50 min-h-[400px]">
-                            <div className="text-center">
-                                <h3 className="text-xl font-semibold">Selecione um modelo para editar</h3>
-                                <p className="text-muted-foreground mt-2">Escolha um modelo na barra lateral para visualizar e editar, ou clique em "Novo Modelo" para começar do zero.</p>
-                                <div className="mt-6 space-y-2">
-                                    <Button variant="outline" onClick={handleOpenExtractDialog} disabled={!allDocuments?.length}>
-                                        <Wand2 className="mr-2 h-4 w-4" /> Criar template de um documento
-                                    </Button>
-                                </div>
-                            </div>
-                        </Card>
-                    )}
-                </div>
-            </main>
-
-        </div>
-
-        {/* Extract Template Dialog */}
-        <Dialog open={isExtractDialogOpen} onOpenChange={setIsExtractDialogOpen}>
-            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>Criar Template de Documento</DialogTitle>
-                    <DialogDescription>
-                        Selecione um documento para extrair um modelo genérico. A IA identificará as variáveis e as substituirá por placeholders.
-                    </DialogDescription>
-                </DialogHeader>
-                
-                {!extractedTemplate ? (
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label>Selecione um documento</Label>
-                            <div className="space-y-2 max-h-60 overflow-y-auto border rounded-md p-2">
-                                {allDocuments?.filter(d => d.status === 'uploaded' || d.status === 'indexed').length === 0 ? (
-                                    <p className="text-sm text-muted-foreground p-2">
-                                        Nenhum documento disponível. Carregue documentos em um projeto primeiro.
-                                    </p>
-                                ) : (
-                                    allDocuments?.filter(d => d.status === 'uploaded' || d.status === 'indexed').map(doc => (
+        <>
+            <div className="flex h-[calc(100vh-4rem)] bg-transparent">
+                {/* Sidebar */}
+                <aside className="w-1/4 min-w-[250px] max-w-[300px] border-r bg-background/80 p-4 flex flex-col">
+                    <div className="space-y-2 mb-4">
+                        <Button className="w-full" onClick={handleNewTemplate} disabled={!user}>
+                            <Plus className="mr-2 h-4 w-4" /> Novo Modelo
+                        </Button>
+                        <Button variant="outline" className="w-full" onClick={handleOpenExtractDialog} disabled={!user || !allDocuments?.length}>
+                            <Wand2 className="mr-2 h-4 w-4" /> Criar de Documento
+                        </Button>
+                    </div>
+                    <h2 className="text-lg font-semibold mb-2 px-2">Modelos Salvos</h2>
+                    <div className="overflow-y-auto flex-1">
+                        {isLoading ? <p className="p-2 text-sm text-muted-foreground">Carregando...</p> : (
+                            <ul className="space-y-1">
+                                {templates?.map((template) => (
+                                    <li key={template.id}>
                                         <div
-                                            key={doc.id}
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={() => handleSelectTemplate(template.id)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleSelectTemplate(template.id)}
                                             className={cn(
-                                                "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
-                                                selectedDocumentId === doc.id
-                                                    ? "bg-primary/10 border border-primary"
+                                                "w-full text-left p-2 rounded-md transition-colors text-sm flex justify-between items-center group cursor-pointer",
+                                                selectedTemplateId === template.id && !isEditing
+                                                    ? "bg-primary text-primary-foreground"
                                                     : "hover:bg-muted"
                                             )}
-                                            onClick={() => setSelectedDocumentId(doc.id)}
                                         >
-                                            <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium truncate">{doc.originalFileName}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {doc.documentType} • v{doc.version}
-                                                </p>
-                                            </div>
-                                            {selectedDocumentId === doc.id && (
-                                                <Check className="h-4 w-4 text-primary shrink-0" />
-                                            )}
+                                            <span className="truncate">{template.name}</span>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                                onClick={(e) => handleDeleteTemplate(e, template.id)}
+                                                aria-label={`Deletar modelo ${template.name}`}
+                                            >
+                                                <Trash2
+                                                    className="h-4 w-4"
+                                                    aria-hidden="true"
+                                                />
+                                            </Button>
                                         </div>
-                                    ))
-                                )}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </aside>
+
+                {/* Main Content */}
+                <main className="flex-1 p-8 overflow-y-auto">
+                    <div className="space-y-8">
+                        {isEditing ? (
+                            <TemplateEditor
+                                template={editingTemplate}
+                                onTemplateChange={handleTemplateChange}
+                                onSave={handleSaveTemplate}
+                                onCancel={handleCancelEditing}
+                            />
+                        ) : (
+                            <Card className="flex items-center justify-center p-8 border-dashed bg-card/50 min-h-[400px]">
+                                <div className="text-center">
+                                    <h3 className="text-xl font-semibold">Selecione um modelo para editar</h3>
+                                    <p className="text-muted-foreground mt-2">Escolha um modelo na barra lateral para visualizar e editar, ou clique em "Novo Modelo" para começar do zero.</p>
+                                    <div className="mt-6 space-y-2">
+                                        <Button variant="outline" onClick={handleOpenExtractDialog} disabled={!allDocuments?.length}>
+                                            <Wand2 className="mr-2 h-4 w-4" /> Criar template de um documento
+                                        </Button>
+                                    </div>
+                                </div>
+                            </Card>
+                        )}
+                    </div>
+                </main>
+            </div>
+
+            {/* Extract Template Dialog */}
+            <Dialog open={isExtractDialogOpen} onOpenChange={setIsExtractDialogOpen}>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Criar Template de Documento</DialogTitle>
+                        <DialogDescription>
+                            Selecione um documento para extrair um modelo genérico. A IA identificará as variáveis e as substituirá por placeholders.
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    {!extractedTemplate ? (
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label>Selecione um documento</Label>
+                                <div className="space-y-2 max-h-60 overflow-y-auto border rounded-md p-2">
+                                    {allDocuments?.filter(d => d.status === 'uploaded' || d.status === 'indexed').length === 0 ? (
+                                        <p className="text-sm text-muted-foreground p-2">
+                                            Nenhum documento disponível. Carregue documentos em um projeto primeiro.
+                                        </p>
+                                    ) : (
+                                        allDocuments?.filter(d => d.status === 'uploaded' || d.status === 'indexed').map(doc => (
+                                            <div
+                                                key={doc.id}
+                                                className={cn(
+                                                    "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
+                                                    selectedDocumentId === doc.id
+                                                        ? "bg-primary/10 border border-primary"
+                                                        : "hover:bg-muted"
+                                                )}
+                                                onClick={() => setSelectedDocumentId(doc.id)}
+                                            >
+                                                <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium truncate">{doc.originalFileName}</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {doc.documentType} • v{doc.version}
+                                                    </p>
+                                                </div>
+                                                {selectedDocumentId === doc.id && (
+                                                    <Check className="h-4 w-4 text-primary shrink-0" />
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ) : (
-                    <div className="space-y-4 py-4">
-                        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3">
-                            <p className="text-sm text-emerald-800 dark:text-emerald-200 font-medium">
-                                Template extraído com sucesso!
-                            </p>
-                            <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
-                                O template foi gerado e está pronto para ser personalizado.
-                            </p>
-                        </div>
-                        <div className="bg-muted rounded-lg p-4 max-h-60 overflow-y-auto">
-                            <pre className="text-xs whitespace-pre-wrap font-mono">
-                                {extractedTemplate}
-                            </pre>
-                        </div>
-                    </div>
-                )}
-
-                <DialogFooter>
-                    {!extractedTemplate ? (
-                        <>
-                            <Button variant="outline" onClick={() => setIsExtractDialogOpen(false)}>
-                                Cancelar
-                            </Button>
-                            <Button onClick={handleExtractTemplate} disabled={!selectedDocumentId || isExtracting}>
-                                {isExtracting ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Extraindo...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Wand2 className="mr-2 h-4 w-4" />
-                                        Extrair Template
-                                    </>
-                                )}
-                            </Button>
-                        </>
                     ) : (
-                        <>
-                            <Button variant="outline" onClick={() => {
-                                setExtractedTemplate(null);
-                                setSelectedDocumentId(null);
-                            }}>
-                                Extrair Outro
-                            </Button>
-                            <Button onClick={handleUseExtractedTemplate}>
-                                <Check className="mr-2 h-4 w-4" />
-                                Usar este Template
-                            </Button>
-                        </>
+                        <div className="space-y-4 py-4">
+                            <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3">
+                                <p className="text-sm text-emerald-800 dark:text-emerald-200 font-medium">
+                                    Template extraído com sucesso!
+                                </p>
+                                <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
+                                    O template foi gerado e está pronto para ser personalizado.
+                                </p>
+                            </div>
+                            <div className="bg-muted rounded-lg p-4 max-h-60 overflow-y-auto">
+                                <pre className="text-xs whitespace-pre-wrap font-mono">
+                                    {extractedTemplate}
+                                </pre>
+                            </div>
+                        </div>
                     )}
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+
+                    <DialogFooter>
+                        {!extractedTemplate ? (
+                            <>
+                                <Button variant="outline" onClick={() => setIsExtractDialogOpen(false)}>
+                                    Cancelar
+                                </Button>
+                                <Button onClick={handleExtractTemplate} disabled={!selectedDocumentId || isExtracting}>
+                                    {isExtracting ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Extraindo...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Wand2 className="mr-2 h-4 w-4" />
+                                            Extrair Template
+                                        </>
+                                    )}
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <Button variant="outline" onClick={() => {
+                                    setExtractedTemplate(null);
+                                    setSelectedDocumentId(null);
+                                }}>
+                                    Extrair Outro
+                                </Button>
+                                <Button onClick={handleUseExtractedTemplate}>
+                                    <Check className="mr-2 h-4 w-4" />
+                                    Usar este Template
+                                </Button>
+                            </>
+                        )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }
 

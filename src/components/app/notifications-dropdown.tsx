@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useFirebase, useCollection } from "@/firebase";
+import { useFirebase, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, where, orderBy, doc, updateDoc, limit } from "firebase/firestore";
 import { useAuthContext } from "@/context/auth-context";
 import { formatDistanceToNow } from "date-fns";
@@ -26,15 +26,16 @@ export function NotificationsDropdown() {
   const { firestore } = useFirebase();
   const [open, setOpen] = useState(false);
 
-  // Buscar notificações do usuário
-  const notificationsQuery = firestore && user
-    ? query(
-        collection(firestore, "notifications"),
-        where("userId", "==", user.uid),
-        orderBy("createdAt", "desc"),
-        limit(20)
-      )
-    : null;
+  // Buscar notificações do usuário - usando useMemoFirebase para memoizar a query
+  const notificationsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, "notifications"),
+      where("userId", "==", user.uid),
+      orderBy("createdAt", "desc"),
+      limit(20)
+    );
+  }, [firestore, user]);
 
   const { data: notifications, isLoading } = useCollection<TemplateNotification>(notificationsQuery);
 

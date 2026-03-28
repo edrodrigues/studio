@@ -48,10 +48,40 @@ function loadPlaybookContent(): string {
     return '';
 }
 
+/**
+ * Load FAQ content from Firestore
+ */
+async function loadFaqContent(): Promise<string> {
+    try {
+        console.log('[ALEX FAQ] Loading FAQ content from Firestore...');
+        const faqSnapshot = await db.collection('faqContent').get();
+        
+        if (faqSnapshot.empty) {
+            console.log('[ALEX FAQ] No FAQ content found in Firestore');
+            return '';
+        }
+        
+        const faqContents: string[] = [];
+        faqSnapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.content && data.syncStatus === 'synced') {
+                faqContents.push(`\n\n## ${data.title || data.id}\n\n${data.content}`);
+            }
+        });
+        
+        const combinedContent = faqContents.join('\n\n---\n\n');
+        console.log(`[ALEX FAQ] Loaded ${faqSnapshot.size} FAQ pages (${combinedContent.length} characters)`);
+        return combinedContent;
+    } catch (error) {
+        console.error('[ALEX FAQ] Error loading FAQ content:', error);
+        return '';
+    }
+}
+
 const ALEX_BASE_INSTRUCTIONS = `
 Você é o "Alex", o Assistente Virtual e Especialista em Contratos do V-Lab.
-Seu objetivo é ajudar os colaboradores a tirar dúvidas sobre o "Playbook de Contratos do V-Lab"
-e, quando disponível, sobre os documentos do projeto atual.
+Seu objetivo é ajudar os colaboradores a tirar dúvidas sobre os procedimentos de contratos do CIn/UFPE,
+diretrizes do V-Lab e, quando disponível, sobre os documentos do projeto atual.
 
 ### REGRAS DE COMPORTAMENTO:
 1. Responda de forma profissional, amigável e precisa.
@@ -60,10 +90,30 @@ e, quando disponível, sobre os documentos do projeto atual.
 4. Mantenha o contexto da conversa usando o histórico fornecido.
 `.trim();
 
-function buildSystemInstruction(playbookContent: string, hasFileSearch: boolean): string {
+function buildSystemInstruction(playbookContent: string, faqContent: string, hasFileSearch: boolean): string {
     let instruction = ALEX_BASE_INSTRUCTIONS;
+    const hasFaqContent = faqContent && faqContent.trim().length > 0;
 
-    if (hasFileSearch) {
+    if (hasFileSearch && hasFaqContent) {
+        instruction += `
+
+### FONTES DE CONHECIMENTO:
+Você tem acesso a TRÊS fontes de informação:
+1. **Conteúdo FAQ Atualizado** — Procedimentos e informações mais recentes do site oficial do CIn/UFPE.
+2. **Playbook de Contratos do V-Lab** — Regras, diretrizes e procedimentos internos do V-Lab.
+3. **Documentos do Projeto** — Documentos carregados e indexados no projeto atual (acessíveis via busca automática).
+
+### PRIORIDADE DAS FONTES (do mais ao menos importante):
+1. **Conteúdo FAQ**: Para questões sobre procedimentos oficiais, modelos de documentos, prazos e regras institucionais do CIn/UFPE.
+2. **Playbook do V-Lab**: Para questões sobre regras internas, workflows específicos e diretrizes do V-Lab.
+3. **Documentos do Projeto**: Para informações específicas sobre o projeto atual, contratos, entidades ou dados.
+
+### REGRAS IMPORTANTES:
+- Quando houver conflito entre FAQ e Playbook, o **FAQ tem precedência** pois contém informações mais atualizadas.
+- Para procedimentos oficiais e burocráticos, sempre consulte primeiro o FAQ.
+- Para dúvidas sobre como o V-Lab trabalha internamente, consulte o Playbook.
+- Se a informação não estiver disponível em nenhuma fonte, diga educadamente que não encontrou a resposta e sugira que o usuário procure a equipe de coordenação.`;
+    } else if (hasFileSearch) {
         instruction += `
 
 ### FONTES DE CONHECIMENTO:
@@ -76,6 +126,19 @@ Você tem acesso a DUAS fontes de informação:
 - Para perguntas sobre **informações específicas de documentos, contratos, entidades ou dados do projeto**, use os documentos do projeto via busca.
 - Se a informação for encontrada em ambas as fontes, priorize a informação mais específica ou atualizada.
 - Se a informação não estiver disponível em nenhuma das fontes, diga educadamente que não encontrou a resposta e sugira que o usuário procure a equipe de coordenação.`;
+    } else if (hasFaqContent) {
+        instruction += `
+
+### FONTES DE CONHECIMENTO:
+Você tem acesso a DUAS fontes de informação:
+1. **Conteúdo FAQ Atualizado** — Procedimentos e informações mais recentes do site oficial do CIn/UFPE.
+2. **Playbook de Contratos do V-Lab** — Regras, diretrizes e procedimentos internos do V-Lab.
+
+### PRIORIDADE DAS FONTES:
+- **FAQ tem precedência** sobre o Playbook quando houver conflito, pois contém informações mais atualizadas.
+- Use o FAQ para procedimentos oficiais, modelos de documentos, prazos e regras institucionais.
+- Use o Playbook para regras internas, workflows específicos e diretrizes do V-Lab.
+- Se a informação não estiver disponível em nenhuma fonte, diga educadamente que não encontrou a resposta.`;
     } else {
         instruction += `
 
@@ -84,8 +147,14 @@ Baseie suas respostas EXCLUSIVAMENTE no conteúdo do Playbook fornecido abaixo.
 Se a informação não estiver no Playbook, diga educadamente que não sabe a resposta exata e sugira que o usuário procure a equipe de coordenação ou o time de negócios do V-Lab.`;
     }
 
+    // Adicionar conteúdo FAQ primeiro (tem precedência)
+    if (faqContent) {
+        instruction += `\n\n### CONTEÚDO DO FAQ (ATUALIZADO DO SITE OFICIAL):\n${faqContent}`;
+    }
+
+    // Adicionar conteúdo do Playbook
     if (playbookContent) {
-        instruction += `\n\n### CONTEÚDO DO PLAYBOOK:\n${playbookContent}`;
+        instruction += `\n\n### CONTEÚDO DO PLAYBOOK DO V-LAB:\n${playbookContent}`;
     }
 
     return instruction;
@@ -134,6 +203,7 @@ async function generateWithFileSearch(
     query: string,
     history: { role: string; content: string }[],
     playbookContent: string,
+    faqContent: string,
     fileSearchStoreId: string,
 ): Promise<{ answer: string; error?: string }> {
     console.log('[ALEX FileSearch] === START ===');
@@ -150,7 +220,7 @@ async function generateWithFileSearch(
             { role: 'user' as const, parts: [{ text: query }] },
         ];
 
-        const systemInstruction = buildSystemInstruction(playbookContent, true);
+        const systemInstruction = buildSystemInstruction(playbookContent, faqContent, true);
 
         console.log('[ALEX FileSearch] Calling Google GenAI API...');
         
@@ -212,6 +282,7 @@ const getPlaybookAssistanceFlow = ai.defineFlow(
     },
     async input => {
         const playbookContent = loadPlaybookContent();
+        const faqContent = await loadFaqContent();
         const history = input.history ?? [];
         let usedFileSearch = false;
 
@@ -226,6 +297,7 @@ const getPlaybookAssistanceFlow = ai.defineFlow(
                         input.query,
                         history,
                         playbookContent,
+                        faqContent,
                         projectData.fileSearchStoreId,
                     );
                     

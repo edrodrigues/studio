@@ -529,5 +529,30 @@ service cloud.firestore {
       allow create: if false; // Created by server-side admin SDK
       allow update, delete: if false;
     }
+
+    /**
+     * @description Rules for faqContent collection (FAQ content for ALEX).
+     * @path /faqContent/{pageId}
+     * @allow (read) Any authenticated user can read FAQ content.
+     * @allow (create/update/delete) Server-side only (admin SDK via CRON).
+     */
+    match /faqContent/{pageId} {
+      allow get, list: if isSignedIn();
+      allow create: if false; // Created by server-side admin SDK
+      allow update: if false; // Updated by server-side admin SDK
+      allow delete: if false;
+    }
+
+    /**
+     * @description Rules for faqContentSyncs collection (FAQ sync logs).
+     * @path /faqContentSyncs/{syncId}
+     * @allow (read) Any authenticated user can read sync logs.
+     * @allow (create) Server-side only (admin SDK via CRON).
+     */
+    match /faqContentSyncs/{syncId} {
+      allow read, list: if isSignedIn();
+      allow create: if false; // Created by server-side admin SDK
+      allow update, delete: if false;
+    }
   }
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Bell, Check, CheckCheck, FileText, AlertCircle, Info } from "lucide-react";
+import { Bell, Check, CheckCheck, FileText, AlertCircle, Info, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -76,7 +76,7 @@ export function NotificationsDropdown() {
   if (!user) return null;
 
   // Ícone baseado no tipo
-  const getIcon = (type: TemplateNotification["type"]) => {
+  const getIcon = (type: string) => {
     switch (type) {
       case "template_updated":
         return <FileText className="h-4 w-4 text-blue-500" />;
@@ -84,6 +84,10 @@ export function NotificationsDropdown() {
         return <AlertCircle className="h-4 w-4 text-red-500" />;
       case "template_sync_success":
         return <Check className="h-4 w-4 text-green-500" />;
+      case "faq_updated":
+        return <HelpCircle className="h-4 w-4 text-purple-500" />;
+      case "faq_sync_error":
+        return <AlertCircle className="h-4 w-4 text-orange-500" />;
       default:
         return <Info className="h-4 w-4 text-gray-500" />;
     }

@@ -360,6 +360,59 @@ export interface OfficialTemplate {
   faqSection: string;
 }
 
+// ============================================================================
+// FAQ CONTENT - ALEX KNOWLEDGE BASE
+// ============================================================================
+
+export interface FaqSection {
+  title: string;
+  content: string;
+  links?: Array<{ text: string; url: string }>;
+}
+
+export interface FaqContent {
+  id: string;
+  url: string;
+  title: string;
+  content: string;
+  sections: FaqSection[];
+  contentHash: string;
+  lastSyncedAt: string;
+  syncStatus: 'synced' | 'error' | 'pending';
+}
+
+export interface FaqContentSync {
+  id: string;
+  timestamp: string;
+  status: 'success' | 'error' | 'partial';
+  pagesChecked: number;
+  pagesUpdated: number;
+  errors: string[];
+  changes: Array<{
+    pageId: string;
+    pageTitle: string;
+    changeType: 'content_updated' | 'structure_changed' | 'links_updated';
+    oldHash?: string;
+    newHash?: string;
+  }>;
+}
+
+export interface FaqNotification {
+  id: string;
+  type: 'faq_updated' | 'faq_sync_error';
+  title: string;
+  message: string;
+  data: {
+    pageId?: string;
+    pageTitle?: string;
+    syncId?: string;
+    changeType?: string;
+  };
+  read: boolean;
+  createdAt: string;
+  userId: string;
+}
+
 export interface Contract {
   id: string;
   contractModelId?: string;

@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/sync-templates",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/sync-faq-content",
+      "schedule": "0 3 * * 0"
     }
   ]
 }

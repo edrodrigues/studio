@@ -231,7 +231,7 @@ export function invalidateCache(pageId?: string): void {
 export function getCacheInfo(): {
   pages: Array<{ id: string; age: number; isValid: boolean }>;
   totalCached: number;
-}> {
+} {
   const now = Date.now();
   const pages: Array<{ id: string; age: number; isValid: boolean }> = [];
   

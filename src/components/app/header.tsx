@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { LogOut, MessageSquare } from "lucide-react"
 import { useAuthContext } from "@/context/auth-context"
 import { useProject } from "@/hooks/use-projects";
+import { NotificationsDropdown } from "./notifications-dropdown";
 
 const navLinks = [
   { href: "/como-usar", label: "Comece Aqui" },
@@ -183,6 +184,7 @@ export function Header() {
           </nav>
           <div className="h-8 w-[1px] bg-border/40 mx-2 hidden lg:block" />
           <div className="flex items-center gap-3">
+            <NotificationsDropdown />
             <UserAccountNav />
           </div>
         </div>

@@ -1,15 +1,18 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { FileText, ExternalLink, Pencil, Loader2 } from 'lucide-react';
+import { FileText, ExternalLink, Pencil, Loader2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { type Template } from '@/lib/types';
 import { EditLinkModal } from './EditLinkModal';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface TemplatesGridProps {
   contractType: string;
@@ -178,10 +181,59 @@ export function TemplatesGrid({ contractType, projectId, canEdit }: TemplatesGri
                 )}
               </div>
 
-              {/* Contract Type Badge */}
-              <Badge variant="secondary" className="mt-auto self-start text-xs">
-                {contractType}
-              </Badge>
+              {/* Sync Status Badge */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="mt-2">
+                      {template.syncStatus === 'synced' && (
+                        <Badge className="bg-green-500 hover:bg-green-600 cursor-pointer">
+                          <CheckCircle2 className="mr-1 h-3 w-3" /> 
+                          Sincronizado
+                        </Badge>
+                      )}
+                      {template.syncStatus === 'outdated' && (
+                        <Badge className="bg-yellow-500 hover:bg-yellow-600 cursor-pointer">
+                          <AlertCircle className="mr-1 h-3 w-3" /> 
+                          Atualização Pendente
+                        </Badge>
+                      )}
+                      {template.syncStatus === 'error' && (
+                        <Badge variant="destructive" className="cursor-pointer">
+                          <AlertCircle className="mr-1 h-3 w-3" /> 
+                          Erro na Sincronização
+                        </Badge>
+                      )}
+                      {!template.syncStatus && (
+                        <Badge variant="outline" className="text-muted-foreground">
+                          <RefreshCw className="mr-1 h-3 w-3" /> 
+                          Aguardando Sync
+                        </Badge>
+                      )}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <div className="space-y-2">
+                      <p className="font-medium">
+                        {template.syncStatus === 'synced' && 'Template sincronizado com versão oficial'}
+                        {template.syncStatus === 'outdated' && 'Nova versão disponível no site oficial'}
+                        {template.syncStatus === 'error' && 'Erro ao sincronizar com versão oficial'}
+                        {!template.syncStatus && 'Ainda não sincronizado com versão oficial'}
+                      </p>
+                      {template.lastOfficialSync && (
+                        <p className="text-xs text-muted-foreground">
+                          Última verificação: {formatDistanceToNow(new Date(template.lastOfficialSync), { addSuffix: true, locale: ptBR })}
+                        </p>
+                      )}
+                      {template.officialSourceUrl && (
+                        <p className="text-xs truncate">
+                          Fonte: <a href={template.officialSourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{template.officialSourceUrl}</a>
+                        </p>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </CardContent>
           </Card>
         ))}

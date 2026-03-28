@@ -310,6 +310,54 @@ export interface Template {
   projectDocLink?: string;
   isNew?: boolean;
   contractTypes?: string[];
+  // Campos para sincronização com modelos oficiais
+  officialSourceUrl?: string;        // URL do modelo oficial no FAQ
+  lastOfficialSync?: string;         // Timestamp da última sincronização
+  officialVersionHash?: string;      // Hash do conteúdo para detectar mudanças
+  syncStatus?: 'synced' | 'outdated' | 'unknown' | 'error';
+  syncError?: string;                // Mensagem de erro se houver
+}
+
+// Interface para log de sincronização com modelos oficiais
+export interface OfficialTemplateSync {
+  id: string;
+  timestamp: string;
+  status: 'success' | 'error' | 'partial';
+  templatesChecked: number;
+  templatesUpdated: number;
+  errors: string[];
+  changes: Array<{
+    templateId: string;
+    templateName: string;
+    changeType: 'link_updated' | 'content_changed' | 'new_template';
+    oldValue?: string;
+    newValue?: string;
+  }>;
+}
+
+// Interface para notificações in-app
+export interface TemplateNotification {
+  id: string;
+  type: 'template_updated' | 'template_sync_error' | 'template_sync_success';
+  title: string;
+  message: string;
+  data: {
+    templateId?: string;
+    templateName?: string;
+    changeType?: string;
+    syncId?: string;
+  };
+  read: boolean;
+  createdAt: string;
+  userId: string;
+}
+
+// Interface para template oficial extraído da página FAQ
+export interface OfficialTemplate {
+  contractType: string;
+  documentName: string;
+  documentLink: string;
+  faqSection: string;
 }
 
 export interface Contract {

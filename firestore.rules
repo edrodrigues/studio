@@ -500,5 +500,34 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow update, delete: if false;
     }
+
+    /**
+     * @description Rules for notifications collection.
+     * @path /notifications/{notificationId}
+     * @allow (read/list) Users can read only their own notifications.
+     * @allow (create) Server-side only (admin SDK via Cloud Functions or sync).
+     * @allow (update) Users can mark their own notifications as read.
+     * @allow (delete) Not allowed - notifications are kept for audit.
+     */
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn();
+      allow create: if false; // Created by server-side admin SDK
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if false;
+    }
+
+    /**
+     * @description Rules for officialTemplateSyncs collection (sync logs).
+     * @path /officialTemplateSyncs/{syncId}
+     * @allow (read) Admin users can read sync logs.
+     * @allow (create) Server-side only (admin SDK via CRON).
+     */
+    match /officialTemplateSyncs/{syncId} {
+      allow read, list: if isSignedIn();
+      allow create: if false; // Created by server-side admin SDK
+      allow update, delete: if false;
+    }
   }
 }

@@ -74,7 +74,7 @@ Você tem acesso a DUAS fontes de informação:
 ### COMO USAR AS FONTES:
 - Para perguntas sobre **regras, procedimentos ou diretrizes**, baseie-se no Playbook.
 - Para perguntas sobre **informações específicas de documentos, contratos, entidades ou dados do projeto**, use os documentos do projeto via busca.
-- Se a informação for encontrada em ambas as fontes, cite de qual fonte você está extraindo a informação.
+- Se a informação for encontrada em ambas as fontes, priorize a informação mais específica ou atualizada.
 - Se a informação não estiver disponível em nenhuma das fontes, diga educadamente que não encontrou a resposta e sugira que o usuário procure a equipe de coordenação.`;
     } else {
         instruction += `

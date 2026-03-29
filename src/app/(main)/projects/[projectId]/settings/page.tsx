@@ -192,7 +192,7 @@ export default function ProjectSettingsPage() {
       if (result.success) {
         toast({
           title: 'Sincronização de Templates',
-          description: `Verificados: ${result.data?.data?.templatesChecked || 0} templates. Atualizados: ${result.data?.data?.templatesUpdated || 0}.`,
+          description: `Verificados: ${result.data?.templatesChecked || 0} templates. Atualizados: ${result.data?.templatesUpdated || 0}.`,
         });
         await fetchSyncLogs();
       } else {
@@ -219,7 +219,7 @@ export default function ProjectSettingsPage() {
       if (result.success) {
         toast({
           title: 'Sincronização de FAQ',
-          description: `Verificadas: ${result.data?.data?.pagesChecked || 0} páginas. Atualizadas: ${result.data?.data?.pagesUpdated || 0}.`,
+          description: `Verificadas: ${result.data?.pagesChecked || 0} páginas. Atualizadas: ${result.data?.pagesUpdated || 0}.`,
         });
         await fetchSyncLogs();
       } else {

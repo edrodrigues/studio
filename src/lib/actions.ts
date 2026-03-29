@@ -856,28 +856,11 @@ export async function getSyncLogs() {
  */
 export async function triggerTemplateSync() {
   try {
-    const CRON_SECRET = process.env.CRON_SECRET;
-    
-    // Em desenvolvimento, não precisa de secret
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : 'http://localhost:3000';
-    
-    const response = await fetch(`${baseUrl}/api/cron/sync-templates`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${CRON_SECRET || 'dev'}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const result = await response.json();
+    const { executeTemplateSync } = await import('@/lib/template-sync');
+    const result = await executeTemplateSync();
 
     console.log('[actions] Sincronização de templates disparada:', result);
-    return { success: true, data: result };
+    return result;
   } catch (error) {
     console.error('[actions] Erro ao disparar sincronização de templates:', error);
     return {
@@ -892,28 +875,11 @@ export async function triggerTemplateSync() {
  */
 export async function triggerFaqSync() {
   try {
-    const CRON_SECRET = process.env.CRON_SECRET;
-    
-    // Em desenvolvimento, não precisa de secret
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : 'http://localhost:3000';
-    
-    const response = await fetch(`${baseUrl}/api/cron/sync-faq-content`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${CRON_SECRET || 'dev'}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const result = await response.json();
+    const { executeFaqSync } = await import('@/lib/faq-sync');
+    const result = await executeFaqSync();
 
     console.log('[actions] Sincronização de FAQ disparada:', result);
-    return { success: true, data: result };
+    return result;
   } catch (error) {
     console.error('[actions] Erro ao disparar sincronização de FAQ:', error);
     return {

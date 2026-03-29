@@ -274,6 +274,61 @@ async function generateWithFileSearch(
     }
 }
 
+/**
+ * Uses Google GenAI API directly with Playbook and FAQ content (no File Search).
+ * This ensures FAQ content is always available even without File Search.
+ */
+async function generateWithPlaybookAndFaq(
+    query: string,
+    history: { role: string; content: string }[],
+    playbookContent: string,
+    faqContent: string,
+): Promise<{ answer: string; error?: string }> {
+    console.log('[ALEX Playbook+FAQ] === START ===');
+    console.log('[ALEX Playbook+FAQ] Query:', query.substring(0, 100));
+    console.log('[ALEX Playbook+FAQ] History length:', history.length);
+    console.log('[ALEX Playbook+FAQ] Has FAQ content:', faqContent.length > 0);
+    
+    try {
+        const contents = [
+            ...history.map(m => ({
+                role: m.role === 'model' ? 'model' as const : 'user' as const,
+                parts: [{ text: m.content }],
+            })),
+            { role: 'user' as const, parts: [{ text: query }] },
+        ];
+
+        const systemInstruction = buildSystemInstruction(playbookContent, faqContent, false);
+
+        console.log('[ALEX Playbook+FAQ] Calling Google GenAI API...');
+        
+        const response = await genaiClient.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents,
+            config: {
+                systemInstruction,
+                temperature: 0.3,
+            },
+        });
+
+        console.log('[ALEX Playbook+FAQ] Response received');
+        console.log('[ALEX Playbook+FAQ] Response text length:', response.text?.length ?? 0);
+
+        console.log('[ALEX Playbook+FAQ] === END ===');
+        return { answer: response.text ?? 'Desculpe, não consegui gerar uma resposta.' };
+    } catch (error) {
+        console.error('[ALEX Playbook+FAQ] === ERROR ===');
+        console.error('[ALEX Playbook+FAQ] Error:', error instanceof Error ? error.message : String(error));
+        
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+        
+        return { 
+            answer: 'Desculpe, houve um problema ao gerar a resposta.', 
+            error: errorMessage 
+        };
+    }
+}
+
 const getPlaybookAssistanceFlow = ai.defineFlow(
     {
         name: 'getPlaybookAssistanceFlow',
@@ -313,15 +368,20 @@ const getPlaybookAssistanceFlow = ai.defineFlow(
             }
         }
 
-        // Fallback: Playbook-only via Genkit prompt
-        const { output } = await getPlaybookAssistancePrompt({
-            ...input,
-            playbookContent: playbookContent || 'Conteúdo do playbook não disponível.',
-        });
-
-        if (!output) {
-            throw new Error('AI failed to generate an answer.');
+        // Fallback: Use Google GenAI API directly with Playbook and FAQ (no File Search)
+        console.log('[ALEX] Using Playbook+FAQ fallback (no File Search)');
+        const result = await generateWithPlaybookAndFaq(
+            input.query,
+            history,
+            playbookContent,
+            faqContent,
+        );
+        
+        if (result.error) {
+            console.error('[ALEX] Playbook+FAQ fallback failed:', result.error);
+            throw new Error(result.error);
         }
-        return { answer: output.answer, usedFileSearch };
+        
+        return { answer: result.answer, usedFileSearch };
     }
 );

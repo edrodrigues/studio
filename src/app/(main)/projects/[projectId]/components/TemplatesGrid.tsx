@@ -8,10 +8,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
-import { type Template } from '@/lib/types';
+import { collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { type Template, type OfficialTemplateSync } from '@/lib/types';
 import { EditLinkModal } from './EditLinkModal';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface TemplatesGridProps {
@@ -51,6 +51,19 @@ export function TemplatesGrid({ contractType, projectId, canEdit }: TemplatesGri
   }, [firestore, normalizedContractType]);
 
   const { data: templates, isLoading } = useCollection<Template>(templatesQuery);
+
+  // Get the latest official template sync log
+  const syncLogsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, 'officialTemplateSyncs'),
+      orderBy('timestamp', 'desc'),
+      limit(1)
+    );
+  }, [firestore]);
+
+  const { data: syncLogs } = useCollection<OfficialTemplateSync>(syncLogsQuery);
+  const lastSync = syncLogs?.[0];
 
   if (isLoading) {
     return (
@@ -205,9 +218,12 @@ export function TemplatesGrid({ contractType, projectId, canEdit }: TemplatesGri
                         </Badge>
                       )}
                       {!template.syncStatus && (
-                        <Badge variant="outline" className="text-muted-foreground">
+                        <Badge variant="outline" className="text-muted-foreground whitespace-nowrap">
                           <RefreshCw className="mr-1 h-3 w-3" /> 
-                          Aguardando Sync
+                          {lastSync 
+                            ? `Check: ${format(new Date(lastSync.timestamp), "dd/MM 'às' HH:mm", { locale: ptBR })}`
+                            : 'Aguardando Sync'
+                          }
                         </Badge>
                       )}
                     </div>
@@ -220,9 +236,13 @@ export function TemplatesGrid({ contractType, projectId, canEdit }: TemplatesGri
                         {template.syncStatus === 'error' && 'Erro ao sincronizar com versão oficial'}
                         {!template.syncStatus && 'Ainda não sincronizado com versão oficial'}
                       </p>
-                      {template.lastOfficialSync && (
+                      {template.lastOfficialSync ? (
                         <p className="text-xs text-muted-foreground">
                           Última verificação: {formatDistanceToNow(new Date(template.lastOfficialSync), { addSuffix: true, locale: ptBR })}
+                        </p>
+                      ) : lastSync && (
+                        <p className="text-xs text-muted-foreground">
+                          Última checagem geral: {formatDistanceToNow(new Date(lastSync.timestamp), { addSuffix: true, locale: ptBR })}
                         </p>
                       )}
                       {template.officialSourceUrl && (

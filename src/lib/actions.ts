@@ -807,3 +807,118 @@ export async function handleUpdateTemplateLink(input: {
     };
   }
 }
+
+/**
+ * Busca os logs de sincronização mais recentes
+ */
+export async function getSyncLogs() {
+  try {
+    // Buscar último log de sincronização de templates
+    const templateSyncSnapshot = await db
+      .collection('officialTemplateSyncs')
+      .orderBy('timestamp', 'desc')
+      .limit(1)
+      .get();
+
+    // Buscar último log de sincronização de FAQ
+    const faqSyncSnapshot = await db
+      .collection('faqContentSyncs')
+      .orderBy('timestamp', 'desc')
+      .limit(1)
+      .get();
+
+    const templateSync = templateSyncSnapshot.empty
+      ? null
+      : { id: templateSyncSnapshot.docs[0].id, ...templateSyncSnapshot.docs[0].data() };
+
+    const faqSync = faqSyncSnapshot.empty
+      ? null
+      : { id: faqSyncSnapshot.docs[0].id, ...faqSyncSnapshot.docs[0].data() };
+
+    return {
+      success: true,
+      templateSync,
+      faqSync,
+    };
+  } catch (error) {
+    console.error('[actions] Erro ao buscar logs de sincronização:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro ao buscar logs.',
+      templateSync: null,
+      faqSync: null,
+    };
+  }
+}
+
+/**
+ * Dispara a sincronização manual de templates oficiais
+ */
+export async function triggerTemplateSync() {
+  try {
+    const CRON_SECRET = process.env.CRON_SECRET;
+    
+    // Em desenvolvimento, não precisa de secret
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : 'http://localhost:3000';
+    
+    const response = await fetch(`${baseUrl}/api/cron/sync-templates`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${CRON_SECRET || 'dev'}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+
+    console.log('[actions] Sincronização de templates disparada:', result);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('[actions] Erro ao disparar sincronização de templates:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro ao disparar sincronização.',
+    };
+  }
+}
+
+/**
+ * Dispara a sincronização manual de conteúdo FAQ
+ */
+export async function triggerFaqSync() {
+  try {
+    const CRON_SECRET = process.env.CRON_SECRET;
+    
+    // Em desenvolvimento, não precisa de secret
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : 'http://localhost:3000';
+    
+    const response = await fetch(`${baseUrl}/api/cron/sync-faq-content`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${CRON_SECRET || 'dev'}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+
+    console.log('[actions] Sincronização de FAQ disparada:', result);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('[actions] Erro ao disparar sincronização de FAQ:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro ao disparar sincronização.',
+    };
+  }
+}

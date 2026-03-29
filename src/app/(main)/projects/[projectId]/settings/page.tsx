@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -15,6 +15,9 @@ import {
   CheckCircle2,
   XCircle,
   FileSignature,
+  Clock,
+  Database,
+  HelpCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,8 +48,10 @@ import { Label } from '@/components/ui/label';
 import { doc, deleteDoc, getFirestore, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { handleSyncToFileSearch } from '@/lib/actions';
+import { handleSyncToFileSearch, getSyncLogs, triggerTemplateSync, triggerFaqSync } from '@/lib/actions';
 import { Progress } from '@/components/ui/progress';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const contractTypeOptions = [
   "TED",
@@ -71,6 +76,15 @@ export default function ProjectSettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { toast } = useToast();
+
+  // CRON Jobs state
+  const [isSyncingTemplates, setIsSyncingTemplates] = useState(false);
+  const [isSyncingFaq, setIsSyncingFaq] = useState(false);
+  const [syncLogs, setSyncLogs] = useState<{
+    templateSync: any | null;
+    faqSync: any | null;
+  } | null>(null);
+  const [isLoadingSyncLogs, setIsLoadingSyncLogs] = useState(false);
 
   const handleArchive = async () => {
     if (!project || !canEdit) return;
@@ -143,6 +157,83 @@ export default function ProjectSettingsPage() {
     } catch (error) {
       console.error('Failed to update contract type:', error);
       toast({ title: 'Erro', description: 'Não foi possível salvar a configuração.', variant: 'destructive' });
+    }
+  };
+
+  // Buscar logs de sincronização
+  const fetchSyncLogs = async () => {
+    setIsLoadingSyncLogs(true);
+    try {
+      const result = await getSyncLogs();
+      if (result.success) {
+        setSyncLogs({
+          templateSync: result.templateSync,
+          faqSync: result.faqSync,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch sync logs:', error);
+    } finally {
+      setIsLoadingSyncLogs(false);
+    }
+  };
+
+  // Buscar logs ao montar o componente
+  useEffect(() => {
+    fetchSyncLogs();
+  }, []);
+
+  // Disparar sincronização de templates
+  const handleTemplateSync = async () => {
+    if (isSyncingTemplates) return;
+    setIsSyncingTemplates(true);
+    try {
+      const result = await triggerTemplateSync();
+      if (result.success) {
+        toast({
+          title: 'Sincronização de Templates',
+          description: `Verificados: ${result.data?.data?.templatesChecked || 0} templates. Atualizados: ${result.data?.data?.templatesUpdated || 0}.`,
+        });
+        await fetchSyncLogs();
+      } else {
+        throw new Error(result.error || 'Erro desconhecido');
+      }
+    } catch (error) {
+      console.error('Template sync failed:', error);
+      toast({
+        title: 'Erro na Sincronização',
+        description: error instanceof Error ? error.message : 'Não foi possível sincronizar os templates.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSyncingTemplates(false);
+    }
+  };
+
+  // Disparar sincronização de FAQ
+  const handleFaqSync = async () => {
+    if (isSyncingFaq) return;
+    setIsSyncingFaq(true);
+    try {
+      const result = await triggerFaqSync();
+      if (result.success) {
+        toast({
+          title: 'Sincronização de FAQ',
+          description: `Verificadas: ${result.data?.data?.pagesChecked || 0} páginas. Atualizadas: ${result.data?.data?.pagesUpdated || 0}.`,
+        });
+        await fetchSyncLogs();
+      } else {
+        throw new Error(result.error || 'Erro desconhecido');
+      }
+    } catch (error) {
+      console.error('FAQ sync failed:', error);
+      toast({
+        title: 'Erro na Sincronização',
+        description: error instanceof Error ? error.message : 'Não foi possível sincronizar o FAQ.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSyncingFaq(false);
     }
   };
 
@@ -336,6 +427,170 @@ export default function ProjectSettingsPage() {
               <AlertDescription className="text-sm">
                 Os documentos são sincronizados automaticamente após upload. Use esta opção para sincronização manual ou
                 para recuperar de erros de sincronização.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+
+        {/* CRON Jobs Control Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Sincronizações Automáticas
+            </CardTitle>
+            <CardDescription>
+              Gerencie as sincronizações automáticas de templates oficiais e conteúdo FAQ.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Templates Sync */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <div className="font-medium flex items-center gap-2">
+                    <Database className="h-4 w-4 text-blue-500" />
+                    Sincronização de Templates
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Sincroniza modelos oficiais do CIn/UFPE automaticamente (diariamente às 06:00)
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <div className="flex-1 text-sm">
+                  {isLoadingSyncLogs ? (
+                    <span className="text-muted-foreground">Carregando...</span>
+                  ) : syncLogs?.templateSync ? (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">Última execução:</span>
+                        <span className="font-medium">
+                          {formatDistanceToNow(new Date(syncLogs.templateSync.timestamp), {
+                            addSuffix: true,
+                            locale: ptBR,
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={syncLogs.templateSync.status === 'success' ? 'default' : 'destructive'}
+                          className={syncLogs.templateSync.status === 'success' ? 'bg-green-500' : ''}
+                        >
+                          {syncLogs.templateSync.status === 'success' ? 'Sucesso' : 
+                           syncLogs.templateSync.status === 'partial' ? 'Parcial' : 'Erro'}
+                        </Badge>
+                        {syncLogs.templateSync.templatesUpdated > 0 && (
+                          <span className="text-muted-foreground">
+                            {syncLogs.templateSync.templatesUpdated} template{syncLogs.templateSync.templatesUpdated > 1 ? 's' : ''} atualizado{syncLogs.templateSync.templatesUpdated > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">Nunca executado</span>
+                  )}
+                </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTemplateSync}
+                  disabled={isSyncingTemplates || !canEdit}
+                >
+                  {isSyncingTemplates ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sincronizando...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Executar Agora
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* FAQ Sync */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <div className="font-medium flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4 text-purple-500" />
+                    Sincronização de FAQ
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Atualiza conteúdo do FAQ para o ALEX automaticamente (domingos às 03:00)
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <div className="flex-1 text-sm">
+                  {isLoadingSyncLogs ? (
+                    <span className="text-muted-foreground">Carregando...</span>
+                  ) : syncLogs?.faqSync ? (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">Última execução:</span>
+                        <span className="font-medium">
+                          {formatDistanceToNow(new Date(syncLogs.faqSync.timestamp), {
+                            addSuffix: true,
+                            locale: ptBR,
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={syncLogs.faqSync.status === 'success' ? 'default' : 'destructive'}
+                          className={syncLogs.faqSync.status === 'success' ? 'bg-green-500' : ''}
+                        >
+                          {syncLogs.faqSync.status === 'success' ? 'Sucesso' : 
+                           syncLogs.faqSync.status === 'partial' ? 'Parcial' : 'Erro'}
+                        </Badge>
+                        {syncLogs.faqSync.pagesUpdated > 0 && (
+                          <span className="text-muted-foreground">
+                            {syncLogs.faqSync.pagesUpdated} página{syncLogs.faqSync.pagesUpdated > 1 ? 's' : ''} atualizada{syncLogs.faqSync.pagesUpdated > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">Nunca executado</span>
+                  )}
+                </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFaqSync}
+                  disabled={isSyncingFaq || !canEdit}
+                >
+                  {isSyncingFaq ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sincronizando...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Executar Agora
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <Alert>
+              <Clock className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                As sincronizações automáticas mantêm os modelos e o conteúdo do ALEX sempre atualizados com o site oficial do CIn/UFPE.
+                Use os botões acima para executar manualmente quando necessário.
               </AlertDescription>
             </Alert>
           </CardContent>

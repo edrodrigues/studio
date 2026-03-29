@@ -162,7 +162,7 @@ async function syncFaqContents(
           pageId: content.id,
           pageTitle: content.title,
           changeType: !previous ? 'content_updated' : 'structure_changed',
-          oldHash: previous?.contentHash,
+          oldHash: previous?.contentHash ?? '',
           newHash: content.contentHash,
         });
         

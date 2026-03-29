@@ -50,5 +50,7 @@ function getFirebaseAdminApp(): App {
 }
 
 const app = getFirebaseAdminApp();
-export const db = getFirestore(app);
+const firestore = getFirestore(app);
+firestore.settings({ ignoreUndefinedProperties: true });
+export const db = firestore;
 export { app };

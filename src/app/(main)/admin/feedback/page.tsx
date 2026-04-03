@@ -39,7 +39,7 @@ interface Feedback {
 }
 
 export default function AdminFeedbackPage() {
-  const { user, isLoading: userLoading } = useUser();
+  const { user, isUserLoading: userLoading } = useUser();
   const router = useRouter();
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,7 +65,7 @@ export default function AdminFeedbackPage() {
         const { handleGetAlexFeedback } = await import('@/lib/actions');
         const result = await handleGetAlexFeedback();
         if (result.success && result.data) {
-          setFeedbacks(result.data);
+          setFeedbacks(result.data as Feedback[]);
         }
       }
     } catch (error) {

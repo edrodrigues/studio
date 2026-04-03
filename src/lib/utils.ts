@@ -42,6 +42,48 @@ export function removeAccents(str: string): string {
 }
 
 /**
+ * Normalizes placeholder/entity keys for comparisons across extraction,
+ * template analysis, and deterministic Google Docs replacements.
+ */
+export function normalizeTemplateKey(value: string): string {
+  return removeAccents(value || '')
+    .replace(/[<>{}\[\]()]/g, ' ')
+    .replace(/[_\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+/**
+ * Detects values that still look like unresolved placeholders rather than
+ * concrete entity values extracted from project documents.
+ */
+export function looksLikeTemplatePlaceholderValue(value: unknown, key?: string): boolean {
+  const stringValue = String(value ?? '').trim();
+
+  if (!stringValue) {
+    return true;
+  }
+
+  if (!/[A-Za-z0-9À-ÿ]/.test(stringValue)) {
+    return true;
+  }
+
+  if (
+    /^(<<.+>>|\{\{.+\}\}|\[\[.+\]\]|<[^<>\s][^<>]*>)$/u.test(stringValue) ||
+    /^(?:placeholder|campo|variavel|variável)$/iu.test(stringValue)
+  ) {
+    return true;
+  }
+
+  if (key && normalizeTemplateKey(stringValue) === normalizeTemplateKey(key)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Extracts a Google Doc ID from a shared link.
  * Matches both full links (https://docs.google.com/document/d/ID/edit)
  * and the ID directly.

@@ -64,7 +64,7 @@ async function migrateToR2() {
       return result as ProjectDocument & { id: string };
     });
 
-    const docsToMigrate = documents.filter(doc => doc.storageProvider !== 'r2');
+    const docsToMigrate = documents.filter((doc: ProjectDocument & { id: string }) => doc.storageProvider !== 'r2');
     
     if (docsToMigrate.length === 0) {
       console.log('✅ Todos os documentos já estão no Cloudflare R2.');

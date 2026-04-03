@@ -17,6 +17,7 @@ import {
   DocumentReference,
   writeBatch,
   getDoc,
+  getDocs,
   setDoc,
   addDoc,
   updateDoc,
@@ -181,7 +182,7 @@ export function useUserProjects(): UseUserProjectsReturn {
   // Get project IDs from memberships
   const projectIds = useMemo(() => {
     if (!memberships) return [];
-    return memberships.map((m: ProjectMember) => m.projectId);
+    return Array.from(new Set(memberships.map((m: ProjectMember) => m.projectId)));
   }, [memberships]);
 
   // Create role lookup map
@@ -191,26 +192,66 @@ export function useUserProjects(): UseUserProjectsReturn {
     return map;
   }, [memberships]);
 
-  // Query for user's projects - use 'in' clause with projectIds (Firestore limit: 10 items)
-  const projectsQuery = useMemoFirebase(() => {
-    if (!firestore || projectIds.length === 0) return null;
-    
-    // Firestore 'in' clause has a limit of 10 items
-    // If we have more than 10 projectIds, we need to handle this differently
-    // For simplicity, we'll query the first 10 and let the client filter
-    const idsToQuery = projectIds.slice(0, 10);
-    
-    return query(
-      collection(firestore, 'projects'),
-      where('__name__', 'in', idsToQuery),
-      where('status', '==', 'active'),
-      orderBy('updatedAt', 'desc'),
-      limit(100)
-    );
-  }, [firestore, projectIds]);
+  const [projects, setProjects] = useState<(Project & { id: string })[] | null>(null);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState<Error | null>(null);
 
-  const { data: projects, isLoading: projectsLoading, error: projectsError } = 
-    useCollection<Project>(projectsQuery);
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchProjects = async () => {
+      if (!firestore || projectIds.length === 0) {
+        setProjects([]);
+        setProjectsLoading(false);
+        setProjectsError(null);
+        return;
+      }
+
+      setProjectsLoading(true);
+      setProjectsError(null);
+
+      try {
+        const projectDocs: (Project & { id: string })[] = [];
+
+        for (let index = 0; index < projectIds.length; index += 10) {
+          const chunk = projectIds.slice(index, index + 10);
+          const snapshot = await getDocs(
+            query(
+              collection(firestore, 'projects'),
+              where('__name__', 'in', chunk),
+              where('status', '==', 'active')
+            )
+          );
+
+          snapshot.forEach((projectDoc) => {
+            projectDocs.push({
+              ...(projectDoc.data() as Project),
+              id: projectDoc.id,
+            });
+          });
+        }
+
+        if (!cancelled) {
+          setProjects(projectDocs);
+        }
+      } catch (error) {
+        console.error('Failed to fetch user projects:', error);
+        if (!cancelled) {
+          setProjectsError(error instanceof Error ? error : new Error('Erro ao carregar projetos.'));
+        }
+      } finally {
+        if (!cancelled) {
+          setProjectsLoading(false);
+        }
+      }
+    };
+
+    fetchProjects();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firestore, projectIds]);
 
   // Combine projects with roles and filter to only user's projects
   const projectsWithRoles = useMemo(() => {
@@ -220,7 +261,8 @@ export function useUserProjects(): UseUserProjectsReturn {
       .map((project: Project & { id: string }) => ({
         ...project,
         myRole: (roleMap.get(project.id) || 'viewer') as ProjectRole,
-      }));
+      }))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [projects, roleMap]);
 
   return {
@@ -285,13 +327,30 @@ export function useProjectMembers(projectId: string | null): UseProjectMembersRe
         const normalizedEmail = email.toLowerCase().trim();
         const now = new Date().toISOString();
 
-        // Check if user is already a member
-        const memberId = `${projectId}_${normalizedEmail}`;
-        const existingMemberRef = doc(firestore, 'projectMembers', memberId);
-        const existingMember = await getDoc(existingMemberRef);
-        
-        if (existingMember.exists()) {
+        const [existingMember, existingInvite] = await Promise.all([
+          getDocs(
+            query(
+              collection(firestore, 'projectMembers'),
+              where('projectId', '==', projectId),
+              where('email', '==', normalizedEmail)
+            )
+          ),
+          getDocs(
+            query(
+              collection(firestore, 'invites'),
+              where('projectId', '==', projectId),
+              where('email', '==', normalizedEmail),
+              where('status', '==', 'pending')
+            )
+          ),
+        ]);
+
+        if (!existingMember.empty) {
           throw new Error('Este email já é membro deste projeto.');
+        }
+
+        if (!existingInvite.empty) {
+          throw new Error('Já existe um convite pendente para este email.');
         }
 
         // Create invite record

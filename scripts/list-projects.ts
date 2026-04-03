@@ -1,6 +1,7 @@
 
-import { db } from './src/lib/firebase-server';
+import { db } from '../src/lib/firebase-server';
 import 'dotenv/config';
+import type { QueryDocumentSnapshot } from 'firebase-admin/firestore';
 
 async function listProjects() {
   try {
@@ -11,7 +12,7 @@ async function listProjects() {
     }
 
     console.log('Projects:');
-    projectsSnapshot.forEach(doc => {
+    projectsSnapshot.forEach((doc: QueryDocumentSnapshot) => {
       const data = doc.data();
       console.log(`- ID: ${doc.id}`);
       console.log(`  Name: ${data.name}`);

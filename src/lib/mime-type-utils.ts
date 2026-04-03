@@ -1,4 +1,4 @@
-const SUPPORTED_FILE_SEARCH_MIME_TYPES: Record<string, string> = {
+const SUPPORTED_FILE_SEARCH_MIME_TYPES: Record<string, string[]> = {
   'text/plain': ['.txt', '.text'],
   'text/markdown': ['.md', '.markdown'],
   'application/pdf': ['.pdf'],

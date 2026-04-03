@@ -121,6 +121,7 @@ export interface ProjectDocument {
   // Processing
   status: DocumentStatus;
   extractedEntities?: Record<string, any>;
+  extractedEntityDescriptions?: Record<string, string>;
   processingError?: string;
   // Metadata
   mimeType: string;
@@ -416,6 +417,8 @@ export interface FaqNotification {
 export interface Contract {
   id: string;
   contractModelId?: string;
+  projectContractId?: string;
+  projectId?: string;
   clientName: string;
   filledData: string;
   name: string;

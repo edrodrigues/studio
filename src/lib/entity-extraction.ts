@@ -1,5 +1,6 @@
 import { db } from './firebase-server';
 import { ProjectDocument } from './types';
+import { looksLikeTemplatePlaceholderValue, normalizeTemplateKey } from './utils';
 
 export interface ExtractedEntity {
   key: string;
@@ -13,8 +14,11 @@ export interface EntityExtractionResult {
   success: boolean;
   entities?: Record<string, string>;
   entitiesByDocument?: Record<string, ExtractedEntity[]>;
+  entityDescriptions?: Record<string, string>;
   entityCount?: number;
   documentCount?: number;
+  discardedEntities?: Record<string, string>;
+  unresolvedEntities?: string[];
   error?: string;
 }
 
@@ -71,39 +75,52 @@ export async function extractEntitiesFromDocuments(
  */
 export function consolidateEntities(
   entitiesByDocument: Record<string, ExtractedEntity[]>
-): Record<string, string> {
+): {
+  entities: Record<string, string>;
+  discardedEntities: Record<string, string>;
+  unresolvedEntities: string[];
+} {
   const consolidated: Record<string, { value: string; confidence: number; source: string }> = {};
+  const discardedEntities: Record<string, string> = {};
   const conflicts: Array<{ key: string; oldValue: string; newValue: string; reason: string }> = [];
   
   for (const [docId, entities] of Object.entries(entitiesByDocument)) {
     for (const entity of entities) {
+      const normalizedKey = normalizeTemplateKey(entity.key);
+      const normalizedValue = String(entity.value ?? '').trim();
+
+      if (looksLikeTemplatePlaceholderValue(normalizedValue, normalizedKey)) {
+        discardedEntities[normalizedKey || entity.key] = normalizedValue;
+        continue;
+      }
+
       // Se já existe, compara confiança
-      if (consolidated[entity.key]) {
-        const existing = consolidated[entity.key];
+      if (consolidated[normalizedKey]) {
+        const existing = consolidated[normalizedKey];
         
         if (entity.confidence > existing.confidence) {
           conflicts.push({
-            key: entity.key,
+            key: normalizedKey,
             oldValue: existing.value,
-            newValue: entity.value,
+            newValue: normalizedValue,
             reason: `Maior confiança (${entity.confidence} > ${existing.confidence})`
           });
-          consolidated[entity.key] = {
-            value: entity.value,
+          consolidated[normalizedKey] = {
+            value: normalizedValue,
             confidence: entity.confidence,
             source: entity.sourceDocumentName
           };
         } else {
           conflicts.push({
-            key: entity.key,
-            oldValue: entity.value,
+            key: normalizedKey,
+            oldValue: normalizedValue,
             newValue: existing.value,
             reason: `Menor confiança (${entity.confidence} <= ${existing.confidence})`
           });
         }
       } else {
-        consolidated[entity.key] = {
-          value: entity.value,
+        consolidated[normalizedKey] = {
+          value: normalizedValue,
           confidence: entity.confidence,
           source: entity.sourceDocumentName
         };
@@ -121,7 +138,42 @@ export function consolidateEntities(
     result[key] = data.value;
   }
   
-  return result;
+  return {
+    entities: result,
+    discardedEntities,
+    unresolvedEntities: Object.keys(discardedEntities).sort(),
+  };
+}
+
+export async function extractEntityDescriptionsFromDocuments(
+  documentIds: string[]
+): Promise<Record<string, string>> {
+  const descriptions: Record<string, string> = {};
+
+  for (const docId of documentIds) {
+    try {
+      const docRef = db.collection('projectDocuments').doc(docId);
+      const docSnap = await docRef.get();
+
+      if (!docSnap.exists) {
+        continue;
+      }
+
+      const docData = docSnap.data() as ProjectDocument;
+      const docDescriptions = docData.extractedEntityDescriptions || {};
+
+      for (const [key, description] of Object.entries(docDescriptions)) {
+        const normalizedKey = normalizeTemplateKey(key);
+        if (normalizedKey && description && !descriptions[normalizedKey]) {
+          descriptions[normalizedKey] = description;
+        }
+      }
+    } catch (error) {
+      console.error(`[EntityExtraction] Erro ao buscar descrições do documento ${docId}:`, error);
+    }
+  }
+
+  return descriptions;
 }
 
 /**
@@ -142,17 +194,21 @@ export async function prepareContractData(input: {
     }
     
     const entitiesByDoc = await extractEntitiesFromDocuments(input.documentIds);
-    const consolidatedEntities = consolidateEntities(entitiesByDoc);
-    const entityCount = Object.keys(consolidatedEntities).length;
+    const entityDescriptions = await extractEntityDescriptionsFromDocuments(input.documentIds);
+    const consolidatedResult = consolidateEntities(entitiesByDoc);
+    const entityCount = Object.keys(consolidatedResult.entities).length;
     
     console.log(`[prepareContractData] ${entityCount} entidades consolidadas de ${input.documentIds.length} documentos`);
     
     return {
       success: true,
-      entities: consolidatedEntities,
+      entities: consolidatedResult.entities,
       entitiesByDocument: entitiesByDoc,
+      entityDescriptions,
       entityCount,
-      documentCount: input.documentIds.length
+      documentCount: input.documentIds.length,
+      discardedEntities: consolidatedResult.discardedEntities,
+      unresolvedEntities: consolidatedResult.unresolvedEntities,
     };
   } catch (error) {
     console.error('[prepareContractData] Erro:', error);

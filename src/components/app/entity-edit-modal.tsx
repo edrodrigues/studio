@@ -15,14 +15,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertTriangle, CheckCircle2, Wand2, Loader2, Sparkles, RefreshCw } from "lucide-react";
-import { type Template } from "@/lib/types";
 import { matchEntitiesToPlaceholders } from "@/ai/flows/match-entities-to-placeholders";
+import { normalizeTemplateKey } from "@/lib/utils";
 
 interface EntityEditModalProps {
     isOpen: boolean;
     onClose: () => void;
     onConfirm: (entities: Record<string, any>) => void;
-    selectedTemplates: (Template & { id: string })[];
+    placeholderDefinitions: Array<{ key: string; matches: string[] }>;
     extractedEntities: Record<string, any>;
     entityDescriptions?: Record<string, string>;
 }
@@ -31,7 +31,7 @@ export function EntityEditModal({
     isOpen,
     onClose,
     onConfirm,
-    selectedTemplates,
+    placeholderDefinitions,
     extractedEntities,
     entityDescriptions,
 }: EntityEditModalProps) {
@@ -40,37 +40,10 @@ export function EntityEditModal({
     const [matchedByAI, setMatchedByAI] = useState<Set<string>>(new Set());
 
     const requiredPlaceholders = useMemo(() => {
-        const placeholdersSet = new Set<string>();
-        // Lista de tags HTML comuns para ignorar
-        const BLOCKED_TAGS = new Set([
-            'P', 'BR', 'STRONG', 'EM', 'U', 'UL', 'OL', 'LI', 'DIV', 'SPAN',
-            'TABLE', 'TR', 'TD', 'TH', 'THEAD', 'TBODY',
-            'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HR',
-            'A', 'IMG', 'IFRAME', 'SCRIPT', 'STYLE', 'LINK', 'META', 'HEAD', 'BODY', 'HTML'
-        ]);
+        return placeholderDefinitions.map((definition) => definition.key).sort();
+    }, [placeholderDefinitions]);
 
-        selectedTemplates.forEach(template => {
-            if (template.markdownContent) {
-                const matches = template.markdownContent.match(/{{(.*?)}}|<(.*?)>/g) || [];
-                matches.forEach(match => {
-                    const key = match.replace(/{{|}}|<|>/g, '').trim().toUpperCase();
-                    // Ignora chaves vazias, tags de fechamento (começam com /) e tags HTML conhecidas
-                    if (key && !key.startsWith('/') && !BLOCKED_TAGS.has(key) && !key.startsWith('!DOCTYPE')) {
-                        // Também ignora se parecer uma abertura de tag com atributos (ex: "DIV CLASS=...")
-                        // Assumindo que placeholders reais não costumam ter "=" (a menos que seja um valor default, mas por segurança vamos filtrar o padrão de tag HTML)
-                        const firstWord = key.split(' ')[0];
-                        if (!BLOCKED_TAGS.has(firstWord)) {
-                            placeholdersSet.add(key);
-                        }
-                    }
-                });
-            }
-        });
-
-        return Array.from(placeholdersSet).sort();
-    }, [selectedTemplates]);
-
-    const normalizeKey = (key: string) => key.toUpperCase().replace(/[\s_]+/g, '_').trim();
+    const normalizeKey = (key: string) => normalizeTemplateKey(key).replace(/\s+/g, '_');
 
     const performMatching = useCallback(async () => {
         console.log('Entity Modal - Received extractedEntities from "Entidades para Preenchimento":', {

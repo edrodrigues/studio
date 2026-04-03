@@ -427,8 +427,24 @@ export async function handleSyncToFileSearch(input: {
                 });
                 
                 if (extractionResult.extractedJson?.entities && Object.keys(extractionResult.extractedJson.entities).length > 0) {
+                  const extractedEntityDescriptions = Object.entries(
+                    extractionResult.extractedJson.schema?.properties || {}
+                  ).reduce((acc, [key, value]) => {
+                    const description =
+                      typeof value === 'object' && value && 'description' in value
+                        ? String((value as { description?: string }).description || '')
+                        : '';
+
+                    if (description) {
+                      acc[key] = description;
+                    }
+
+                    return acc;
+                  }, {} as Record<string, string>);
+
                   await docRef.update({
                     extractedEntities: extractionResult.extractedJson.entities,
+                    extractedEntityDescriptions,
                     entityExtractionStatus: 'completed',
                     entityCount: Object.keys(extractionResult.extractedJson.entities).length
                   });

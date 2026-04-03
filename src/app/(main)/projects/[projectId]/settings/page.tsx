@@ -45,13 +45,14 @@ import { ProjectStatus } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { doc, deleteDoc, getFirestore, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, deleteDoc, getDocs, query, updateDoc, serverTimestamp, where } from 'firebase/firestore';
 import { useFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { handleSyncToFileSearch, getSyncLogs, triggerTemplateSync, triggerFaqSync } from '@/lib/actions';
 import { Progress } from '@/components/ui/progress';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useUser } from '@/firebase/provider';
 
 const contractTypeOptions = [
   "TED",
@@ -65,6 +66,7 @@ export default function ProjectSettingsPage() {
   const router = useRouter();
   const projectId = params.projectId as string;
   const { firestore } = useFirebase();
+  const { user } = useUser();
 
   const { project, isLoading, error, updateProject } = useProject(projectId);
   const { canEdit, isOwner } = usePermission(projectId);
@@ -118,12 +120,24 @@ export default function ProjectSettingsPage() {
   };
 
   const handleSync = async () => {
-    if (!projectId || isSyncing) return;
+    if (!projectId || isSyncing || !firestore || !user) return;
     setIsSyncing(true);
     setSyncProgress(0);
     try {
+      const documentsSnapshot = await getDocs(
+        query(
+          collection(firestore, 'projectDocuments'),
+          where('projectId', '==', projectId)
+        )
+      );
+      const documentIds = documentsSnapshot.docs.map((projectDoc) => projectDoc.id);
+
+      if (documentIds.length === 0) {
+        throw new Error('Nenhum documento encontrado para sincronizar.');
+      }
+
       setSyncProgress(20);
-      const result = await handleSyncToFileSearch({ projectId });
+      const result = await handleSyncToFileSearch({ projectId, userId: user.uid, documentIds });
       setSyncProgress(80);
       if (result.success) {
         setSyncProgress(100);

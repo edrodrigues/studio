@@ -171,13 +171,25 @@ export function useDocumentsByType(projectId: string | null) {
   const { documents, isLoading, error } = useProjectDocuments(projectId);
 
   const documentsByType = documents?.reduce((acc, doc) => {
-    const type = doc.documentType || 'other';
+    const type = doc.documentType === 'extraDocument'
+      ? 'extraDocument1'
+      : (doc.documentType || 'other');
     if (!acc[type]) {
       acc[type] = [];
     }
     acc[type].push(doc);
     return acc;
   }, {} as Record<string, (ProjectDocument & { id: string })[]>);
+
+  Object.values(documentsByType || {}).forEach((group) => {
+    group.sort((a, b) => {
+      const uploadedAtDiff = new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime();
+      if (uploadedAtDiff !== 0) {
+        return uploadedAtDiff;
+      }
+      return (b.version || 0) - (a.version || 0);
+    });
+  });
 
   return {
     documentsByType,

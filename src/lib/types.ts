@@ -87,6 +87,7 @@ export interface Project {
   contractType?: string;
   processType?: string;
   extraDocumentEnabled?: boolean;
+  extraDocumentCount?: number;
   // File Search (Google AI)
   isSyncedToFileSearch?: boolean;
   fileSearchStoreId?: string;

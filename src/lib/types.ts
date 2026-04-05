@@ -176,6 +176,9 @@ export interface ProjectContract {
   googleDocId?: string;
   googleDocLink?: string;
   lastSyncedAt?: string;
+  // Template source tracking
+  templateSource?: 'googleDocLink' | 'projectDocLink';
+  fallbackUsed?: boolean;
   // Versioning
   version: number;
   // Metadata
@@ -432,6 +435,9 @@ export interface Contract {
   generationMethod?: 'google-docs';
   templateName?: string; // Nome do template usado
   extractionDate?: string; // Data da extração das entidades
+  // Template source tracking
+  templateSource?: 'googleDocLink' | 'projectDocLink';
+  fallbackUsed?: boolean;
 }
 
 export interface UploadedFile {

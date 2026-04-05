@@ -150,7 +150,7 @@ export function TemplatesGrid({ contractType, projectId, canEdit }: TemplatesGri
                 </Button>
               )}
 
-              {/* Link Customizado Button + Edit */}
+              {/* Link Customizado / Fallback Button + Edit */}
               <div className="flex gap-2">
                 {template.projectDocLink ? (
                   <Button
@@ -166,7 +166,7 @@ export function TemplatesGrid({ contractType, projectId, canEdit }: TemplatesGri
                       className="flex items-center"
                     >
                       <ExternalLink className="mr-2 h-4 w-4 shrink-0" />
-                      <span className="truncate">Link Customizado</span>
+                      <span className="truncate">Versão Customizada</span>
                     </a>
                   </Button>
                 ) : (
@@ -177,7 +177,7 @@ export function TemplatesGrid({ contractType, projectId, canEdit }: TemplatesGri
                     disabled
                   >
                     <ExternalLink className="mr-2 h-4 w-4 shrink-0" />
-                    <span className="truncate text-muted-foreground">Adicionar Link</span>
+                    <span className="truncate text-muted-foreground">Adicionar Fallback</span>
                   </Button>
                 )}
 

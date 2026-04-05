@@ -23,8 +23,13 @@ import { useUserPreferences } from "@/hooks/use-user-preferences";
 import { prepareContractData } from "@/lib/actions";
 import { generateContractDoc, inspectTemplateForGeneration } from "@/lib/actions/google-docs-actions";
 import { exportToDocx } from "@/lib/export";
+import {
+  auditTemplateLinks,
+  type TemplateSourceDiagnostic,
+  type TemplateSourceField,
+} from "@/lib/template-source";
 import { Contract, DocumentStatus, ProjectDocument, Template } from "@/lib/types";
-import { cn, extractGoogleDocId, isValidDate, safeNewDate } from "@/lib/utils";
+import { cn, isValidDate, safeNewDate } from "@/lib/utils";
 
 const ContractPreviewModal = dynamic(() => import("@/components/app/contract-preview-modal").then((mod) => mod.ContractPreviewModal), { ssr: false });
 const ComparisonModal = dynamic(() => import("@/components/app/comparison-modal").then((mod) => mod.ComparisonModal), { ssr: false });
@@ -33,10 +38,17 @@ const EntityEditModal = dynamic(() => import("@/components/app/entity-edit-modal
 type ProjectDocumentRecord = ProjectDocument & { id: string };
 type ContractRecord = Contract & { id: string };
 type PlaceholderDef = { key: string; matches: string[] };
+type TemplateSourceDiagnostics = Record<TemplateSourceField, TemplateSourceDiagnostic>;
 type TemplatePreparation = {
   templateId: string;
   templateName: string;
-  googleDocId: string;
+  googleDocLink?: string;
+  projectDocLink?: string;
+  resolvedFileId: string;
+  resolvedSource: TemplateSourceField;
+  fallbackUsed: boolean;
+  sourceDiagnostics: TemplateSourceDiagnostics;
+  warnings: string[];
   placeholderDefinitions: PlaceholderDef[];
   placeholderMatches: Record<string, string[]>;
 };
@@ -59,6 +71,50 @@ const createPlaceholderMatchRecord = (definitions: PlaceholderDef[]) =>
     acc[definition.key] = definition.matches;
     return acc;
   }, {} as Record<string, string[]>);
+
+const getTemplateHealthBadge = (template: Template, fallbackInUse = false) => {
+  const audit = auditTemplateLinks(template.googleDocLink, template.projectDocLink);
+
+  if (fallbackInUse) {
+    return {
+      label: "Fallback em uso",
+      className: "bg-amber-50 text-amber-800 border-amber-200",
+      description: "O link original falhou e a geração usará a versão customizada do projeto.",
+      isSelectable: true,
+    };
+  }
+
+  switch (audit.health) {
+    case "ready_with_fallback":
+      return {
+        label: "Original + customizado",
+        className: "bg-blue-50 text-blue-700 border-blue-200",
+        description: "O modelo tem link original e também uma versão customizada pronta para fallback.",
+        isSelectable: true,
+      };
+    case "ready_original":
+      return {
+        label: "Original disponível",
+        className: "bg-green-50 text-green-700 border-green-200",
+        description: "A geração pode usar o link original do modelo.",
+        isSelectable: true,
+      };
+    case "ready_custom":
+      return {
+        label: "Customizado disponível",
+        className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        description: "A geração usará a versão customizada do projeto porque o link original está vazio.",
+        isSelectable: true,
+      };
+    default:
+      return {
+        label: "Nenhum link utilizável",
+        className: "bg-rose-50 text-rose-700 border-rose-200",
+        description: "Revise os links do modelo antes de gerar documentos.",
+        isSelectable: false,
+      };
+  }
+};
 
 const renderErrors = (errors: string[]) => (
   <div className="space-y-1">
@@ -156,18 +212,53 @@ function GerarExportarContent() {
       return exactType || Boolean(processTypeFilter && template.contractTypes?.includes(processTypeFilter));
     });
   }, [contractTypeFilter, processTypeFilter, templates]);
+  const templateAudits = useMemo(
+    () =>
+      filteredTemplates.reduce((acc, template) => {
+        acc[template.id] = auditTemplateLinks(template.googleDocLink, template.projectDocLink);
+        return acc;
+      }, {} as Record<string, ReturnType<typeof auditTemplateLinks>>),
+    [filteredTemplates]
+  );
+  const preparedTemplateMap = useMemo(
+    () =>
+      templatePreparations.reduce((acc, preparation) => {
+        acc[preparation.templateId] = preparation;
+        return acc;
+      }, {} as Record<string, TemplatePreparation>),
+    [templatePreparations]
+  );
   const sortedContracts = useMemo(() => [...((contracts || []) as ContractRecord[])].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()), [contracts]);
 
   useEffect(() => {
     setSelectedDocTypes((prev) => prev.filter((type) => Boolean(latestDocumentsByType[type])));
   }, [latestDocumentsByType]);
 
+  useEffect(() => {
+    setSelectedTemplates((prev) =>
+      prev.filter((templateId) => templateAudits[templateId] && templateAudits[templateId].health !== "misconfigured")
+    );
+  }, [templateAudits]);
+
   const toggleDocType = (type: string) => {
     setSelectedDocTypes((prev) => prev.includes(type) ? prev.filter((value) => value !== type) : [...prev, type]);
   };
 
-  const toggleTemplate = (templateId: string) => {
-    setSelectedTemplates((prev) => prev.includes(templateId) ? prev.filter((value) => value !== templateId) : [...prev, templateId]);
+  const toggleTemplate = (template: Template) => {
+    const audit = templateAudits[template.id] || auditTemplateLinks(template.googleDocLink, template.projectDocLink);
+
+    if (audit.health === "misconfigured") {
+      toast({
+        variant: "destructive",
+        title: "Modelo indisponível para geração",
+        description: `${template.name}: revise o link original e a versão customizada antes de continuar.`,
+      });
+      return;
+    }
+
+    setSelectedTemplates((prev) =>
+      prev.includes(template.id) ? prev.filter((value) => value !== template.id) : [...prev, template.id]
+    );
   };
 
   const handlePrepareGeneration = async () => {
@@ -200,33 +291,45 @@ function GerarExportarContent() {
         .filter((template): template is Template & { id: string } => Boolean(template));
 
       const errors: string[] = [];
+      const warnings: string[] = [];
       const ready: TemplatePreparation[] = [];
 
       for (const template of selectedTemplateRecords) {
-        const link = template.googleDocLink?.trim() || "";
-        if (!link) {
-          errors.push(`${template.name}: preencha o campo "Link do Modelo em Google Doc" para este modelo.`);
-          console.warn("[GerarExportar] Template sem googleDocLink", { templateId: template.id, templateName: template.name });
-          continue;
-        }
-        const googleDocId = extractGoogleDocId(link);
-        if (!googleDocId) {
-          errors.push(`${template.name}: o campo "Link do Modelo em Google Doc" está inválido.`);
-          console.warn("[GerarExportar] googleDocLink inválido", { templateId: template.id, templateName: template.name, googleDocLink: link });
-          continue;
-        }
-        console.info("[GerarExportar] Validando template", { templateId: template.id, templateName: template.name, googleDocId });
-        const inspection = await inspectTemplateForGeneration(accessToken, googleDocId, template.markdownContent);
+        console.info("[GerarExportar] Validando template", {
+          templateId: template.id,
+          templateName: template.name,
+          googleDocLink: template.googleDocLink,
+          projectDocLink: template.projectDocLink,
+        });
+        const inspection = await inspectTemplateForGeneration(accessToken, {
+          templateId: template.id,
+          templateName: template.name,
+          googleDocLink: template.googleDocLink,
+          projectDocLink: template.projectDocLink,
+          fallbackMarkdownContent: template.markdownContent,
+        });
         if (!inspection.success || !inspection.placeholders || inspection.placeholders.length === 0) {
           const inspectionError = "error" in inspection ? inspection.error : "não foi possível preparar o template.";
           errors.push(`${template.name}: ${inspectionError}`);
-          console.warn("[GerarExportar] Falha no preflight", { templateId: template.id, templateName: template.name, googleDocId, inspectionError });
+          console.warn("[GerarExportar] Falha no preflight", {
+            templateId: template.id,
+            templateName: template.name,
+            inspectionError,
+            sourceDiagnostics: "sourceDiagnostics" in inspection ? inspection.sourceDiagnostics : undefined,
+          });
           continue;
         }
+        warnings.push(...(inspection.warnings || []).map((warning) => `${template.name}: ${warning}`));
         ready.push({
           templateId: template.id,
           templateName: template.name,
-          googleDocId,
+          googleDocLink: template.googleDocLink,
+          projectDocLink: template.projectDocLink,
+          resolvedFileId: inspection.fileId,
+          resolvedSource: inspection.resolvedSource,
+          fallbackUsed: inspection.fallbackUsed,
+          sourceDiagnostics: inspection.sourceDiagnostics,
+          warnings: inspection.warnings || [],
           placeholderDefinitions: inspection.placeholders,
           placeholderMatches: createPlaceholderMatchRecord(inspection.placeholders),
         });
@@ -238,6 +341,9 @@ function GerarExportarContent() {
       }
       if (errors.length > 0) {
         toast({ variant: "destructive", title: "Alguns templates não puderam ser preparados", description: renderErrors(errors) });
+      }
+      if (warnings.length > 0) {
+        toast({ title: "Templates preparados com fallback", description: renderErrors(warnings) });
       } else if (prepared.discardedEntities && Object.keys(prepared.discardedEntities).length > 0) {
         toast({ title: "Entidades inválidas descartadas", description: `${Object.keys(prepared.discardedEntities).length} valor(es) placeholder foram removidos antes da revisão.` });
       }
@@ -259,24 +365,38 @@ function GerarExportarContent() {
     startGeneration(async () => {
       let successCount = 0;
       const errors: string[] = [];
+      const warnings: string[] = [];
       for (const templatePreparation of templatePreparations) {
         try {
-          const result = await generateContractDoc(accessToken, templatePreparation.googleDocId, templatePreparation.templateName, clientName || projectName || "Cliente", confirmedPlaceholders, templatePreparation.placeholderMatches, currentProjectId);
+          const result = await generateContractDoc(accessToken, {
+            templateId: templatePreparation.templateId,
+            templateName: templatePreparation.templateName,
+            googleDocLink: templatePreparation.googleDocLink,
+            projectDocLink: templatePreparation.projectDocLink,
+            preferredSource: templatePreparation.resolvedSource,
+            clientName: clientName || projectName || "Cliente",
+            confirmedPlaceholders,
+            placeholderMatches: templatePreparation.placeholderMatches,
+            projectId: currentProjectId,
+          });
           if (!result.success || !result.documentId) {
             errors.push(`${templatePreparation.templateName}: ${"error" in result ? result.error : "falha desconhecida ao gerar documento."}`);
             continue;
           }
+          warnings.push(...(result.warnings || []).map((warning) => `${templatePreparation.templateName}: ${warning}`));
           const generatedAt = new Date().toISOString();
           const filledPayload = JSON.stringify({ placeholders: confirmedPlaceholders, sourceDocuments: selectedDocs, discardedEntities, extractionDate: generatedAt });
           const projectContractRef = await addDoc(collection(firestore, "projectContracts"), {
             projectId: currentProjectId, templateId: templatePreparation.templateId, name: result.fileName, markdownContent: "",
             filledData: filledPayload, generatedBy: user.uid, generatedAt, googleDocId: result.documentId, googleDocLink: result.documentLink, version: 1,
+            templateSource: result.resolvedSource, fallbackUsed: result.fallbackUsed,
           });
           await addDoc(collection(firestore, "users", user.uid, "filledContracts"), {
             projectContractId: projectContractRef.id, projectId: currentProjectId, contractModelId: templatePreparation.templateId,
             clientName: clientName || projectName || "Cliente", filledData: filledPayload, name: result.fileName, markdownContent: "",
             googleDocLink: result.documentLink, googleDocId: result.documentId, createdAt: generatedAt, sourceDocumentIds: selectedDocs,
             entityCount: Object.keys(confirmedPlaceholders).length, generationMethod: "google-docs", templateName: templatePreparation.templateName, extractionDate: generatedAt,
+            templateSource: result.resolvedSource, fallbackUsed: result.fallbackUsed,
           });
           if (currentProjectId && currentProjectId !== "default-project") {
             await updateDoc(doc(firestore, "projects", currentProjectId), { contractCount: increment(1), updatedAt: generatedAt });
@@ -289,6 +409,9 @@ function GerarExportarContent() {
       }
       if (successCount > 0) {
         toast({ title: "Geração concluída!", description: `${successCount} documento(s) gerado(s) com sucesso.${errors.length > 0 ? ` ${errors.length} falha(s).` : ""}` });
+        if (warnings.length > 0) {
+          toast({ title: "Geração com fallback", description: renderErrors(warnings) });
+        }
         setActiveTab("revisar");
       } else {
         toast({ variant: "destructive", title: "Falha na geração", description: renderErrors(errors.length ? errors : ["Nenhum template selecionado ou encontrado."]) });
@@ -409,25 +532,30 @@ function GerarExportarContent() {
                 <ScrollArea className="h-[360px] pr-4 sm:h-[450px]">
                   {isLoadingTemplates ? <div className="flex flex-col items-center justify-center py-20 gap-4"><Loader2 className="animate-spin h-8 w-8 text-purple-500" /><p className="text-sm text-muted-foreground">Carregando modelos...</p></div> : (
                     <div className="grid grid-cols-1 gap-4">
-                      {filteredTemplates.map((template) => (
-                        <Card key={template.id} className={cn("relative overflow-hidden border transition-all duration-200 hover:shadow-md", selectedTemplates.includes(template.id) ? "border-purple-500 bg-purple-50/20 ring-1 ring-purple-500/20" : "border-border/60 hover:border-purple-300")}>
+                      {filteredTemplates.map((template) => {
+                        const templateStatus = getTemplateHealthBadge(template, preparedTemplateMap[template.id]?.fallbackUsed);
+                        const isSelected = selectedTemplates.includes(template.id);
+                        const previewLink = template.googleDocLink || template.projectDocLink;
+                        return (
+                        <Card key={template.id} className={cn("relative overflow-hidden border transition-all duration-200 hover:shadow-md", isSelected ? "border-purple-500 bg-purple-50/20 ring-1 ring-purple-500/20" : "border-border/60 hover:border-purple-300", !templateStatus.isSelectable && "border-rose-200 bg-rose-50/40 hover:border-rose-200")}>
                           <div className="p-4">
                             <div className="flex items-center justify-between gap-3">
                               <div className="flex items-center gap-3 min-w-0">
-                                <Checkbox id={`template-${template.id}`} checked={selectedTemplates.includes(template.id)} onCheckedChange={() => toggleTemplate(template.id)} className="h-5 w-5 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600" />
+                                <Checkbox id={`template-${template.id}`} checked={isSelected} disabled={!templateStatus.isSelectable} onCheckedChange={() => toggleTemplate(template)} className="h-5 w-5 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600" />
                                 <div className="min-w-0 space-y-2">
                                   <Label htmlFor={`template-${template.id}`} className="block font-bold text-sm leading-none cursor-pointer hover:text-purple-700 transition-colors truncate">{template.name}</Label>
-                                  <Badge variant="outline" className={cn("text-[10px]", template.googleDocLink ? "bg-green-50 text-green-700 border-green-200" : "bg-amber-50 text-amber-700 border-amber-200")}>{template.googleDocLink ? "Link configurado" : "Link pendente"}</Badge>
+                                  <Badge variant="outline" className={cn("text-[10px]", templateStatus.className)}>{templateStatus.label}</Badge>
+                                  <p className="text-xs text-muted-foreground">{templateStatus.description}</p>
                                 </div>
                               </div>
-                              <Button variant="ghost" size="icon" asChild={Boolean(template.googleDocLink)} className="h-8 w-8 shrink-0 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors" disabled={!template.googleDocLink}>
-                                {template.googleDocLink ? <a href={template.googleDocLink} target="_blank" rel="noopener noreferrer" aria-label="Abrir modelo no Google Docs" title="Abrir modelo no Google Docs"><ExternalLink className="h-4 w-4" /></a> : <span aria-hidden="true"><ExternalLink className="h-4 w-4" /></span>}
+                              <Button variant="ghost" size="icon" asChild={Boolean(previewLink)} className="h-8 w-8 shrink-0 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors" disabled={!previewLink}>
+                                {previewLink ? <a href={previewLink} target="_blank" rel="noopener noreferrer" aria-label="Abrir modelo no Google Docs" title="Abrir modelo no Google Docs"><ExternalLink className="h-4 w-4" /></a> : <span aria-hidden="true"><ExternalLink className="h-4 w-4" /></span>}
                               </Button>
                             </div>
                           </div>
-                          {selectedTemplates.includes(template.id) && <motion.div layoutId={`selected-indicator-${template.id}`} className="absolute left-0 top-0 bottom-0 w-1 bg-purple-500" />}
+                          {isSelected && <motion.div layoutId={`selected-indicator-${template.id}`} className="absolute left-0 top-0 bottom-0 w-1 bg-purple-500" />}
                         </Card>
-                      ))}
+                      )})}
                     </div>
                   )}
                 </ScrollArea>
@@ -438,7 +566,7 @@ function GerarExportarContent() {
             <Button size="lg" className="h-14 w-full max-w-md rounded-2xl px-8 text-base font-semibold sm:h-16 sm:text-lg" onClick={handlePrepareGeneration} disabled={selectedTemplates.length === 0 || selectedDocs.length === 0 || isGenerating || isPreparingGeneration}>
               {isPreparingGeneration ? <Loader2 className="mr-2 animate-spin" /> : <Wand2 className="mr-2" />}Gerar Documentos
             </Button>
-            <p className="text-xs text-muted-foreground text-center max-w-xl">A geração usa apenas o campo "Link do Modelo em Google Doc", valida o acesso antes da revisão e aplica os placeholders confirmados na cópia do usuário.</p>
+            <p className="text-xs text-muted-foreground text-center max-w-xl">A geração tenta primeiro o link original do modelo e, quando ele não está acessível por falta de permissão ou arquivo inexistente, usa a versão customizada do projeto como fallback operacional.</p>
           </div>
         </TabsContent>
 
@@ -466,8 +594,9 @@ function GerarExportarContent() {
                         </div>
                         <Checkbox checked={selectedContracts.includes(contract.id)} onCheckedChange={() => setSelectedContracts((prev) => prev.includes(contract.id) ? prev.filter((value) => value !== contract.id) : [...prev, contract.id])} />
                       </div>
-                      <div className="flex flex-wrap gap-2 text-xs">
+<div className="flex flex-wrap gap-2 text-xs">
                         {contract.generationMethod === "google-docs" ? <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Google Docs</Badge> : null}
+                        {contract.templateSource === "projectDocLink" && <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Fallback</Badge>}
                         <Badge variant="outline">{contract.entityCount !== undefined ? `${contract.entityCount} entidade(s)` : "Sem dados"}</Badge>
                         <Badge variant="outline">{contract.sourceDocumentIds?.length || 0} documento(s)</Badge>
                       </div>
@@ -502,7 +631,10 @@ function GerarExportarContent() {
                         {contract.googleDocLink && <a href={contract.googleDocLink} target="_blank" rel="noreferrer" className="block text-[10px] text-blue-500 hover:underline flex items-center gap-1 mt-1"><ExternalLink className="h-2 w-2" /> Google Docs</a>}
                       </TableCell>
                       <TableCell className="text-xs">
+                        <div className="flex flex-wrap gap-1">
                         {contract.generationMethod === "google-docs" ? <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700 border-blue-200">Google Docs</Badge> : <span className="text-muted-foreground">-</span>}
+                        {contract.templateSource === "projectDocLink" && <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">Fallback</Badge>}
+                        </div>
                         {contract.sourceDocumentIds && <span className="block text-[9px] text-muted-foreground mt-1">{contract.sourceDocumentIds.length} doc(s)</span>}
                       </TableCell>
                       <TableCell className="text-xs">{contract.entityCount !== undefined ? <span className={contract.entityCount > 0 ? "text-green-600 font-medium" : "text-muted-foreground"}>{contract.entityCount > 0 ? `${contract.entityCount} preench.` : "Sem dados"}</span> : <span className="text-muted-foreground">-</span>}</TableCell>

@@ -97,14 +97,13 @@ function TemplateEditor({
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="template-doc-link">
-                            Link do Modelo em Google Doc <span className="text-destructive">*</span>
+                            Link do Modelo Base em Google Doc
                         </Label>
                         <Input
                             id="template-doc-link"
                             value={template.googleDocLink || ""}
                             onChange={(e) => onTemplateChange("googleDocLink", e.target.value)}
                             placeholder="https://docs.google.com/document/d/..."
-                            required
                         />
                         <p className="text-xs text-muted-foreground">Este campo é obrigatório para gerar contratos.</p>
                     </div>
@@ -288,7 +287,16 @@ export default function ModelosPage() {
             return;
         }
 
-        if (!editingTemplate.googleDocLink?.trim()) {
+        if (!editingTemplate.googleDocLink?.trim() && !editingTemplate.projectDocLink?.trim()) {
+            toast({
+                variant: "destructive",
+                title: "Erro ao Salvar",
+                description: "Preencha ao menos o link original do modelo ou a versao customizada do projeto.",
+            });
+            return;
+        }
+
+        if (false && !editingTemplate?.googleDocLink?.trim() && !editingTemplate?.projectDocLink?.trim()) {
             toast({
                 variant: "destructive",
                 title: "Erro ao Salvar",
@@ -297,7 +305,7 @@ export default function ModelosPage() {
             return;
         }
 
-        if (!editingTemplate.projectDocLink?.trim()) {
+        if (false && !editingTemplate?.projectDocLink?.trim()) {
             toast({
                 variant: "destructive",
                 title: "Erro ao Salvar",
@@ -556,7 +564,3 @@ export default function ModelosPage() {
         </>
     );
 }
-
-
-
-

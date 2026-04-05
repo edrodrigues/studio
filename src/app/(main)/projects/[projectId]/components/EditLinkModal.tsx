@@ -86,10 +86,10 @@ export function EditLinkModal({ template, isOpen, onClose, projectId }: EditLink
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ExternalLink className="h-5 w-5" />
-            Editar Link Customizado
+            Editar Versão Customizada
           </DialogTitle>
           <DialogDescription>
-            Atualize o link da versão do projeto para o modelo <strong>{template.name}</strong>.
+            Atualize o link da versão customizada do projeto para o modelo <strong>{template.name}</strong>. Ele será usado como fallback operacional quando o link original não estiver acessível.
           </DialogDescription>
         </DialogHeader>
 
@@ -104,7 +104,7 @@ export function EditLinkModal({ template, isOpen, onClose, projectId }: EditLink
               type="url"
             />
             <p className="text-xs text-muted-foreground">
-              Cole o link do Google Doc com a versão customizada do modelo.
+              Cole o link do Google Doc com a versão customizada do modelo usada como fallback.
             </p>
           </div>
 
@@ -151,5 +151,4 @@ export function EditLinkModal({ template, isOpen, onClose, projectId }: EditLink
     </Dialog>
   );
 }
-
 

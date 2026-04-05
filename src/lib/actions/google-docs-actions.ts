@@ -27,6 +27,8 @@ type TemplateErrorType =
   | 'INVALID_TEMPLATE_TYPE'
   | 'AUTH_EXPIRED'
   | 'GOOGLE_DRIVE_ERROR'
+  | 'GOOGLE_DOCS_ERROR'
+  | 'RATE_LIMITED'
   | 'UNKNOWN_ERROR';
 
 type TemplateSourceDiagnostics = Record<TemplateSourceField, TemplateSourceDiagnostic>;
@@ -72,6 +74,8 @@ function getErrorType(error: unknown): TemplateErrorType {
     'INVALID_TEMPLATE_TYPE',
     'AUTH_EXPIRED',
     'GOOGLE_DRIVE_ERROR',
+    'GOOGLE_DOCS_ERROR',
+    'RATE_LIMITED',
   ].find((candidate) => message.includes(candidate));
 
   return (matchedType as TemplateErrorType | undefined) || 'UNKNOWN_ERROR';
@@ -190,6 +194,9 @@ async function resolveTemplateSource(
   const attemptOrder = getSourceAttemptOrder(sourceDiagnostics, options.preferredSource);
   const warnings: string[] = [];
   let primaryFailure: TemplateActionError | null = null;
+  const preferredProjectFallback =
+    options.preferredSource === 'projectDocLink' &&
+    sourceDiagnostics.googleDocLink.status === 'available';
 
   for (const field of attemptOrder) {
     const source = sourceDiagnostics[field];
@@ -215,7 +222,8 @@ async function resolveTemplateSource(
 
     try {
       const metadata = await validateTemplateSource(accessToken, field, sourceDiagnostics);
-      const fallbackUsed = field === 'projectDocLink' && Boolean(primaryFailure);
+      const fallbackUsed =
+        field === 'projectDocLink' && (Boolean(primaryFailure) || preferredProjectFallback);
 
       if (fallbackUsed) {
         warnings.push(
@@ -368,8 +376,23 @@ function buildUserFriendlyError(error: unknown) {
         'Corrija primeiro links inválidos; o fallback só é usado quando o original existe mas está inacessível.',
       ];
       break;
+    case 'GOOGLE_DOCS_ERROR':
+      errorMessage = 'Erro ao ler o conteúdo do documento no Google Docs.';
+      userInstructions = [
+        'Verifique se o documento está acessível e não está corrompido.',
+        'Tente novamente em alguns instantes.',
+        'Se o erro persistir, revise os links do template e a conta Google conectada.',
+      ];
+      break;
+    case 'RATE_LIMITED':
+      errorMessage = 'Limite de requisições ao Google atingido.';
+      userInstructions = [
+        'Aguarde alguns segundos e tente novamente.',
+        'Se o erro persistir, tente novamente em alguns minutos.',
+      ];
+      break;
     default:
-      errorMessage = 'O Google Drive retornou um erro inesperado ao preparar o template.';
+      errorMessage = 'O Google Drive/Docs retornou um erro inesperado ao preparar o template.';
       userInstructions = [
         'Tente novamente em alguns instantes.',
         'Se o erro persistir, revise os links do template e a conta Google conectada.',

@@ -12,6 +12,39 @@ function createDocsClient(accessToken: string) {
     return google.docs({ version: 'v1', auth });
 }
 
+function mapGoogleDocsError(error: any, documentId: string): Error {
+    const errorCode = error.code || error.status;
+    const errorMessage = error.message || '';
+
+    if (errorCode === 404 || errorMessage.includes('notFound') || errorMessage.includes('not found')) {
+        return new Error(`TEMPLATE_NOT_FOUND: O documento não foi encontrado no Google Docs (ID: ${documentId}). Verifique se:
+1. O arquivo existe e não foi deletado
+2. Você tem permissão para acessá-lo
+3. O link do documento está correto`);
+    }
+
+    if (errorCode === 403 || errorMessage.includes('forbidden') || errorMessage.includes('Forbidden')) {
+        return new Error(`PERMISSION_DENIED: Sem permissão para acessar o documento (ID: ${documentId}). Verifique se:
+1. O arquivo foi compartilhado com você
+2. Você está logado com a conta correta
+3. O arquivo não está em modo restrito`);
+    }
+
+    if (errorCode === 401 || errorMessage.includes('unauthorized') || errorMessage.includes('Invalid Credentials')) {
+        return new Error('AUTH_EXPIRED: Sessão expirada ou inválida. Por favor, faça login novamente com sua conta Google.');
+    }
+
+    if (errorCode === 400 || errorMessage.includes('badRequest') || errorMessage.includes('Invalid')) {
+        return new Error(`INVALID_REQUEST: ID do documento inválido (${documentId}). Verifique se o link do documento está correto.`);
+    }
+
+    if (errorCode === 429 || errorMessage.includes('rateLimitExceeded') || errorMessage.includes('Rate limit')) {
+        return new Error('RATE_LIMITED: Muitas requisições ao Google Docs. Aguarde alguns segundos e tente novamente.');
+    }
+
+    return new Error(`GOOGLE_DOCS_ERROR: Erro ao acessar documento. ${errorMessage} (Código: ${errorCode || 'unknown'})`);
+}
+
 function isLikelyHtmlTag(token: string): boolean {
     const normalizedToken = token.replace(/[<>{}\[\]]/g, '').trim().toUpperCase();
     const blockedTokens = new Set([
@@ -100,7 +133,7 @@ export async function getDocumentContent(accessToken: string, documentId: string
         return content;
     } catch (error: any) {
         console.error('Error fetching Google Doc content:', error);
-        throw error;
+        throw mapGoogleDocsError(error, documentId);
     }
 }
 
@@ -134,6 +167,6 @@ export async function batchUpdateDocument(
         });
     } catch (error: any) {
         console.error('Error updating Google Doc:', error);
-        throw error;
+        throw mapGoogleDocsError(error, documentId);
     }
 }

@@ -199,6 +199,7 @@ describe('google-docs-actions', () => {
       throw new Error('expected generation success');
     }
     expect(result.resolvedSource).toBe('projectDocLink');
+    expect(result.fallbackUsed).toBe(true);
     expect(copyFile).toHaveBeenCalledWith(
       'token',
       '1projectTemplateId123456',

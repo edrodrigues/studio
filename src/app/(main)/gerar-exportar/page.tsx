@@ -322,7 +322,7 @@ function GerarExportarContent() {
   };
 
   return (
-    <div className="container py-10 max-w-6xl relative">
+    <div className="page-shell relative">
       <AnimatePresence>
         {isGenerating && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-md">
@@ -342,27 +342,27 @@ function GerarExportarContent() {
         )}
       </AnimatePresence>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-        <div className="flex items-center justify-between">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="page-width space-y-8">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-4xl font-extrabold tracking-tight">Gerar e Revisar</h1>
+            <h1 className="page-title">Gerar e Revisar</h1>
             <p className="text-muted-foreground mt-2">{projectIdFromUrl ? `Projeto: ${projectName}` : "Central de inteligência para seus contratos."}</p>
           </div>
-          <TabsList className="grid w-[400px] grid-cols-2">
+          <TabsList className="grid w-full grid-cols-2 lg:w-[26rem]">
             <TabsTrigger value="gerar" className="flex gap-2"><Wand2 className="h-4 w-4" /> Gerar Novos</TabsTrigger>
             <TabsTrigger value="revisar" className="flex gap-2"><CheckCircle2 className="h-4 w-4" /> Documentos Gerados</TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="gerar" className="space-y-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2 xl:gap-8">
             <Card className="flex flex-col border-2 border-primary/10">
               <CardHeader className="bg-primary/5 pb-4">
                 <CardTitle className="flex items-center gap-2 text-xl"><FileText className="text-blue-500" /> 1. Documentos Iniciais</CardTitle>
                 <CardDescription>Somente as últimas versões indexadas no contexto do projeto.</CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
-                <ScrollArea className="h-[350px] pr-4">
+                <ScrollArea className="h-[320px] pr-4 sm:h-[350px]">
                   {isLoadingDocs ? <Loader2 className="animate-spin mx-auto mt-10" /> : (
                     <div className="space-y-3">
                       {latestDocuments.map((item) => {
@@ -406,7 +406,7 @@ function GerarExportarContent() {
                 <CardDescription>{contractTypeFilter ? `Filtrados por: ${contractTypeFilter.toUpperCase()}` : "Selecione os modelos prontos para geração."}</CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
-                <ScrollArea className="h-[450px] pr-4">
+                <ScrollArea className="h-[360px] pr-4 sm:h-[450px]">
                   {isLoadingTemplates ? <div className="flex flex-col items-center justify-center py-20 gap-4"><Loader2 className="animate-spin h-8 w-8 text-purple-500" /><p className="text-sm text-muted-foreground">Carregando modelos...</p></div> : (
                     <div className="grid grid-cols-1 gap-4">
                       {filteredTemplates.map((template) => (
@@ -434,8 +434,8 @@ function GerarExportarContent() {
               </CardContent>
             </Card>
           </div>
-          <div className="flex flex-col items-center gap-4">
-            <Button size="lg" className="h-16 px-12 text-lg font-bold rounded-full" onClick={handlePrepareGeneration} disabled={selectedTemplates.length === 0 || selectedDocs.length === 0 || isGenerating || isPreparingGeneration}>
+          <div className="sticky bottom-4 z-10 flex flex-col items-center gap-4 rounded-3xl bg-background/90 py-2 backdrop-blur-sm">
+            <Button size="lg" className="h-14 w-full max-w-md rounded-2xl px-8 text-base font-semibold sm:h-16 sm:text-lg" onClick={handlePrepareGeneration} disabled={selectedTemplates.length === 0 || selectedDocs.length === 0 || isGenerating || isPreparingGeneration}>
               {isPreparingGeneration ? <Loader2 className="mr-2 animate-spin" /> : <Wand2 className="mr-2" />}Gerar Documentos
             </Button>
             <p className="text-xs text-muted-foreground text-center max-w-xl">A geração usa apenas o campo "Link do Modelo em Google Doc", valida o acesso antes da revisão e aplica os placeholders confirmados na cópia do usuário.</p>
@@ -444,17 +444,44 @@ function GerarExportarContent() {
 
         <TabsContent value="revisar" className="space-y-6">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <CardTitle>Histórico de Documentos</CardTitle>
                 <CardDescription>Gerencie, visualize e exporte os documentos gerados.</CardDescription>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <Button variant="outline" size="sm" onClick={() => setIsComparisonOpen(true)} disabled={selectedContracts.length < 2}><GitCompareArrows className="mr-2 h-4 w-4" /> Comparar ({selectedContracts.length})</Button>
                 <Button size="sm" onClick={handleExportSelected} disabled={selectedContracts.length === 0}><Download className="mr-2 h-4 w-4" /> Exportar ({selectedContracts.length})</Button>
               </div>
             </CardHeader>
             <CardContent>
+              <div className="space-y-3 md:hidden">
+                {sortedContracts.map((contract) => (
+                  <Card key={contract.id} className="border border-border/70 shadow-none">
+                    <CardContent className="space-y-3 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1">
+                          <p className="truncate font-medium">{contract.name}</p>
+                          <p className="text-xs text-muted-foreground">{isValidDate(contract.createdAt) ? format(safeNewDate(contract.createdAt)!, "dd/MM/yyyy HH:mm") : "-"}</p>
+                        </div>
+                        <Checkbox checked={selectedContracts.includes(contract.id)} onCheckedChange={() => setSelectedContracts((prev) => prev.includes(contract.id) ? prev.filter((value) => value !== contract.id) : [...prev, contract.id])} />
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {contract.generationMethod === "google-docs" ? <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Google Docs</Badge> : null}
+                        <Badge variant="outline">{contract.entityCount !== undefined ? `${contract.entityCount} entidade(s)` : "Sem dados"}</Badge>
+                        <Badge variant="outline">{contract.sourceDocumentIds?.length || 0} documento(s)</Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {contract.googleDocLink ? <Button variant="outline" size="sm" asChild><a href={contract.googleDocLink} target="_blank" rel="noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Google Docs</a></Button> : null}
+                        <Button variant="outline" size="sm" onClick={() => { setSelectedContract(contract); setIsPreviewOpen(true); }}><Eye className="mr-2 h-4 w-4" /> Visualizar</Button>
+                        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteContract(contract.id)}><Trash2 className="mr-2 h-4 w-4" /> Excluir</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {sortedContracts.length === 0 && <div className="py-10 text-center text-sm text-muted-foreground">Nenhum documento gerado ainda para este projeto.</div>}
+              </div>
+              <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -494,6 +521,7 @@ function GerarExportarContent() {
                   {sortedContracts.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Nenhum documento gerado ainda para este projeto.</TableCell></TableRow>}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

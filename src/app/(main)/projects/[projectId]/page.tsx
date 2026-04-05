@@ -355,7 +355,8 @@ function SyncTab({ projectId }: { projectId: string }) {
           variant="ghost" 
           size="sm"
           onClick={() => handleDownload(doc)}
-          className="shrink-0"
+          className="shrink-0 self-start sm:self-auto"
+          aria-label={`Baixar ${doc.originalFileName}`}
         >
           <Download className="h-4 w-4" />
         </Button>
@@ -366,7 +367,7 @@ function SyncTab({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-6">
       {/* Summary bar */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card className="border-emerald-200 dark:border-emerald-800">
           <CardContent className="p-4 flex items-center gap-3">
             <CheckCircle2 className="h-8 w-8 text-emerald-600 shrink-0" />
@@ -728,7 +729,7 @@ export default function ProjectDetailPage() {
 
   if (error) {
     return (
-      <div className="container py-8">
+      <div className="page-shell">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Erro</AlertTitle>
@@ -746,7 +747,7 @@ export default function ProjectDetailPage() {
         <div className="space-y-4">
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-4 w-full max-w-md" />
-          <div className="grid gap-4 md:grid-cols-3 mt-8">
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
             {[...Array(3)].map((_, i) => (
               <Skeleton key={i} className="h-32" />
             ))}
@@ -758,7 +759,7 @@ export default function ProjectDetailPage() {
 
   if (!project) {
     return (
-      <div className="container py-8">
+      <div className="page-shell">
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Projeto não encontrado</AlertTitle>
@@ -771,10 +772,10 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className="container py-8">
+    <div className="page-shell">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <Link
             href="/projects"
             className="inline-flex items-center hover:text-primary transition-colors"
@@ -786,18 +787,18 @@ export default function ProjectDetailPage() {
           <span>{project.name}</span>
         </div>
 
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
             {project.description && (
               <p className="text-muted-foreground mt-2 max-w-2xl">{project.description}</p>
             )}
-            <div className="flex items-center gap-4 mt-4">
+            <div className="mt-4 flex items-center gap-4">
               <ActiveUsersIndicator projectId={projectId} />
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Button variant="outline" asChild>
               <Link href={`/projects/${projectId}/members`}>
                 <Users className="mr-2 h-4 w-4" />
@@ -815,7 +816,7 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4 mb-8">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Documentos</CardDescription>
@@ -875,7 +876,7 @@ export default function ProjectDetailPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="documents" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 xl:w-auto">
           <TabsTrigger value="documents">Documentos</TabsTrigger>
           <TabsTrigger value="sync">Sincronização</TabsTrigger>
           <TabsTrigger value="contracts">Contratos</TabsTrigger>
@@ -883,14 +884,14 @@ export default function ProjectDetailPage() {
         </TabsList>
 
         <TabsContent value="documents">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-xl font-semibold">Documentos</h2>
           </div>
           <DocumentsTab projectId={projectId} />
         </TabsContent>
 
         <TabsContent value="sync">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-xl font-semibold">Sincronização com IA</h2>
           </div>
           <SyncTab projectId={projectId} />
@@ -901,7 +902,7 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="activity">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-xl font-semibold">Atividades Recentes</h2>
             <Button variant="outline" asChild>
               <Link href={`/projects/${projectId}/activity`}>

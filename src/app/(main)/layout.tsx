@@ -11,12 +11,12 @@ export default function MainLayout({
 }) {
   return (
     <ProtectedRoute>
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-screen flex-col overflow-x-hidden">
         <Suspense fallback={<div className="h-20 border-b bg-background/70 backdrop-blur-xl" />}>
           <Header />
         </Suspense>
         <StepIndicator />
-        <main className="flex-1 flex flex-col w-full">
+        <main id="main" className="flex w-full flex-1 flex-col">
           {children}
         </main>
         <Footer />

@@ -1,160 +1,167 @@
-
 "use client";
 
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { FileText, DraftingCompass, UploadCloud, GitCompareArrows, Sparkles, ArrowRight } from "lucide-react";
+import { ArrowRight, FileText, GitCompareArrows, LayoutTemplate, Sparkles, UploadCloud } from "lucide-react";
+import { motion } from "framer-motion";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import useLocalStorage from "@/hooks/use-local-storage";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
-import { motion } from "framer-motion";
-import { Card, CardContent } from "@/components/ui/card";
+
+const steps = [
+  {
+    icon: UploadCloud,
+    title: "1. Organize os documentos",
+    description: "Carregue os arquivos-base, acompanhe o status e extraia as entidades importantes do projeto.",
+    accent: "bg-emerald-500/10 text-emerald-600",
+  },
+  {
+    icon: LayoutTemplate,
+    title: "2. Escolha os modelos",
+    description: "Selecione os modelos de contrato adequados e prepare o contexto para geração com menos retrabalho.",
+    accent: "bg-primary/10 text-primary",
+  },
+  {
+    icon: GitCompareArrows,
+    title: "3. Revise com clareza",
+    description: "Compare versões, ajuste o conteúdo e exporte o documento final quando tudo estiver validado.",
+    accent: "bg-amber-500/10 text-amber-600",
+  },
+];
 
 export default function ComeceAquiPage() {
-    const { clientName, setClientName, yourName, setYourName, isLoading } = useUserPreferences();
+  const { clientName, setClientName, yourName, setYourName, isLoading } = useUserPreferences();
 
-    if (isLoading) {
-        return (
-            <main id="main" className="relative w-full overflow-hidden">
-                <div className="flex items-center justify-center min-h-[50vh]">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-            </main>
-        );
-    }
-
+  if (isLoading) {
     return (
-        <main id="main" className="relative w-full overflow-hidden">
-            {/* Background Decoration - Full Width Persistence */}
-            <div className="absolute top-0 left-0 w-full h-[1000px] bg-gradient-to-b from-primary/10 via-primary/5 to-transparent -z-10" />
-
-            <div className="container relative pb-20">
-
-                <section className="mx-auto flex max-w-5xl flex-col items-center justify-center py-20 text-center md:py-32">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5 }}
-                        className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary mb-8"
-                    >
-                        <Sparkles className="h-4 w-4" aria-hidden="true" />
-                        <span className="text-[11px] font-medium tracking-wide">Conheça o ALEX no canto direito inferior da tela.</span>
-                    </motion.div>
-
-                    <motion.h1
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.1 }}
-                        className="text-5xl font-serif font-bold leading-[1.1] tracking-tight md:text-7xl text-primary"
-                    >
-                        Assistente de Contratos V-Lab
-                    </motion.h1>
-
-                    <motion.p
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.2 }}
-                        className="mt-8 max-w-2xl text-muted-foreground text-lg md:text-xl font-outfit leading-relaxed"
-                    >
-                        Sua ferramenta inteligente para criar, gerenciar e preencher minutas de contratos de cooperação de forma rápida e eficiente.
-                    </motion.p>
-
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.5, delay: 0.3 }}
-                        className="mt-12 w-full max-w-md p-8 rounded-[2.5rem] glass dark:glass-dark shadow-2xl relative"
-                    >
-                        <div className="space-y-6">
-                            <div className="grid w-full items-center gap-2.5 text-left">
-                                <Label htmlFor="client-name" className="text-[10px] font-bold uppercase tracking-widest text-primary/60 ml-2">Nome do Projeto (Opcional)</Label>
-                                <Input
-                                    type="text"
-                                    id="client-name"
-                                    placeholder="Ex: Contrato de Prestação de Serviços"
-                                    className="h-14 rounded-2xl bg-white/50 dark:bg-black/20 border-border/50 focus:ring-primary/20 font-outfit text-base px-5"
-                                    value={clientName}
-                                    onChange={(e) => setClientName(e.target.value)}
-                                />
-                            </div>
-                            <div className="grid w-full items-center gap-2.5 text-left">
-                                <Label htmlFor="your-name" className="text-[10px] font-bold uppercase tracking-widest text-primary/60 ml-2">Nome do Cliente (Opcional)</Label>
-                                <Input
-                                    type="text"
-                                    id="your-name"
-                                    placeholder="Nome da empresa ou cliente"
-                                    className="h-14 rounded-2xl bg-white/50 dark:bg-black/20 border-border/50 focus:ring-primary/20 font-outfit text-base px-5"
-                                    value={yourName}
-                                    onChange={(e) => setYourName(e.target.value)}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="mt-10 flex flex-col gap-4">
-                            <Button
-                                size="lg"
-                                className="h-16 text-lg font-bold rounded-2xl shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 transition-all active:scale-95"
-                                asChild
-                            >
-                                <Link href="/projects/new">
-                                    Começar a Gerar um Projeto <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
-                                </Link>
-                            </Button>
-                            <Button variant="outline" size="lg" className="h-14 text-base font-bold rounded-2xl border-2 hover:bg-primary/5 transition-all" asChild>
-                                <Link href="/projects">Visualizar Projetos</Link>
-                            </Button>
-                        </div>
-                    </motion.div>
-                </section>
-
-                <section className="py-20">
-                    <div className="mx-auto max-w-6xl">
-                        <div className="text-center mb-16">
-                            <h2 className="text-4xl font-serif font-bold text-primary">Como Funciona</h2>
-                            <p className="text-muted-foreground mt-4 text-lg font-outfit italic opacity-80">Siga estes simples passos para otimizar seu fluxo de trabalho.</p>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
-                            <Card glass className="relative group overflow-hidden border-none shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 rounded-[2rem]">
-                                <CardContent className="p-10 flex flex-col items-center text-center">
-                                    <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-500/10 text-emerald-600 mb-8 group-hover:scale-110 transition-transform shadow-inner">
-                                        <UploadCloud size={40} aria-hidden="true" />
-                                    </div>
-                                    <h3 className="text-2xl font-serif font-bold text-primary mb-4">1. Analise e Indexe</h3>
-                                    <p className="text-muted-foreground font-outfit leading-relaxed">
-                                        Na aba "Documentos Iniciais", carregue seus arquivos, receba feedback da IA e indexe o conteúdo para extrair as entidades importantes dos documentos principais.
-                                    </p>
-                                </CardContent>
-                            </Card>
-
-                            <Card glass className="relative group overflow-hidden border-none shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 rounded-[2rem]">
-                                <CardContent className="p-10 flex flex-col items-center text-center">
-                                    <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-primary mb-8 group-hover:scale-110 transition-transform shadow-inner">
-                                        <FileText size={40} aria-hidden="true" />
-                                    </div>
-                                    <h3 className="text-2xl font-serif font-bold text-primary mb-4">2. Gerar Documentos</h3>
-                                    <p className="text-muted-foreground font-outfit leading-relaxed">
-                                        Selecione modelos e use as entidades extraídas para gerar novos documentos preenchidos com IA na aba "Gerar e Revisar".
-                                    </p>
-                                </CardContent>
-                            </Card>
-
-                            <Card glass className="relative group overflow-hidden border-none shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 rounded-[2rem]">
-                                <CardContent className="p-10 flex flex-col items-center text-center">
-                                    <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-accent/10 text-accent mb-8 group-hover:scale-110 transition-transform shadow-inner">
-                                        <GitCompareArrows size={40} aria-hidden="true" />
-                                    </div>
-                                    <h3 className="text-2xl font-serif font-bold text-primary mb-4">3. Analisar Contratos</h3>
-                                    <p className="text-muted-foreground font-outfit leading-relaxed">
-                                        Compare as minutas geradas com a ajuda da IA, revise, edite e exporte os documentos finais em Markdown ou .DOCX na aba "Revisar Documentos".
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </div>
-                </section>
-            </div>
-        </main>
+      <main id="main" className="page-shell flex min-h-[50vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      </main>
     );
+  }
+
+  return (
+    <main id="main" className="relative overflow-hidden">
+      <div className="absolute inset-x-0 top-0 h-[32rem] bg-gradient-to-b from-primary/10 via-primary/5 to-transparent" />
+
+      <section className="page-shell relative">
+        <div className="page-width-wide page-stack">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(20rem,24rem)] lg:items-end">
+            <div className="max-w-3xl space-y-6">
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-primary"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Alex disponível no canto inferior direito
+              </motion.div>
+              <motion.h1
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="max-w-3xl text-4xl font-serif font-bold leading-tight tracking-tight text-primary sm:text-5xl lg:text-6xl"
+              >
+                Comece com um fluxo mais claro para montar e revisar contratos.
+              </motion.h1>
+              <motion.p
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg"
+              >
+                Defina o contexto do projeto, deixe os dados importantes à mão e avance para geração e revisão sem perder a visão geral do processo.
+              </motion.p>
+            </div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="surface-panel p-5 sm:p-6"
+            >
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="client-name" className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    Nome do projeto
+                  </Label>
+                  <Input
+                    type="text"
+                    id="client-name"
+                    placeholder="Ex.: Contrato de prestação de serviços"
+                    className="h-12 rounded-2xl"
+                    value={clientName}
+                    onChange={(event) => setClientName(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="your-name" className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    Nome do cliente
+                  </Label>
+                  <Input
+                    type="text"
+                    id="your-name"
+                    placeholder="Empresa ou contraparte principal"
+                    className="h-12 rounded-2xl"
+                    value={yourName}
+                    onChange={(event) => setYourName(event.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-3 pt-2">
+                  <Button size="lg" className="h-12 rounded-2xl text-base font-semibold" asChild>
+                    <Link href="/projects/new">
+                      Criar novo projeto
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button variant="outline" size="lg" className="h-12 rounded-2xl text-base font-semibold" asChild>
+                    <Link href="/projects">Ver projetos existentes</Link>
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          <section className="page-stack">
+            <div className="max-w-2xl space-y-2">
+              <h2 className="text-2xl font-serif font-bold text-primary sm:text-3xl">Como funciona</h2>
+              <p className="page-description">As próximas etapas mantêm o trabalho orientado por contexto, com menos dependência de painéis apertados e interfaces rígidas.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {steps.map((step) => (
+                <Card key={step.title} className="h-full">
+                  <CardContent className="flex h-full flex-col gap-4 p-5 sm:p-6">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${step.accent}`}>
+                      <step.icon className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold text-foreground">{step.title}</h3>
+                      <p className="text-sm leading-6 text-muted-foreground">{step.description}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+
+          <section className="surface-panel flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-2">
+              <h2 className="text-2xl font-serif font-bold text-primary">Pronto para continuar?</h2>
+              <p className="text-sm leading-6 text-muted-foreground sm:text-base">
+                Você pode criar um projeto agora ou retomar um fluxo existente a partir da área de projetos.
+              </p>
+            </div>
+            <Button variant="outline" size="lg" className="h-12 rounded-2xl text-base font-semibold" asChild>
+              <Link href="/gerar-exportar">
+                <FileText className="h-4 w-4" />
+                Ir para gerar e revisar
+              </Link>
+            </Button>
+          </section>
+        </div>
+      </section>
+    </main>
+  );
 }

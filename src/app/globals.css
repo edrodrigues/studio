@@ -53,9 +53,43 @@
   * {
     @apply border-border;
   }
+  html {
+    scroll-behavior: smooth;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply overflow-x-hidden bg-background text-foreground;
+    min-height: 100svh;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+  main {
+    min-width: 0;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+  p,
+  li,
+  dd,
+  dt {
+    overflow-wrap: anywhere;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
@@ -65,5 +99,41 @@
   }
   .glass-dark {
     @apply bg-black/40 backdrop-blur-md border border-white/10 shadow-2xl;
+  }
+  .page-shell {
+    @apply w-full px-4 py-6 sm:px-6 sm:py-8 lg:px-8;
+  }
+  .page-width {
+    @apply mx-auto w-full max-w-6xl;
+  }
+  .page-width-wide {
+    @apply mx-auto w-full max-w-7xl;
+  }
+  .page-stack {
+    @apply flex flex-col gap-6 sm:gap-8;
+  }
+  .page-header {
+    @apply flex flex-col gap-4 md:flex-row md:items-end md:justify-between;
+  }
+  .page-title {
+    @apply text-3xl font-semibold tracking-tight sm:text-4xl;
+  }
+  .page-description {
+    @apply max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base;
+  }
+  .surface-panel {
+    @apply rounded-2xl border border-border/70 bg-card shadow-sm;
+  }
+  .surface-muted {
+    @apply rounded-2xl border border-border/60 bg-muted/30;
+  }
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .safe-top {
+    padding-top: max(0rem, env(safe-area-inset-top));
+  }
+  .mobile-scroll-shadow {
+    mask-image: linear-gradient(to right, transparent, black 1rem, black calc(100% - 1rem), transparent);
   }
 }

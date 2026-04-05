@@ -100,6 +100,7 @@ export function NotificationsDropdown() {
           variant="ghost"
           size="icon"
           className="relative h-10 w-10 rounded-2xl hover:bg-primary/5 transition-colors"
+          aria-label="Abrir notificações"
         >
           <Bell className="h-5 w-5 text-muted-foreground" />
           {unreadCount > 0 && (
@@ -114,7 +115,7 @@ export function NotificationsDropdown() {
       </DropdownMenuTrigger>
       
       <DropdownMenuContent
-        className="w-96 rounded-2xl p-0 glass dark:glass-dark border-border/50 shadow-2xl"
+        className="w-[min(24rem,calc(100vw-1rem))] rounded-2xl border-border/50 p-0 shadow-2xl"
         align="end"
       >
         <div className="flex items-center justify-between p-4 border-b border-border/50">
@@ -134,7 +135,7 @@ export function NotificationsDropdown() {
           )}
         </div>
 
-        <ScrollArea className="h-[400px]">
+        <ScrollArea className="max-h-[min(24rem,60vh)]">
           {isLoading ? (
             <div className="p-4 text-center text-muted-foreground">
               Carregando notificações...

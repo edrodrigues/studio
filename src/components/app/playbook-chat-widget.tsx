@@ -1,323 +1,310 @@
 "use client";
 
-import { useState, useTransition, useRef, useEffect, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { format } from "date-fns";
+import ReactMarkdown from "react-markdown";
+import { useParams, useSearchParams } from "next/navigation";
+import {
+  Check,
+  Frown,
+  Loader2,
+  Meh,
+  MessageCircle,
+  Minus,
+  Send,
+  Smile,
+  Sparkles,
+  X,
+} from "lucide-react";
+
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-    Loader2,
-    Send,
-    X,
-    Minus,
-    MessageCircle,
-    Smile,
-    Meh,
-    Frown,
-    Check,
-    Sparkles,
-} from "lucide-react";
-import { handleGetPlaybookAssistance, handleSavePlaybookFeedback } from "@/lib/actions";
-import ReactMarkdown from "react-markdown";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 import { useAuthContext } from "@/context/auth-context";
-import { useParams, useSearchParams } from "next/navigation";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
+import { handleGetPlaybookAssistance, handleSavePlaybookFeedback } from "@/lib/actions";
 
 interface Message {
-    role: "user" | "model";
-    content: string;
-    timestamp: Date;
-    feedback?: 'positive' | 'neutral' | 'negative';
+  role: "user" | "model";
+  content: string;
+  timestamp: Date;
+  feedback?: "positive" | "neutral" | "negative";
 }
 
 function useCurrentProjectId(): string | undefined {
-    const params = useParams();
-    const searchParams = useSearchParams();
-    const fromPath = params?.projectId as string | undefined;
-    const fromQuery = searchParams.get('projectId');
-    return fromPath || fromQuery || undefined;
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const fromPath = params?.projectId as string | undefined;
+  const fromQuery = searchParams.get("projectId");
+  return fromPath || fromQuery || undefined;
 }
 
 export function PlaybookChatWidget() {
-    const { user } = useAuthContext();
-    const projectId = useCurrentProjectId();
-    const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            role: "model",
-            content: "Olá! Sou o **Alex**, seu especialista no Playbook de Contratos do V-Lab. Como posso ajudar você hoje?",
-            timestamp: new Date(),
-        }
-    ]);
-    const [input, setInput] = useState("");
-    const [isPending, startTransition] = useTransition();
-    const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuthContext();
+  const isMobile = useIsMobile();
+  const projectId = useCurrentProjectId();
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (scrollAreaRef.current) {
-            const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-            if (viewport) {
-                viewport.scrollTop = viewport.scrollHeight;
-            }
-        }
-    }, [messages, isOpen, isPending]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: "model",
+      content: "Olá! Sou o **Alex**, seu especialista no Playbook de Contratos do V-Lab. Como posso ajudar você hoje?",
+      timestamp: new Date(),
+    },
+  ]);
+  const [isPending, startTransition] = useTransition();
 
+  useEffect(() => {
+    const viewport = scrollAreaRef.current?.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
+    if (viewport) {
+      viewport.scrollTop = viewport.scrollHeight;
+    }
+  }, [messages, isOpen, isPending]);
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!input.trim() || isPending) return;
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!input.trim() || isPending) return;
 
-        const userMessage: Message = {
-            role: "user",
-            content: input,
-            timestamp: new Date()
-        };
+    const userMessage: Message = { role: "user", content: input, timestamp: new Date() };
+    const nextMessages = [...messages, userMessage];
 
-        const newMessages = [...messages, userMessage];
-        setMessages(newMessages);
-        const currentInput = input;
-        setInput("");
+    setMessages(nextMessages);
+    setInput("");
 
-        startTransition(async () => {
-            const history = newMessages.map(m => ({ role: m.role, content: m.content }));
-            const res = await handleGetPlaybookAssistance({
-                query: currentInput,
-                history: history.slice(-6),
-                projectId,
-            });
+    startTransition(async () => {
+      const history = nextMessages.map((message) => ({ role: message.role, content: message.content }));
+      const response = await handleGetPlaybookAssistance({
+        query: userMessage.content,
+        history: history.slice(-6),
+        projectId,
+      });
 
-            if (res.success && res.data) {
-                const assistantMessage: Message = {
-                    role: "model",
-                    content: res.data.answer,
-                    timestamp: new Date()
-                };
-                setMessages((prev) => [...prev, assistantMessage]);
-            } else {
-                const errorMessage: Message = {
-                    role: "model",
-                    content: `Desculpe, ocorreu um erro: ${res.error || "Tente novamente mais tarde."}`,
-                    timestamp: new Date()
-                };
-                setMessages((prev) => [...prev, errorMessage]);
-            }
-        });
-    };
+      const message: Message = {
+        role: "model",
+        content: response.success && response.data
+          ? response.data.answer
+          : `Desculpe, ocorreu um erro: ${response.error || "Tente novamente mais tarde."}`,
+        timestamp: new Date(),
+      };
 
-    const handleFeedback = (index: number, type: 'positive' | 'neutral' | 'negative') => {
-        const message = messages[index];
-        const prevUserMessage = messages[index - 1];
-        const query = prevUserMessage?.role === 'user' ? prevUserMessage.content : 'N/A';
+      setMessages((current) => [...current, message]);
+    });
+  };
 
-        setMessages(prev => {
-            const next = [...prev];
-            next[index] = { ...next[index], feedback: type };
-            return next;
-        });
+  const handleFeedback = (index: number, type: "positive" | "neutral" | "negative") => {
+    const message = messages[index];
+    const previousUserMessage = messages[index - 1];
+    const query = previousUserMessage?.role === "user" ? previousUserMessage.content : "N/A";
 
-        startTransition(async () => {
-            await handleSavePlaybookFeedback({
-                query,
-                answer: message.content,
-                feedback: type,
-                userId: user?.uid,
-                userName: user?.displayName || user?.email?.split('@')[0],
-            });
-        });
-    };
+    setMessages((current) => {
+      const next = [...current];
+      next[index] = { ...next[index], feedback: type };
+      return next;
+    });
 
-    return (
-        <>
-            <AnimatePresence>
-                {!isOpen && (
-                    <motion.div
-                        initial={{ scale: 0, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0, opacity: 0 }}
-                        className="fixed bottom-6 right-6 z-50"
+    startTransition(async () => {
+      await handleSavePlaybookFeedback({
+        query,
+        answer: message.content,
+        feedback: type,
+        userId: user?.uid,
+        userName: user?.displayName || user?.email?.split("@")[0],
+      });
+    });
+  };
+
+  return (
+    <>
+      <AnimatePresence>
+        {!isOpen ? (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            className="fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6"
+          >
+            <Button
+              onClick={() => setIsOpen(true)}
+              className="flex h-14 w-14 items-center justify-center rounded-full bg-primary p-0 text-primary-foreground shadow-2xl transition-transform hover:scale-110 active:scale-95"
+              aria-label="Abrir assistente Alex"
+            >
+              <MessageCircle className="h-6 w-6" />
+            </Button>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isOpen ? (
+          <motion.section
+            initial={{ y: 100, opacity: 0, scale: 0.96 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 100, opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.25, ease: "circOut" }}
+            className={cn(
+              "fixed z-50 flex flex-col overflow-hidden border border-border/60 bg-background shadow-[0_20px_50px_rgba(0,0,0,0.2)]",
+              isMobile
+                ? "inset-x-0 bottom-0 h-[min(85svh,46rem)] rounded-t-[1.75rem] safe-bottom"
+                : "bottom-6 right-6 h-[min(75svh,42rem)] w-[min(26rem,calc(100vw-2rem))] rounded-3xl"
+            )}
+          >
+            <div className="bg-primary/95 p-4 text-primary-foreground sm:p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-11 w-11 border border-white/20 bg-white/10">
+                    <AvatarFallback className="bg-transparent text-primary-foreground">
+                      <Sparkles className="h-5 w-5" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h2 className="flex items-center gap-1.5 font-serif text-lg font-bold">
+                      Alex
+                      <Sparkles className="h-3.5 w-3.5 text-accent" />
+                    </h2>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-primary-foreground/75">IA do V-Lab Studio</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-full text-white hover:bg-white/10"
+                    onClick={() => setIsOpen(false)}
+                    aria-label="Minimizar assistente"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-full text-white hover:bg-white/10"
+                    onClick={() => setIsOpen(false)}
+                    aria-label="Fechar assistente"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <ScrollArea ref={scrollAreaRef} className="flex-1 bg-muted/10 p-4 sm:p-5">
+              <div className="space-y-6 pb-2">
+                {messages.map((message, index) => (
+                  <motion.div
+                    key={`${message.role}-${index}`}
+                    initial={{ opacity: 0, x: message.role === "user" ? 20 : -20, y: 10 }}
+                    animate={{ opacity: 1, x: 0, y: 0 }}
+                    className={cn("flex flex-col gap-2", message.role === "user" ? "items-end" : "items-start")}
+                  >
+                    <div
+                      className={cn(
+                        "max-w-[92%] rounded-2xl p-4 text-sm shadow-sm",
+                        message.role === "user"
+                          ? "rounded-tr-none bg-primary text-primary-foreground"
+                          : "rounded-tl-none border border-border/60 bg-background text-foreground"
+                      )}
                     >
-                        <Button
-                            onClick={() => setIsOpen(true)}
-                            className="h-14 w-14 rounded-full shadow-2xl bg-primary text-primary-foreground transition-transform hover:scale-110 active:scale-95 flex items-center justify-center p-0"
-                        >
-                            <MessageCircle className="h-6 w-6" />
-                        </Button>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                      <ReactMarkdown className="prose prose-sm max-w-none break-words leading-6 dark:prose-invert">
+                        {message.content}
+                      </ReactMarkdown>
+                      <span className={cn("mt-2 block text-[10px] opacity-60", message.role === "user" ? "text-right" : "text-left")}>
+                        {format(message.timestamp, "HH:mm")}
+                      </span>
 
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div
-                        initial={{ y: 100, opacity: 0, scale: 0.95 }}
-                        animate={{ y: 0, opacity: 1, scale: 1 }}
-                        exit={{ y: 100, opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.3, ease: "circOut" }}
-                        className="fixed bottom-6 right-6 w-[400px] h-[600px] flex flex-col rounded-3xl overflow-hidden glass dark:glass-dark shadow-[0_20px_50px_rgba(0,0,0,0.3)] z-50"
-                    >
-                        {/* Header */}
-                        <div className="bg-primary/90 p-5 flex flex-col gap-2 text-primary-foreground backdrop-blur-sm">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="relative">
-                                        <Avatar className="h-12 w-12 border-2 border-white/20 shadow-lg bg-gradient-to-br from-primary/80 to-accent">
-                                            <AvatarFallback className="bg-transparent text-primary-foreground">
-                                                <Sparkles className="h-6 w-6" />
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <motion.div
-                                            animate={{ scale: [1, 1.2, 1] }}
-                                            transition={{ repeat: Infinity, duration: 2 }}
-                                            className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-400 border-2 border-primary rounded-full"
-                                        />
-                                    </div>
-                                    <div>
-                                        <h2 className="font-serif font-bold text-xl leading-none flex items-center gap-1.5">
-                                            Alex <Sparkles className="h-3.5 w-3.5 text-accent" />
-                                        </h2>
-                                        <p className="text-[10px] opacity-70 mt-1 uppercase tracking-[0.2em] font-medium">IA do V-Lab Studio</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-9 w-9 hover:bg-white/10 text-white rounded-full"
-                                        onClick={() => setIsOpen(false)}
-                                    >
-                                        <Minus className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-9 w-9 hover:bg-white/10 text-white rounded-full"
-                                        onClick={() => setIsOpen(false)}
-                                    >
-                                        <X className="h-4 w-4" />
-                                    </Button>
-                                </div>
+                      {message.role === "model" && index === messages.length - 1 && !isPending ? (
+                        <div className="mt-4 border-t border-border/40 pt-3">
+                          <p className="mb-3 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                            {message.feedback ? "Feedback Recebido" : "Feedback"}
+                          </p>
+                          {message.feedback ? (
+                            <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-primary">
+                              <Check className="h-3.5 w-3.5" />
+                              Enviado com sucesso
                             </div>
-                        </div>
-
-
-                        {/* Chat Area */}
-                        <ScrollArea className="flex-1 p-5 bg-transparent" ref={scrollAreaRef}>
-                            <div className="space-y-8 pb-4">
-                                {messages.map((message, index) => (
-                                    <motion.div
-                                        initial={{ opacity: 0, x: message.role === "user" ? 20 : -20, y: 10 }}
-                                        animate={{ opacity: 1, x: 0, y: 0 }}
-                                        key={index}
-                                        className={cn(
-                                            "flex flex-col gap-1.5",
-                                            message.role === "user" ? "items-end" : "items-start"
-                                        )}
-                                    >
-                                        <div
-                                            className={cn(
-                                                "max-w-[88%] rounded-2xl p-4 text-sm relative group transition-all",
-                                                message.role === "user"
-                                                    ? "bg-primary text-primary-foreground rounded-tr-none shadow-md"
-                                                    : "bg-background/80 dark:bg-zinc-900/80 backdrop-blur-sm text-foreground rounded-tl-none border border-border/50 shadow-lg"
-                                            )}
-                                        >
-                                            <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none overflow-hidden break-words leading-relaxed font-outfit">
-                                                {message.content}
-                                            </ReactMarkdown>
-
-                                            <span className={cn(
-                                                "text-[9px] opacity-40 font-medium tracking-tight block mt-2.5",
-                                                message.role === "user" ? "text-right" : "text-left"
-                                            )}>
-                                                {format(message.timestamp, "HH:mm")}
-                                            </span>
-
-                                            {message.role === "model" && index === messages.length - 1 && !isPending && (
-                                                <motion.div
-                                                    initial={{ opacity: 0, y: 10 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    className="mt-5 pt-4 border-t border-border/30"
-                                                >
-                                                    <p className="text-[10px] font-bold mb-3 text-center uppercase tracking-widest opacity-40">
-                                                        {message.feedback ? "Feedback Recebido" : "Feedback"}
-                                                    </p>
-                                                    <div className="flex justify-center gap-6">
-                                                        {message.feedback ? (
-                                                            <div className="flex items-center gap-1.5 text-primary text-[11px] font-bold">
-                                                                <Check className="h-3.5 w-3.5" /> Enviado com sucesso
-                                                            </div>
-                                                        ) : (
-                                                            <>
-                                                                <button onClick={() => handleFeedback(index, 'negative')} className="p-2.5 rounded-full hover:bg-red-50 dark:hover:bg-red-950/20 text-red-400 transition-all hover:scale-125">
-                                                                    <Frown className="h-6 w-6" />
-                                                                </button>
-                                                                <button onClick={() => handleFeedback(index, 'neutral')} className="p-2.5 rounded-full hover:bg-amber-50 dark:hover:bg-amber-950/20 text-amber-400 transition-all hover:scale-125">
-                                                                    <Meh className="h-6 w-6" />
-                                                                </button>
-                                                                <button onClick={() => handleFeedback(index, 'positive')} className="p-2.5 rounded-full hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-emerald-500 transition-all hover:scale-125">
-                                                                    <Smile className="h-6 w-6" />
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </motion.div>
-                                            )}
-                                        </div>
-                                    </motion.div>
-                                ))}
-                                {isPending && (
-                                    <motion.div
-                                        initial={{ opacity: 0, scale: 0.8 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        className="flex flex-col items-start gap-1"
-                                    >
-                                        <div className="bg-background/80 dark:bg-zinc-900/80 backdrop-blur-sm rounded-2xl rounded-tl-none p-5 shadow-lg border border-border/50">
-                                            <div className="flex gap-2 items-center">
-                                                <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0 }} className="w-2 h-2 bg-primary rounded-full" />
-                                                <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 bg-primary rounded-full" />
-                                                <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 bg-primary rounded-full" />
-                                                <span className="text-[10px] text-muted-foreground ml-2 font-bold uppercase tracking-widest">Alex está analisando...</span>
-                                            </div>
-                                        </div>
-                                    </motion.div>
-                                )}
+                          ) : (
+                            <div className="flex justify-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => handleFeedback(index, "negative")}
+                                className="rounded-full p-2.5 text-red-400 transition-all hover:scale-110 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                aria-label="Marcar resposta como negativa"
+                              >
+                                <Frown className="h-5 w-5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleFeedback(index, "neutral")}
+                                className="rounded-full p-2.5 text-amber-400 transition-all hover:scale-110 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                                aria-label="Marcar resposta como neutra"
+                              >
+                                <Meh className="h-5 w-5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleFeedback(index, "positive")}
+                                className="rounded-full p-2.5 text-emerald-500 transition-all hover:scale-110 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                                aria-label="Marcar resposta como positiva"
+                              >
+                                <Smile className="h-5 w-5" />
+                              </button>
                             </div>
-                        </ScrollArea>
-
-                        {/* Input Area */}
-                        <div className="p-5 border-t bg-background/50 backdrop-blur-md">
-                            <form onSubmit={handleSubmit} className="flex items-end gap-3">
-                                <div className="flex-1 bg-muted/80 backdrop-blur-sm rounded-2xl p-1.5 focus-within:ring-2 ring-primary/20 transition-all group">
-                                    <textarea
-                                        value={input}
-                                        onChange={(e) => setInput(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && !e.shiftKey) {
-                                                e.preventDefault();
-                                                handleSubmit(e);
-                                            }
-                                        }}
-                                        placeholder="Tire suas dúvidas agora..."
-                                        className="w-full bg-transparent border-none focus:ring-0 text-sm p-3 resize-none max-h-32 min-h-[44px] font-outfit"
-                                        disabled={isPending}
-                                        rows={1}
-                                    />
-                                </div>
-                                <Button
-                                    type="submit"
-                                    size="icon"
-                                    disabled={isPending || !input.trim()}
-                                    className="h-12 w-12 rounded-2xl shadow-lg transition-all active:scale-90 bg-primary hover:bg-primary/90"
-                                >
-                                    {isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                                </Button>
-                            </form>
-                            <p className="text-[9px] text-center mt-3 text-muted-foreground italic font-medium">Alex pode cometer erros. Verifique informações importantes.</p>
+                          )}
                         </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </>
-    );
+                      ) : null}
+                    </div>
+                  </motion.div>
+                ))}
+
+                {isPending ? (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start">
+                    <div className="rounded-2xl rounded-tl-none border border-border/60 bg-background p-4 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Alex está analisando…</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ) : null}
+              </div>
+            </ScrollArea>
+
+            <div className="border-t bg-background/95 p-4 backdrop-blur-md sm:p-5">
+              <form onSubmit={handleSubmit} className="flex items-end gap-3">
+                <div className="flex-1 rounded-2xl border border-border/70 bg-muted/60 p-1.5 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10">
+                  <textarea
+                    value={input}
+                    onChange={(event) => setInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        handleSubmit(event);
+                      }
+                    }}
+                    placeholder="Tire suas dúvidas agora…"
+                    className="min-h-[44px] max-h-32 w-full resize-none border-none bg-transparent p-3 text-sm focus:ring-0"
+                    disabled={isPending}
+                    rows={1}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={isPending || !input.trim()}
+                  className="h-12 w-12 rounded-2xl bg-primary hover:bg-primary/90"
+                  aria-label="Enviar mensagem"
+                >
+                  {isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                </Button>
+              </form>
+              <p className="mt-3 text-center text-[10px] text-muted-foreground">Alex pode cometer erros. Verifique informações importantes.</p>
+            </div>
+          </motion.section>
+        ) : null}
+      </AnimatePresence>
+    </>
+  );
 }

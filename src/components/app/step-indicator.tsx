@@ -1,15 +1,14 @@
-
 "use client";
 
-import { usePathname, useParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
+import { CheckCircle2, FilePlus, FolderOpen, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Home, FolderOpen, FilePlus, CheckCircle } from "lucide-react";
-import { useEffect, useState } from "react";
 
 const steps = [
   { href: "/como-usar", label: "Comece Aqui", icon: Home },
-  { href: "/projects", label: "Documentos do Projeto", icon: FolderOpen },
-  { href: "/gerar-exportar", label: "Gerar e Revisar", icon: FilePlus },
+  { href: "/projects", label: "Documentos", icon: FolderOpen },
+  { href: "/gerar-exportar", label: "Gerar & Revisar", icon: FilePlus },
 ];
 
 function Step({
@@ -24,115 +23,79 @@ function Step({
   isCompleted: boolean;
 }) {
   return (
-    <div className="relative z-10 flex w-28 flex-col items-center gap-2 text-center">
+    <div className="relative z-10 flex min-w-0 flex-1 flex-col items-center gap-2 text-center">
       <div
         className={cn(
-          "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors duration-300",
+          "flex h-9 w-9 items-center justify-center rounded-full border transition-colors sm:h-10 sm:w-10",
           isActive
             ? "border-primary bg-primary text-primary-foreground"
             : isCompleted
-              ? "border-primary bg-primary/20 text-primary"
+              ? "border-primary/30 bg-primary/10 text-primary"
               : "border-border bg-card text-muted-foreground"
         )}
       >
-        <Icon className="h-5 w-5" />
+        {isCompleted && !isActive ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
       </div>
-      <p
-        className={cn(
-          "mt-1 text-xs font-medium transition-colors duration-300",
-          isActive || isCompleted ? "text-foreground" : "text-muted-foreground"
-        )}
-      >
+      <p className={cn("text-[11px] font-medium leading-4 sm:text-xs", isActive || isCompleted ? "text-foreground" : "text-muted-foreground")}>
         {label}
       </p>
     </div>
   );
 }
 
-function StepIndicatorSkeleton() {
-  return (
-    <div className="border-b bg-background">
-      <div className="container py-4">
-        <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-          <div className="absolute left-1/2 top-5 h-0.5 w-[calc(100%-112px)] -translate-x-1/2 bg-border" />
-          {steps.map((step) => (
-            <Step
-              key={step.href}
-              icon={step.icon}
-              label={step.label}
-              isActive={false}
-              isCompleted={false}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function StepIndicator() {
   const pathname = usePathname();
-  const params = useParams();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  if (!isMounted) {
-    return <StepIndicatorSkeleton />;
-  }
+  const currentActiveIndex = useMemo(() => {
+    if (pathname.startsWith("/projects") || pathname.startsWith("/documentos-iniciais")) return 1;
+    if (pathname.startsWith("/preencher")) return steps.length - 1;
+    const currentIndex = steps.findIndex((step) => pathname.startsWith(step.href));
+    return currentIndex > -1 ? currentIndex : 0;
+  }, [pathname]);
 
-  // Modelos and feedback are not part of the main flow
-  if (pathname.startsWith('/modelos') || pathname.startsWith('/feedback')) {
+  if (!isMounted || pathname.startsWith("/modelos") || pathname.startsWith("/feedback")) {
     return null;
   }
 
-  const getActiveIndex = () => {
-    // Project detail pages (documents upload/manage) → step 2 (Documentos do Projeto)
-    if (pathname.startsWith("/projects")) return 1;
-
-    // Legacy: the old /documentos-iniciais route also maps to step 2
-    if (pathname.startsWith("/documentos-iniciais")) return 1;
-
-    // Filling a contract (/preencher) is part of the last step
-    if (pathname.startsWith("/preencher")) return steps.length - 1;
-
-    const currentIndex = steps.findIndex((step) =>
-      (step.href !== "/" && pathname.startsWith(step.href)) ||
-      (step.href === "/" && pathname === "/")
-    );
-    return currentIndex > -1 ? currentIndex : 0;
-  };
-
-  const currentActiveIndex = getActiveIndex();
+  const currentStep = steps[currentActiveIndex];
 
   return (
-    <div className="border-b bg-background">
-      <div className="container py-4">
-        <div className="relative mx-auto flex max-w-4xl items-start justify-between">
-          <div className="absolute left-1/2 top-5 flex h-0.5 w-[calc(100%-112px)] -translate-x-1/2">
-            {Array.from({ length: steps.length - 1 }).map((_, index) => (
-              <div key={`line-bg-${index}`} className="relative h-full flex-1 bg-border">
-                <div
-                  className={cn(
-                    "absolute h-full w-full origin-left bg-primary transition-transform duration-500",
-                    index < currentActiveIndex ? "scale-x-100" : "scale-x-0"
-                  )}
-                />
+    <div className="border-b bg-background/95">
+      <div className="page-shell py-3">
+        <div className="page-width">
+          <div className="rounded-2xl border border-border/60 bg-muted/20 px-3 py-3 sm:px-4">
+            <div className="mb-3 flex items-center justify-between gap-3 sm:hidden">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Fluxo Atual</p>
+                <p className="text-sm font-semibold text-foreground">{currentStep.label}</p>
               </div>
-            ))}
-          </div>
+              <p className="text-xs text-muted-foreground">
+                Etapa {currentActiveIndex + 1} de {steps.length}
+              </p>
+            </div>
 
-          {steps.map((step, index) => (
-            <Step
-              key={step.href}
-              icon={step.icon}
-              label={step.label}
-              isActive={index === currentActiveIndex}
-              isCompleted={index < currentActiveIndex}
-            />
-          ))}
+            <div className="relative mx-auto flex max-w-4xl items-start justify-between gap-3">
+              <div className="absolute left-0 right-0 top-4 hidden h-px bg-border sm:block" />
+              <div
+                className="absolute left-0 top-4 hidden h-px bg-primary transition-all duration-500 sm:block"
+                style={{ width: `${(currentActiveIndex / (steps.length - 1)) * 100}%` }}
+              />
+              {steps.map((step, index) => (
+                <Step
+                  key={step.href}
+                  icon={step.icon}
+                  label={step.label}
+                  isActive={index === currentActiveIndex}
+                  isCompleted={index < currentActiveIndex}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

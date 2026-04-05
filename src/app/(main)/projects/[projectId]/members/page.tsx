@@ -60,6 +60,7 @@ import { useUser } from '@/firebase';
 import { ProjectRole, type ProjectMember } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { PageHeader } from '@/components/app/page-header';
 
 // Role config for display
 const roleConfig: Record<
@@ -114,17 +115,17 @@ function MemberListItem({
   const canChangeThisMember = canManage && !isCurrentUser && member.role !== 'owner';
 
   return (
-    <div className="flex items-center justify-between p-4 border rounded-lg">
-      <div className="flex items-center gap-3">
+    <div className="flex flex-col gap-4 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
         <Avatar className="h-10 w-10">
           <AvatarImage src={member.photoURL} />
           <AvatarFallback>
             {member.displayName?.charAt(0) || member.email?.charAt(0) || '?'}
           </AvatarFallback>
         </Avatar>
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <p className="font-medium">
+            <p className="truncate font-medium">
               {member.displayName || member.email?.split('@')[0] || 'Usuário'}
             </p>
             {isCurrentUser && (
@@ -146,15 +147,15 @@ function MemberListItem({
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <RoleBadge role={member.role} />
 
         {canChangeThisMember && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
+                <Button variant="ghost" size="icon" aria-label={`Abrir ações do membro ${member.displayName || member.email || 'usuário'}`}>
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
@@ -371,7 +372,7 @@ export default function MembersPage() {
 
   if (projectLoading || membersLoading) {
     return (
-      <div className="container py-8 max-w-4xl">
+      <div className="page-shell max-w-4xl">
         <Skeleton className="h-8 w-64 mb-8" />
         <div className="space-y-4">
           {[...Array(4)].map((_, i) => (
@@ -384,7 +385,7 @@ export default function MembersPage() {
 
   if (!project) {
     return (
-      <div className="container py-8">
+      <div className="page-shell">
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>Projeto não encontrado.</AlertDescription>
@@ -394,35 +395,20 @@ export default function MembersPage() {
   }
 
   return (
-    <div className="container py-8 max-w-4xl">
-      {/* Header */}
-      <div className="mb-8">
-        <Link
-          href={`/projects/${projectId}`}
-          className="inline-flex items-center text-sm text-muted-foreground hover:text-primary transition-colors mb-4"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar para o projeto
-        </Link>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <Users className="h-8 w-8" />
-              Membros do Projeto
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              Gerencie quem tem acesso a <strong>{project.name}</strong>
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className="page-shell">
+      <div className="page-width page-stack max-w-4xl">
+        <PageHeader
+          title="Membros do Projeto"
+          description={`Gerencie quem tem acesso a ${project.name}.`}
+          backHref={`/projects/${projectId}`}
+          backLabel="Voltar para o projeto"
+        />
 
       {/* Invite Card - Prominent */}
       {canManageMembers && (
         <Card className="mb-8 border-2 border-primary/20 shadow-lg shadow-primary/10">
           <CardContent className="py-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
                   <Users className="h-7 w-7 text-primary" />
@@ -497,6 +483,7 @@ export default function MembersPage() {
             </Card>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

@@ -372,9 +372,10 @@ export default function ModelosPage() {
 
     return (
         <>
-            <div className="flex h-[calc(100vh-4rem)] bg-transparent">
+            <div className="page-shell">
                 {/* Sidebar */}
-                <aside className="w-1/4 min-w-[250px] max-w-[300px] border-r bg-background/80 p-4 flex flex-col">
+                <div className="page-width-wide grid gap-6 xl:grid-cols-[minmax(16rem,18rem)_minmax(0,1fr)]">
+                <aside className="surface-panel flex flex-col gap-4 p-4 xl:sticky xl:top-28 xl:max-h-[calc(100svh-8rem)]">
                     <div className="space-y-2 mb-4">
                         <Button className="w-full" onClick={handleNewTemplate} disabled={!user}>
                             <Plus className="mr-2 h-4 w-4" /> Novo Modelo
@@ -384,7 +385,7 @@ export default function ModelosPage() {
                         </Button>
                     </div>
                     <h2 className="text-lg font-semibold mb-2 px-2">Modelos Salvos</h2>
-                    <div className="overflow-y-auto flex-1">
+                    <div className="max-h-[22rem] overflow-y-auto xl:max-h-none xl:flex-1">
                         {isLoading ? <p className="p-2 text-sm text-muted-foreground">Carregando...</p> : (
                             <ul className="space-y-1">
                                 {templates?.map((template) => (
@@ -423,7 +424,7 @@ export default function ModelosPage() {
                 </aside>
 
                 {/* Main Content */}
-                <main className="flex-1 p-8 overflow-y-auto">
+                <main className="min-w-0">
                     <div className="space-y-8">
                         {isEditing ? (
                             <TemplateEditor
@@ -447,6 +448,7 @@ export default function ModelosPage() {
                         )}
                     </div>
                 </main>
+                </div>
             </div>
 
             {/* Extract Template Dialog */}
@@ -554,7 +556,6 @@ export default function ModelosPage() {
         </>
     );
 }
-
 
 
 

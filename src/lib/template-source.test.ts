@@ -42,4 +42,8 @@ describe('isFallbackEligibleErrorType', () => {
     expect(isFallbackEligibleErrorType('PERMISSION_DENIED')).toBe(true);
     expect(isFallbackEligibleErrorType('INVALID_REQUEST')).toBe(false);
   });
+
+  it('accepts invalid template type as fallback-eligible error', () => {
+    expect(isFallbackEligibleErrorType('INVALID_TEMPLATE_TYPE')).toBe(true);
+  });
 });

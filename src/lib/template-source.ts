@@ -102,5 +102,5 @@ export function auditTemplateLinks(
 }
 
 export function isFallbackEligibleErrorType(errorType?: string | null) {
-  return errorType === 'TEMPLATE_NOT_FOUND' || errorType === 'PERMISSION_DENIED';
+  return errorType === 'TEMPLATE_NOT_FOUND' || errorType === 'PERMISSION_DENIED' || errorType === 'INVALID_TEMPLATE_TYPE';
 }

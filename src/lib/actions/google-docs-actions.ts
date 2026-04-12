@@ -159,7 +159,7 @@ async function validateTemplateSource(
   if (metadata.mimeType !== 'application/vnd.google-apps.document') {
     throw createTemplateActionError(
       'INVALID_TEMPLATE_TYPE',
-      `O ${source.label} precisa apontar para um Google Docs editável.`,
+      `O ${source.label} precisa apontar para um Google Docs editável, mas o arquivo tem tipo "${metadata.mimeType}".`,
       {
         failedSource: field,
         sourceDiagnostics,
@@ -360,10 +360,13 @@ function buildUserFriendlyError(error: unknown) {
       ];
       break;
     case 'INVALID_TEMPLATE_TYPE':
-      errorMessage = `O ${failedLabel} não aponta para um Google Docs editável.`;
+      errorMessage = bothUnavailable
+        ? 'Nenhuma fonte de template é um Google Docs editável.'
+        : `O ${failedLabel} não aponta para um Google Docs editável.`;
       userInstructions = [
-        'Use um documento do Google Docs, não PDF ou outro tipo de arquivo.',
+        'Use um documento do Google Docs, não PDF, Planilha ou outro tipo de arquivo.',
         'Abra o documento no navegador e copie o link em docs.google.com/document/...',
+        'Se o link original aponta para o tipo errado, preencha a versão customizada com um Google Docs válido.',
       ];
       break;
     case 'INVALID_REQUEST':

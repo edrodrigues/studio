@@ -226,4 +226,69 @@ describe('google-docs-actions', () => {
     const failedResult = result as typeof result & { success: false; errorType: string };
     expect(failedResult.errorType).toBe('PERMISSION_DENIED');
   });
+
+  it('falls back to projectDocLink when the original template has wrong MIME type', async () => {
+    getFileMetadata.mockImplementation(async (_token, fileId: string) => {
+      if (fileId === '1originalTemplateId123456') {
+        return {
+          id: '1originalTemplateId123456',
+          name: 'Modelo Base (PDF)',
+          mimeType: 'application/pdf',
+        };
+      }
+
+      return {
+        id: '1projectTemplateId123456',
+        name: 'Modelo Projeto',
+        mimeType: 'application/vnd.google-apps.document',
+      };
+    });
+    getDocumentPlaceholders.mockResolvedValue([
+      { key: 'CLIENTE', matches: ['<<CLIENTE>>'] },
+    ]);
+
+    const result = await inspectTemplateForGeneration('token', {
+      templateId: 'template-1',
+      templateName: 'Modelo TED',
+      googleDocLink: 'https://docs.google.com/document/d/1originalTemplateId123456/edit',
+      projectDocLink: 'https://docs.google.com/document/d/1projectTemplateId123456/edit',
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      throw new Error('expected success');
+    }
+    expect(result.resolvedSource).toBe('projectDocLink');
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('versão customizada do projeto'),
+      ])
+    );
+  });
+
+  it('fails when both original has wrong MIME type and custom is inaccessible', async () => {
+    getFileMetadata.mockImplementation(async (_token, fileId: string) => {
+      if (fileId === '1originalTemplateId123456') {
+        return {
+          id: '1originalTemplateId123456',
+          name: 'Modelo Base (PDF)',
+          mimeType: 'application/pdf',
+        };
+      }
+      throw new Error('PERMISSION_DENIED: forbidden');
+    });
+
+    const result = await inspectTemplateForGeneration('token', {
+      templateId: 'template-1',
+      templateName: 'Modelo TED',
+      googleDocLink: 'https://docs.google.com/document/d/1originalTemplateId123456/edit',
+      projectDocLink: 'https://docs.google.com/document/d/1projectTemplateId123456/edit',
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error('expected failure');
+    }
+  });
 });

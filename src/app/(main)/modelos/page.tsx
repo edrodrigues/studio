@@ -388,9 +388,6 @@ export default function ModelosPage() {
                         <Button className="w-full" onClick={handleNewTemplate} disabled={!user}>
                             <Plus className="mr-2 h-4 w-4" /> Novo Modelo
                         </Button>
-                        <Button variant="outline" className="w-full" onClick={handleOpenExtractDialog} disabled={!user || !allDocuments?.length}>
-                            <Wand2 className="mr-2 h-4 w-4" /> Criar de Documento
-                        </Button>
                     </div>
                     <h2 className="text-lg font-semibold mb-2 px-2">Modelos Salvos</h2>
                     <div className="max-h-[22rem] overflow-y-auto xl:max-h-none xl:flex-1">

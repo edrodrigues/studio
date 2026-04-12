@@ -24,11 +24,11 @@ import { prepareContractData } from "@/lib/actions";
 import { generateContractDoc, inspectTemplateForGeneration } from "@/lib/actions/google-docs-actions";
 import { exportToDocx } from "@/lib/export";
 import {
-  auditTemplateLinks,
   type TemplateSourceDiagnostic,
   type TemplateSourceField,
 } from "@/lib/template-source";
 import { Contract, DocumentStatus, ProjectDocument, Template } from "@/lib/types";
+import { summarizeTemplateValidation } from "@/lib/template-link-validation";
 import { cn, isValidDate, safeNewDate } from "@/lib/utils";
 
 const ContractPreviewModal = dynamic(() => import("@/components/app/contract-preview-modal").then((mod) => mod.ContractPreviewModal), { ssr: false });
@@ -73,7 +73,7 @@ const createPlaceholderMatchRecord = (definitions: PlaceholderDef[]) =>
   }, {} as Record<string, string[]>);
 
 const getTemplateHealthBadge = (template: Template, fallbackInUse = false) => {
-  const audit = auditTemplateLinks(template.googleDocLink, template.projectDocLink);
+  const summary = summarizeTemplateValidation(template);
 
   if (fallbackInUse) {
     return {
@@ -84,33 +84,47 @@ const getTemplateHealthBadge = (template: Template, fallbackInUse = false) => {
     };
   }
 
-  switch (audit.health) {
+  switch (summary.health) {
     case "ready_with_fallback":
       return {
-        label: "Original + customizado",
+        label: summary.label,
         className: "bg-blue-50 text-blue-700 border-blue-200",
-        description: "O modelo tem link original e também uma versão customizada pronta para fallback.",
+        description: summary.description,
         isSelectable: true,
       };
     case "ready_original":
       return {
-        label: "Original disponível",
+        label: summary.label,
         className: "bg-green-50 text-green-700 border-green-200",
-        description: "A geração pode usar o link original do modelo.",
+        description: summary.description,
         isSelectable: true,
       };
     case "ready_custom":
       return {
-        label: "Customizado disponível",
+        label: summary.label,
         className: "bg-emerald-50 text-emerald-700 border-emerald-200",
-        description: "A geração usará a versão customizada do projeto porque o link original está vazio.",
+        description: summary.description,
         isSelectable: true,
+      };
+    case "ready_fallback_only":
+      return {
+        label: summary.label,
+        className: "bg-amber-50 text-amber-800 border-amber-200",
+        description: summary.description,
+        isSelectable: true,
+      };
+    case "pending_validation":
+      return {
+        label: summary.label,
+        className: "bg-slate-50 text-slate-700 border-slate-200",
+        description: summary.description,
+        isSelectable: false,
       };
     default:
       return {
-        label: "Nenhum link utilizável",
+        label: summary.label,
         className: "bg-rose-50 text-rose-700 border-rose-200",
-        description: "Revise os links do modelo antes de gerar documentos.",
+        description: summary.description,
         isSelectable: false,
       };
   }
@@ -121,6 +135,30 @@ const renderErrors = (errors: string[]) => (
     {errors.map((error) => <p key={error} className="text-xs leading-relaxed">{error}</p>)}
   </div>
 );
+
+const formatInspectionFailure = (
+  template: Pick<Template, "name">,
+  inspection: {
+    error?: string;
+    technicalDetails?: string;
+    userInstructions?: string[];
+    failedSource?: TemplateSourceField;
+    sourceDiagnostics?: TemplateSourceDiagnostics;
+  }
+) => {
+  const failedDiagnostic = inspection.failedSource
+    ? inspection.sourceDiagnostics?.[inspection.failedSource]
+    : undefined;
+  const details = [
+    inspection.error,
+    failedDiagnostic?.fileName && failedDiagnostic?.mimeType
+      ? `Arquivo detectado: ${failedDiagnostic.fileName} (${failedDiagnostic.mimeType}).`
+      : null,
+    inspection.userInstructions?.[0] || null,
+  ].filter(Boolean);
+
+  return `${template.name}: ${details.join(" ")}`;
+};
 
 function getLatestDocuments(documents: ProjectDocumentRecord[] | null | undefined) {
   const byType = new Map<string, ProjectDocumentRecord>();
@@ -212,12 +250,12 @@ function GerarExportarContent() {
       return exactType || Boolean(processTypeFilter && template.contractTypes?.includes(processTypeFilter));
     });
   }, [contractTypeFilter, processTypeFilter, templates]);
-  const templateAudits = useMemo(
+  const templateStatuses = useMemo(
     () =>
       filteredTemplates.reduce((acc, template) => {
-        acc[template.id] = auditTemplateLinks(template.googleDocLink, template.projectDocLink);
+        acc[template.id] = getTemplateHealthBadge(template);
         return acc;
-      }, {} as Record<string, ReturnType<typeof auditTemplateLinks>>),
+      }, {} as Record<string, ReturnType<typeof getTemplateHealthBadge>>),
     [filteredTemplates]
   );
   const preparedTemplateMap = useMemo(
@@ -236,22 +274,22 @@ function GerarExportarContent() {
 
   useEffect(() => {
     setSelectedTemplates((prev) =>
-      prev.filter((templateId) => templateAudits[templateId] && templateAudits[templateId].health !== "misconfigured")
+      prev.filter((templateId) => templateStatuses[templateId]?.isSelectable)
     );
-  }, [templateAudits]);
+  }, [templateStatuses]);
 
   const toggleDocType = (type: string) => {
     setSelectedDocTypes((prev) => prev.includes(type) ? prev.filter((value) => value !== type) : [...prev, type]);
   };
 
   const toggleTemplate = (template: Template) => {
-    const audit = templateAudits[template.id] || auditTemplateLinks(template.googleDocLink, template.projectDocLink);
+    const templateStatus = templateStatuses[template.id] || getTemplateHealthBadge(template);
 
-    if (audit.health === "misconfigured") {
+    if (!templateStatus.isSelectable) {
       toast({
         variant: "destructive",
         title: "Modelo indisponível para geração",
-        description: `${template.name}: revise o link original e a versão customizada antes de continuar.`,
+        description: `${template.name}: ${templateStatus.description}`,
       });
       return;
     }
@@ -309,8 +347,10 @@ function GerarExportarContent() {
           fallbackMarkdownContent: template.markdownContent,
         });
         if (!inspection.success || !inspection.placeholders || inspection.placeholders.length === 0) {
-          const inspectionError = "error" in inspection ? inspection.error : "não foi possível preparar o template.";
-          errors.push(`${template.name}: ${inspectionError}`);
+          const inspectionError = "error" in inspection
+            ? formatInspectionFailure(template, inspection)
+            : `${template.name}: não foi possível preparar o template.`;
+          errors.push(inspectionError);
           console.warn("[GerarExportar] Falha no preflight", {
             templateId: template.id,
             templateName: template.name,
@@ -533,9 +573,15 @@ function GerarExportarContent() {
                   {isLoadingTemplates ? <div className="flex flex-col items-center justify-center py-20 gap-4"><Loader2 className="animate-spin h-8 w-8 text-purple-500" /><p className="text-sm text-muted-foreground">Carregando modelos...</p></div> : (
                     <div className="grid grid-cols-1 gap-4">
                       {filteredTemplates.map((template) => {
+                        const validationSummary = summarizeTemplateValidation(template);
                         const templateStatus = getTemplateHealthBadge(template, preparedTemplateMap[template.id]?.fallbackUsed);
                         const isSelected = selectedTemplates.includes(template.id);
-                        const previewLink = template.googleDocLink || template.projectDocLink;
+                        const previewLink =
+                          validationSummary.original.status === "valid_google_doc"
+                            ? template.googleDocLink
+                            : validationSummary.custom.status === "valid_google_doc"
+                              ? template.projectDocLink
+                              : template.googleDocLink || template.projectDocLink;
                         return (
                         <Card key={template.id} className={cn("relative overflow-hidden border transition-all duration-200 hover:shadow-md", isSelected ? "border-purple-500 bg-purple-50/20 ring-1 ring-purple-500/20" : "border-border/60 hover:border-purple-300", !templateStatus.isSelectable && "border-rose-200 bg-rose-50/40 hover:border-rose-200")}>
                           <div className="p-4">

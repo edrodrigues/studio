@@ -12,10 +12,11 @@ import { convertDocumentsToSupportedFormats, convertBufferToSupportedDataUri } f
 import { db } from '@/lib/firebase-server';
 import { r2Client, R2_BUCKET_NAME } from '@/lib/r2';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
-import { ProjectDocument, ProjectRole, DocumentStatus } from './types';
+import { ProjectDocument, ProjectRole, DocumentStatus, Template, TemplateLinkValidationState } from './types';
 import { getDownloadUrl } from './actions/storage-actions';
 import { getValidMimeType } from './mime-type-utils';
 import { prepareContractData as prepareContractDataUtil } from './entity-extraction';
+import { validateTemplateLinksForPersistence } from './template-link-validation.server';
 import { z } from 'zod';
 
 const fileSchema = z.string().refine(s => s.startsWith('data:'), {
@@ -765,6 +766,7 @@ export async function handleExtractTemplateFromDocument(input: {
  */
 const updateTemplateLinkSchema = z.object({
   templateId: z.string().min(1, "ID do template é obrigatório"),
+  accessToken: z.string().min(1, "Conecte sua conta Google para validar o link."),
   projectDocLink: z.string().url("URL inválida").optional(),
   projectId: z.string().optional(),
 });
@@ -774,9 +776,15 @@ const updateTemplateLinkSchema = z.object({
  */
 export async function handleUpdateTemplateLink(input: {
   templateId: string;
+  accessToken: string;
   projectDocLink?: string;
   projectId?: string;
-}): Promise<{ success: boolean; error?: string }> {
+}): Promise<{
+  success: boolean;
+  error?: string;
+  warnings?: string[];
+  validations?: TemplateLinkValidationState;
+}> {
   try {
     const validatedData = updateTemplateLinkSchema.safeParse(input);
     if (!validatedData.success) {
@@ -784,7 +792,7 @@ export async function handleUpdateTemplateLink(input: {
       return { success: false, error: errorMessage };
     }
 
-    const { templateId, projectDocLink, projectId } = validatedData.data;
+    const { templateId, accessToken, projectDocLink, projectId } = validatedData.data;
 
     // Buscar documento do template
     const templateRef = db.collection('contractModels').doc(templateId);
@@ -794,9 +802,30 @@ export async function handleUpdateTemplateLink(input: {
       return { success: false, error: 'Template não encontrado.' };
     }
 
+    const templateData = templateSnap.data() as Template;
+    const validationResult = await validateTemplateLinksForPersistence(accessToken, {
+      googleDocLink: templateData.googleDocLink,
+      projectDocLink,
+    });
+
+    if (!validationResult.canSave) {
+      return {
+        success: false,
+        error: validationResult.blockingErrors.join(' '),
+        warnings: validationResult.warnings,
+        validations: validationResult.validations,
+      };
+    }
+
     // Preparar dados de atualização
-    const updateData: { projectDocLink?: string; updatedAt: Date; updatedByProjectId?: string } = {
+    const updateData: {
+      projectDocLink?: string;
+      updatedAt: Date;
+      updatedByProjectId?: string;
+      linkValidation: TemplateLinkValidationState;
+    } = {
       updatedAt: new Date(),
+      linkValidation: validationResult.validations,
     };
 
     if (projectDocLink) {
@@ -814,7 +843,11 @@ export async function handleUpdateTemplateLink(input: {
     await templateRef.update(updateData);
 
     console.log(`[actions] Link do template ${templateId} atualizado com sucesso`);
-    return { success: true };
+    return {
+      success: true,
+      warnings: validationResult.warnings,
+      validations: validationResult.validations,
+    };
   } catch (error) {
     console.error('[actions] Erro ao atualizar link do template:', error);
     return {

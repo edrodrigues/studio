@@ -13,9 +13,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { type Template } from '@/lib/types';
 import { handleUpdateTemplateLink } from '@/lib/actions';
+import { useAuthContext } from '@/context/auth-context';
 
 interface EditLinkModalProps {
   template: Template | null;
@@ -28,6 +30,7 @@ export function EditLinkModal({ template, isOpen, onClose, projectId }: EditLink
   const [link, setLink] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
+  const { accessToken, signInWithGoogle } = useAuthContext();
 
   // Reset link when template changes
   useEffect(() => {
@@ -40,16 +43,35 @@ export function EditLinkModal({ template, isOpen, onClose, projectId }: EditLink
 
   const handleSave = async () => {
     if (!template) return;
+    if (!accessToken) {
+      toast({
+        title: 'Conecte sua conta Google',
+        description: 'Precisamos validar o Google Docs antes de salvar o fallback do projeto.',
+        action: (
+          <Button variant="outline" size="sm" onClick={() => signInWithGoogle()}>
+            Conectar
+          </Button>
+        ),
+      });
+      return;
+    }
 
     setIsSaving(true);
     try {
       const result = await handleUpdateTemplateLink({
         templateId: template.id,
+        accessToken,
         projectDocLink: link.trim() || undefined,
         projectId,
       });
 
       if (result.success) {
+        if (result.warnings?.length) {
+          toast({
+            title: 'Link salvo com observações',
+            description: result.warnings.join(' '),
+          });
+        }
         toast({
           title: 'Link atualizado',
           description: 'O link customizado foi salvo com sucesso.',
@@ -108,6 +130,16 @@ export function EditLinkModal({ template, isOpen, onClose, projectId }: EditLink
             </p>
           </div>
 
+          {!link.trim() && (
+            <Alert>
+              <ExternalLink className="h-4 w-4" />
+              <AlertTitle>Fallback recomendado</AlertTitle>
+              <AlertDescription>
+                Esse campo continua opcional, mas é o fallback operacional usado quando o link original falha.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {template.googleDocLink && (
             <div className="space-y-2">
               <Label className="text-muted-foreground">Link Original (referência)</Label>
@@ -151,4 +183,3 @@ export function EditLinkModal({ template, isOpen, onClose, projectId }: EditLink
     </Dialog>
   );
 }
-

@@ -155,11 +155,16 @@ async function validateTemplateSource(
   }
 
   const metadata = await getFileMetadata(accessToken, source.fileId);
+  sourceDiagnostics[field] = {
+    ...sourceDiagnostics[field],
+    fileName: metadata.name,
+    mimeType: metadata.mimeType,
+  };
 
   if (metadata.mimeType !== 'application/vnd.google-apps.document') {
     throw createTemplateActionError(
       'INVALID_TEMPLATE_TYPE',
-      `O ${source.label} precisa apontar para um Google Docs editável, mas o arquivo tem tipo "${metadata.mimeType}".`,
+      `O ${source.label} aponta para "${metadata.name}", que tem tipo "${metadata.mimeType}" em vez de um Google Docs editável.`,
       {
         failedSource: field,
         sourceDiagnostics,
@@ -322,6 +327,7 @@ function buildUserFriendlyError(error: unknown) {
   const sourceDiagnostics = typedError.sourceDiagnostics;
   const failedSource = typedError.failedSource;
   const failedLabel = failedSource ? getTemplateSourceFieldLabel(failedSource) : 'template';
+  const failedDiagnostic = failedSource ? sourceDiagnostics?.[failedSource] : undefined;
 
   let errorMessage = 'Não foi possível usar o template informado.';
   let userInstructions: string[] = [];
@@ -362,11 +368,13 @@ function buildUserFriendlyError(error: unknown) {
     case 'INVALID_TEMPLATE_TYPE':
       errorMessage = bothUnavailable
         ? 'Nenhuma fonte de template é um Google Docs editável.'
-        : `O ${failedLabel} não aponta para um Google Docs editável.`;
+        : failedDiagnostic?.fileName && failedDiagnostic?.mimeType
+          ? `O ${failedLabel} aponta para "${failedDiagnostic.fileName}", que é "${failedDiagnostic.mimeType}", e não um Google Docs editável.`
+          : `O ${failedLabel} não aponta para um Google Docs editável.`;
       userInstructions = [
         'Use um documento do Google Docs, não PDF, Planilha ou outro tipo de arquivo.',
         'Abra o documento no navegador e copie o link em docs.google.com/document/...',
-        'Se o link original aponta para o tipo errado, preencha a versão customizada com um Google Docs válido.',
+        'Converta o arquivo atual para Google Docs nativo antes de atualizar o link salvo.',
       ];
       break;
     case 'INVALID_REQUEST':

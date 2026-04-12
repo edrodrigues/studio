@@ -306,6 +306,29 @@ export interface SyncEvent {
 // LEGACY TYPES (for backward compatibility during migration)
 // ============================================================================
 
+export type TemplateLinkValidationStatus =
+  | "pending"
+  | "missing"
+  | "invalid_format"
+  | "valid_google_doc"
+  | "invalid_file_type"
+  | "inaccessible";
+
+export interface TemplateLinkValidationEntry {
+  status: TemplateLinkValidationStatus;
+  link: string;
+  fileId?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
+  validatedAt?: string;
+  error?: string | null;
+}
+
+export interface TemplateLinkValidationState {
+  googleDocLink?: TemplateLinkValidationEntry;
+  projectDocLink?: TemplateLinkValidationEntry;
+}
+
 export interface Template {
   id: string;
   name: string;
@@ -321,6 +344,7 @@ export interface Template {
   officialVersionHash?: string;      // Hash do conteúdo para detectar mudanças
   syncStatus?: 'synced' | 'outdated' | 'unknown' | 'error';
   syncError?: string;                // Mensagem de erro se houver
+  linkValidation?: TemplateLinkValidationState;
 }
 
 // Interface para log de sincronização com modelos oficiais

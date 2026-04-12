@@ -19,6 +19,8 @@ export interface TemplateSourceDiagnostic {
   label: string;
   link: string;
   fileId: string | null;
+  fileName?: string;
+  mimeType?: string;
   status: TemplateSourceStatus;
   errorType?: string;
   message?: string;

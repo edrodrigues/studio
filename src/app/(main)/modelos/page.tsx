@@ -8,6 +8,7 @@ import { collection, doc, addDoc, query, where } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { type Template } from "@/lib/types";
@@ -24,6 +25,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { handleExtractTemplateFromDocument } from "@/lib/actions";
+import { handleValidateTemplateLinksForSave } from "@/lib/actions/template-validation-actions";
+import { useAuthContext } from "@/context/auth-context";
 
 
 const contractTypeOptions = [
@@ -32,6 +35,14 @@ const contractTypeOptions = [
     "Acordo de Parceria (Embrapii)",
     "Contrato de Extensão Tecnológica (Prestação de Serviços Técnicos)"
 ];
+
+const renderMessages = (messages: string[]) => (
+    <div className="space-y-1">
+        {messages.map((message) => (
+            <p key={message} className="text-xs leading-relaxed">{message}</p>
+        ))}
+    </div>
+);
 
 
 function TemplateEditor({
@@ -109,17 +120,25 @@ function TemplateEditor({
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="project-doc-link">
-                            Link da Versão do Projeto em Google Doc <span className="text-destructive">*</span>
+                            Link da Versão do Projeto em Google Doc
                         </Label>
                         <Input
                             id="project-doc-link"
                             value={template.projectDocLink || ""}
                             onChange={(e) => onTemplateChange("projectDocLink", e.target.value)}
                             placeholder="https://docs.google.com/document/d/..."
-                            required
                         />
-                        <p className="text-xs text-muted-foreground">Link do documento original do projeto (versão editável).</p>
+                        <p className="text-xs text-muted-foreground">Link do documento original do projeto (versão editável). Ele é opcional, mas recomendado como fallback.</p>
                     </div>
+                    {!template.projectDocLink?.trim() && (
+                        <Alert>
+                            <Wand2 className="h-4 w-4" />
+                            <AlertTitle>Fallback recomendado</AlertTitle>
+                            <AlertDescription>
+                                Se o link original ficar indisponível, a geração só continua automaticamente quando existir uma versão customizada válida do projeto.
+                            </AlertDescription>
+                        </Alert>
+                    )}
                 </CardContent>
             </Card>
             <div className="flex justify-end gap-2">
@@ -137,6 +156,7 @@ function TemplateEditor({
 export default function ModelosPage() {
     const { user } = useUser();
     const { firestore } = useFirebase();
+    const { accessToken, signInWithGoogle } = useAuthContext();
 
     const templatesQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
@@ -296,22 +316,39 @@ export default function ModelosPage() {
             return;
         }
 
-        if (false && !editingTemplate?.googleDocLink?.trim() && !editingTemplate?.projectDocLink?.trim()) {
+        if (!accessToken) {
             toast({
-                variant: "destructive",
-                title: "Erro ao Salvar",
-                description: "O link do Google Doc é obrigatório.",
+                title: "Conecte sua conta Google",
+                description: "Precisamos validar os links dos templates antes de salvar.",
+                action: (
+                    <Button variant="outline" size="sm" onClick={() => signInWithGoogle()}>
+                        Conectar
+                    </Button>
+                ),
             });
             return;
         }
 
-        if (false && !editingTemplate?.projectDocLink?.trim()) {
+        const validation = await handleValidateTemplateLinksForSave({
+            accessToken,
+            googleDocLink: editingTemplate.googleDocLink,
+            projectDocLink: editingTemplate.projectDocLink,
+        });
+
+        if (!validation.success || !validation.canSave) {
             toast({
                 variant: "destructive",
                 title: "Erro ao Salvar",
-                description: "O link da versão do projeto é obrigatório.",
+                description: renderMessages(validation.blockingErrors),
             });
             return;
+        }
+
+        if (validation.warnings.length > 0) {
+            toast({
+                title: "Modelo salvo com observações",
+                description: renderMessages(validation.warnings),
+            });
         }
 
         const { id, isNew, ...templateData } = editingTemplate;
@@ -323,6 +360,7 @@ export default function ModelosPage() {
             googleDocLink: templateData.googleDocLink || "",
             projectDocLink: templateData.projectDocLink || "",
             contractTypes: templateData.contractTypes || [],
+            linkValidation: validation.validations,
         };
 
         if (isNew) {
@@ -349,7 +387,7 @@ export default function ModelosPage() {
         // Exit editing mode
         setEditingTemplate(null);
 
-    }, [editingTemplate, user, firestore, toast]);
+    }, [accessToken, editingTemplate, firestore, signInWithGoogle, toast, user]);
 
     const handleCancelEditing = useCallback(() => {
         setEditingTemplate(null);

@@ -1,85 +1,121 @@
-# Assistente de Contratos V-LAB
+# 📜 Assistente de Contratos V-LAB
 
-Plataforma web para gestão, análise e geração de contratos jurídicos com suporte a múltiplos projetos e integração com Inteligência Artificial.
+> **A plataforma definitiva para gestão, análise e geração inteligente de contratos jurídicos.**
 
-## Funcionalidades
+O **Assistente de Contratos V-LAB** é uma solução avançada que combina o poder do **Next.js**, **Firebase** e **Inteligência Artificial (Genkit)** para transformar o fluxo de trabalho jurídico. Da extração automática de dados à análise de consistência, o V-LAB foi desenhado para oferecer precisão e agilidade.
 
-| Categoria | Recursos |
-|-----------|----------|
-| **Gestão** | Múltiplos projetos, convites com funções (Proprietário, Editor, Visualizador), sincronização de templates oficiais |
-| **Extração** | Identificação automática de placeholders e entidades a partir de documentos |
-| **Geração** | Criação de contratos via Google Docs com fallback automático para versões customizadas por projeto |
-| **IA** | Análise de consistência contratual (Genkit), Chatbot ALEX treinado com Playbook institucional |
-| **Editor** | Editor Rico (Tiptap) integrado, exportação em múltiplos formatos (DOCX, PDF) |
-| **Colaboração** | Notificações em tempo real, sincronização de documentos, versionamento |
+---
 
-## Tech Stack
+![Next.js](https://img.shields.io/badge/Next.js-000?style=for-the-badge&logo=next.js&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
+![Genkit](https://img.shields.io/badge/Google_Genkit-4285F4?style=for-the-badge&logo=google&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
 
-- **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS
-- **Backend**: Firebase (Firestore, Auth, Storage, Admin SDK)
-- **Armazenamento**: Firebase Storage + Cloudflare R2 (AWS S3 SDK)
-- **IA**: Google Genkit, Gemini API
-- **UI**: Shadcn UI, Radix, Framer Motion, Tiptap
+---
 
-## Quick Start
+## ✨ Funcionalidades Principais
 
+| Recurso | Descrição |
+| :--- | :--- |
+| **🚀 Gestão de Projetos** | Controle múltiplos projetos com permissões granulares (Proprietário, Editor, Visualizador). |
+| **🧠 IA & Genkit** | Extração inteligente de placeholders e análise de conformidade contratual com o Playbook institucional. |
+| **💬 ALEX Chatbot** | Assistente virtual treinado para responder dúvidas e auxiliar na redação de cláusulas. |
+| **✍️ Editor Tiptap** | Experiência de edição rica e integrada, permitindo formatação avançada diretamente no navegador. |
+| **📄 Automação de Documentos** | Geração automática via Google Docs com suporte a templates customizados por projeto. |
+| **📦 Exportação Versátil** | Converta seus contratos instantaneamente para **DOCX**, **PDF** ou planilhas **XLSX**. |
+| **🔔 Colaboração Real-time** | Notificações instantâneas e sincronização fluida entre membros da equipe. |
+
+---
+
+## 🛠️ Tecnologias Utilizadas
+
+### Core & Framework
+- **Frontend:** [Next.js 14/15](https://nextjs.org/) (App Router), [React 18/19](https://reactjs.org/)
+- **Linguagem:** [TypeScript](https://www.typescriptlang.org/)
+- **Estilização:** [Tailwind CSS](https://tailwindcss.com/), [Framer Motion](https://www.framer.com/motion/)
+
+### Cloud & AI
+- **Backend:** [Firebase](https://firebase.google.com/) (Firestore, Auth, Cloud Functions)
+- **Engine de IA:** [Google Genkit](https://firebase.google.com/docs/genkit) & [Gemini API](https://ai.google.dev/)
+- **Storage:** Firebase Storage + [Cloudflare R2](https://www.cloudflare.com/products/r2/) (compatível com S3)
+
+### UI/UX
+- **Componentes:** [Shadcn UI](https://ui.shadcn.com/), [Radix UI](https://www.radix-ui.com/)
+- **Editor:** [Tiptap](https://tiptap.dev/)
+- **Ícones:** [Lucide React](https://lucide.dev/)
+
+---
+
+## 🚀 Como Começar
+
+### 1. Clonar e Instalar
 ```bash
-# Instalar dependências
+git clone https://github.com/edrodrigues/Product-Design-AI.git
+cd studio
 npm install
+```
 
-# Executar desenvolvimento
+### 2. Configurar Variáveis de Ambiente
+Crie um arquivo `.env.local` na raiz do projeto:
+```env
+# Inteligência Artificial
+GOOGLE_GENAI_API_KEY=seu_api_key_aqui
+GEMINI_API_KEY=seu_api_key_aqui
+
+# Armazenamento Cloudflare R2 (Opcional)
+R2_ACCOUNT_ID=seu_account_id
+R2_ACCESS_KEY_ID=sua_access_key
+R2_SECRET_ACCESS_KEY=sua_secret_key
+R2_BUCKET_NAME=nome_do_bucket
+
+# Segurança
+CRON_SECRET=sua_chave_secreta
+```
+
+### 3. Rodar o Desenvolvimento
+```bash
 npm run dev
 ```
+Acesse: [http://localhost:3000](http://localhost:3000)
 
-Acesse `http://localhost:3000`.
+---
 
-### Variáveis de Ambiente
+## 📂 Estrutura do Projeto
 
-Crie um arquivo `.env.local`:
-
-```bash
-# IA
-GOOGLE_GENAI_API_KEY=
-GEMINI_API_KEY=
-
-# Armazenamento (opcional)
-R2_ACCOUNT_ID=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
-R2_BUCKET_NAME=
-
-# Cron
-CRON_SECRET=
-```
-
-## Estrutura
-
-```
+```text
 src/
-├── app/                    # Rotas Next.js
-│   ├── (main)/             # Páginas autenticadas
-│   ├── api/                # API routes
-│   └── auth/               # Login
+├── app/              # Configuração de rotas e páginas (App Router)
+│   ├── (main)/       # Telas protegidas do sistema
+│   ├── api/          # Endpoints da aplicação
+│   └── auth/         # Fluxo de autenticação
 ├── components/
-│   ├── app/                # Componentes de negócio
-│   └── ui/                 # UI base (Shadcn)
-├── ai/                     # Fluxos Genkit
-├── firebase/               # Configuração Firebase
-├── hooks/                  # React hooks
-└── lib/                    # Ações, parsers, utilitários
-scripts/                    # Scripts de diagnóstico
+│   ├── app/          # Componentes específicos do negócio
+│   └── ui/           # Componentes base e primitivos (Shadcn)
+├── ai/               # Lógica de Inteligência Artificial e fluxos Genkit
+├── firebase/         # Inicialização e configurações do Firebase
+├── hooks/            # Hooks customizados para estado e interações
+└── lib/              # Funções utilitárias, actions e parsers
 ```
 
-## Scripts Úteis
+---
 
-```bash
-npm run dev                 # Desenvolvimento
-npm run build              # Build produção
-npm run typecheck          # Verificar tipos
-npm run lint               # Linting
-npm run test               # Testes unitários
-```
+## 🧪 Comandos Úteis
 
-## Licença
+| Comando | Descrição |
+| :--- | :--- |
+| `npm run dev` | Inicia o servidor em modo desenvolvimento |
+| `npm run build` | Compila a aplicação para produção |
+| `npm run genkit:dev` | Inicia o dashboard de desenvolvedor do Genkit |
+| `npm run typecheck` | Validação estática de tipos TypeScript |
+| `npm run test` | Executa a suite de testes com Vitest |
+| `npm run test:e2e` | Executa os testes de ponta a ponta com Playwright |
 
-MIT
+---
+
+## 📄 Licença
+
+Este projeto está sob a licença **MIT**. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+---
+Desenvolvido com ❤️ pela equipe **V-LAB**.

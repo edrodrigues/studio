@@ -119,10 +119,21 @@ export function ComposioConnection({
 
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const { redirectUrl } = await initiateComposioConnection(user.uid);
+      const result = await initiateComposioConnection(user.uid);
+
+      if ('error' in result && result.error) {
+        setState({ status: 'FAILED', loading: false, error: result.error });
+        toast({
+          variant: 'destructive',
+          title: 'Erro ao conectar',
+          description: result.error,
+        });
+        onError?.(result.error);
+        return;
+      }
 
       // Redirect to Composio OAuth
-      window.location.href = redirectUrl;
+      window.location.href = result.redirectUrl;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Erro ao iniciar conexão';
       setState({ status: 'FAILED', loading: false, error: errorMsg });
@@ -131,6 +142,9 @@ export function ComposioConnection({
         title: 'Erro ao conectar',
         description: errorMsg,
       });
+      onError?.(errorMsg);
+    } finally {
+      setState((prev) => ({ ...prev, loading: false }));
     }
   }
 

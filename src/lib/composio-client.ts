@@ -283,7 +283,7 @@ export async function createComposioClient(
           'Create a Composio integration at https://app.composio.dev and set this env var.'
         );
       }
-      const callbackUrl = config.callbackUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/composio/callback`;
+      const callbackUrl = config.callbackUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/composio/callback`;
       try {
         const connectionRequest = await (composio.connectedAccounts as any).initiate(
           userId,

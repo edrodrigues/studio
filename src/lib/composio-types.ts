@@ -1,8 +1,6 @@
-'use server';
-
 /**
  * Shared types for Composio integration.
- * This file has NO 'use server' directive - types can be imported freely.
+ * Types can be imported freely in both client and server components.
  */
 
 export type ConnectionStatus = 'ACTIVE' | 'INITIATED' | 'EXPIRED' | 'FAILED' | 'INACTIVE';

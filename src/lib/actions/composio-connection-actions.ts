@@ -25,12 +25,18 @@ export async function checkComposioConnectionStatus(
 
 /**
  * Initiate Composio OAuth connection for a user.
- * Returns the redirect URL to Composio's OAuth flow.
+ * Returns the redirect URL or an error message.
  */
 export async function initiateComposioConnection(
   userId: string
-): Promise<{ redirectUrl: string }> {
-  const client = await createComposioClient(userId);
-  const redirectUrl = await client.initiateConnection(userId);
-  return { redirectUrl };
+): Promise<{ redirectUrl: string } | { error: string }> {
+  try {
+    const client = await createComposioClient(userId);
+    const redirectUrl = await client.initiateConnection(userId);
+    return { redirectUrl };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Falha ao iniciar conexão com Google. Tente novamente.';
+    console.error('[Composio] initiateComposioConnection error:', error);
+    return { error: errorMsg };
+  }
 }

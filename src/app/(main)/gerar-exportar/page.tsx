@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { addDoc, collection, deleteDoc, doc, getDoc, increment, orderBy, query, updateDoc, where } from "firebase/firestore";
-import { AlertTriangle, CheckCircle2, Download, ExternalLink, Eye, FileText, GitCompareArrows, LayoutTemplate, Loader2, MoreHorizontal, Trash2, Wand2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, Eye, FileText, GitCompareArrows, LayoutTemplate, Loader2, MoreHorizontal, Sparkles, Trash2, Wand2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
@@ -13,15 +13,19 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
 import { prepareContractData } from "@/lib/actions";
-import { generateContractDoc, inspectTemplateForGeneration } from "@/lib/actions/google-docs-actions";
+import { inspectTemplateForGeneration, generateContractDoc, reviewContractWithAI, applyReviewEdits, revertReviewEdits } from "@/lib/actions/composio-actions";
+import { ComposioConnection } from "@/components/app/composio-connection";
 import { exportToDocx } from "@/lib/export";
 import {
   type TemplateSourceDiagnostic,
@@ -29,7 +33,7 @@ import {
 } from "@/lib/template-source";
 import { Contract, DocumentStatus, ProjectDocument, Template } from "@/lib/types";
 import { summarizeTemplateValidation } from "@/lib/template-link-validation";
-import { cn, isValidDate, safeNewDate } from "@/lib/utils";
+import { cn, extractDocumentId, isValidDate, safeNewDate } from "@/lib/utils";
 
 const ContractPreviewModal = dynamic(() => import("@/components/app/contract-preview-modal").then((mod) => mod.ContractPreviewModal), { ssr: false });
 const ComparisonModal = dynamic(() => import("@/components/app/comparison-modal").then((mod) => mod.ComparisonModal), { ssr: false });
@@ -184,7 +188,7 @@ function getLatestDocuments(documents: ProjectDocumentRecord[] | null | undefine
 function GerarExportarContent() {
   const { user } = useUser();
   const { firestore } = useFirebase();
-  const { accessToken, signInWithGoogle } = useAuthContext();
+  const { signInWithGoogle } = useAuthContext();
   const { clientName } = useUserPreferences();
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -209,6 +213,38 @@ function GerarExportarContent() {
   const [preparedEntities, setPreparedEntities] = useState<Record<string, string>>({});
   const [entityDescriptions, setEntityDescriptions] = useState<Record<string, string>>({});
   const [discardedEntities, setDiscardedEntities] = useState<Record<string, string>>({});
+  const [enrichWithAI, setEnrichWithAI] = useState(false);
+  const [isAIReviewOpen, setIsAIReviewOpen] = useState(false);
+  const [aiReviewingContract, setAiReviewingContract] = useState<ContractRecord | null>(null);
+  const [isAIReviewing, setIsAIReviewing] = useState(false);
+  const [aiReviewResult, setAiReviewResult] = useState<{
+    success: boolean;
+    summary: string;
+    overallQuality: "good" | "needs_work" | "requires_revision";
+    suggestions: Array<{
+      section: string;
+      originalText: string;
+      suggestedText: string;
+      reason: string;
+      severity?: string;
+      confidence?: string;
+    }>;
+    reviewedAt: string;
+    error?: string;
+  } | null>(null);
+  const [selectedEditIndexes, setSelectedEditIndexes] = useState<Set<number>>(new Set());
+  const [isApplyingEdits, setIsApplyingEdits] = useState(false);
+  const [appliedReviewEdits, setAppliedReviewEdits] = useState<Array<{
+    section: string;
+    originalText: string;
+    suggestedText: string;
+    reason?: string;
+    severity?: string;
+    confidence?: string;
+  }> | null>(null);
+  const [contractWithAppliedReview, setContractWithAppliedReview] = useState<ContractRecord | null>(null);
+  const [isUndoConfirmOpen, setIsUndoConfirmOpen] = useState(false);
+  const [isRevertingEdits, setIsRevertingEdits] = useState(false);
 
   useEffect(() => {
     if (!projectIdFromUrl || !firestore) return;
@@ -308,10 +344,10 @@ function GerarExportarContent() {
       toast({ variant: "destructive", title: "Documentos não selecionados", description: "Selecione ao menos uma última versão de documento inicial." });
       return;
     }
-    if (!accessToken) {
+    if (!user) {
       toast({
-        title: "Login com Google Necessário",
-        description: "Conecte sua conta para validar o template e gerar a cópia no Google Docs.",
+        title: "Login Necessário",
+        description: "Autentique-se para validar o template e gerar contratos via Google Docs.",
         action: <Button variant="outline" size="sm" onClick={() => signInWithGoogle()}>Conectar</Button>,
       });
       return;
@@ -339,7 +375,7 @@ function GerarExportarContent() {
           googleDocLink: template.googleDocLink,
           projectDocLink: template.projectDocLink,
         });
-        const inspection = await inspectTemplateForGeneration(accessToken, {
+        const inspection = await inspectTemplateForGeneration(user.uid, {
           templateId: template.id,
           templateName: template.name,
           googleDocLink: template.googleDocLink,
@@ -400,7 +436,7 @@ function GerarExportarContent() {
   };
 
   const handleConfirmGeneration = (confirmedPlaceholders: Record<string, string>) => {
-    if (!user || !firestore || !accessToken || templatePreparations.length === 0) return;
+    if (!user || !firestore || templatePreparations.length === 0) return;
     setIsEntityModalOpen(false);
     startGeneration(async () => {
       let successCount = 0;
@@ -408,7 +444,7 @@ function GerarExportarContent() {
       const warnings: string[] = [];
       for (const templatePreparation of templatePreparations) {
         try {
-          const result = await generateContractDoc(accessToken, {
+          const result = await generateContractDoc(user.uid, {
             templateId: templatePreparation.templateId,
             templateName: templatePreparation.templateName,
             googleDocLink: templatePreparation.googleDocLink,
@@ -418,6 +454,8 @@ function GerarExportarContent() {
             confirmedPlaceholders,
             placeholderMatches: templatePreparation.placeholderMatches,
             projectId: currentProjectId,
+            enrichWithAI,
+            entityData: preparedEntities,
           });
           if (!result.success || !result.documentId) {
             errors.push(`${templatePreparation.templateName}: ${"error" in result ? result.error : "falha desconhecida ao gerar documento."}`);
@@ -435,7 +473,7 @@ function GerarExportarContent() {
             projectContractId: projectContractRef.id, projectId: currentProjectId, contractModelId: templatePreparation.templateId,
             clientName: clientName || projectName || "Cliente", filledData: filledPayload, name: result.fileName, markdownContent: "",
             googleDocLink: result.documentLink, googleDocId: result.documentId, createdAt: generatedAt, sourceDocumentIds: selectedDocs,
-            entityCount: Object.keys(confirmedPlaceholders).length, generationMethod: "google-docs", templateName: templatePreparation.templateName, extractionDate: generatedAt,
+            entityCount: Object.keys(confirmedPlaceholders).length, generationMethod: result.aiEnriched ? "ai-enriched" : "google-docs", templateName: templatePreparation.templateName, extractionDate: generatedAt,
             templateSource: result.resolvedSource, fallbackUsed: result.fallbackUsed,
           });
           if (currentProjectId && currentProjectId !== "default-project") {
@@ -516,6 +554,8 @@ function GerarExportarContent() {
             <TabsTrigger value="revisar" className="flex gap-2"><CheckCircle2 className="h-4 w-4" /> Documentos Gerados</TabsTrigger>
           </TabsList>
         </div>
+
+        <ComposioConnection />
 
         <TabsContent value="gerar" className="space-y-10">
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2 xl:gap-8">
@@ -609,6 +649,16 @@ function GerarExportarContent() {
             </Card>
           </div>
           <div className="sticky bottom-4 z-10 flex flex-col items-center gap-4 rounded-3xl bg-background/90 py-2 backdrop-blur-sm">
+            <div className="flex items-center gap-3 w-full max-w-md px-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium flex items-center gap-1.5">
+                  <Wand2 className="h-3.5 w-3.5 text-primary" />
+                  Enriquecer com IA
+                </p>
+                <p className="text-[10px] text-muted-foreground">Usa Gemini para inferir valores de placeholders a partir dos documentos carregados</p>
+              </div>
+              <Switch checked={enrichWithAI} onCheckedChange={setEnrichWithAI} />
+            </div>
             <Button size="lg" className="h-14 w-full max-w-md rounded-2xl px-8 text-base font-semibold sm:h-16 sm:text-lg" onClick={handlePrepareGeneration} disabled={selectedTemplates.length === 0 || selectedDocs.length === 0 || isGenerating || isPreparingGeneration}>
               {isPreparingGeneration ? <Loader2 className="mr-2 animate-spin" /> : <Wand2 className="mr-2" />}Gerar Documentos
             </Button>
@@ -641,7 +691,8 @@ function GerarExportarContent() {
                         <Checkbox checked={selectedContracts.includes(contract.id)} onCheckedChange={() => setSelectedContracts((prev) => prev.includes(contract.id) ? prev.filter((value) => value !== contract.id) : [...prev, contract.id])} />
                       </div>
 <div className="flex flex-wrap gap-2 text-xs">
-                        {contract.generationMethod === "google-docs" ? <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Google Docs</Badge> : null}
+                        {contract.generationMethod === "google-docs" && <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Google Docs</Badge>}
+                        {contract.generationMethod === "ai-enriched" && <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">AI Enriquecido</Badge>}
                         {contract.templateSource === "projectDocLink" && <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Fallback</Badge>}
                         <Badge variant="outline">{contract.entityCount !== undefined ? `${contract.entityCount} entidade(s)` : "Sem dados"}</Badge>
                         <Badge variant="outline">{contract.sourceDocumentIds?.length || 0} documento(s)</Badge>
@@ -649,7 +700,41 @@ function GerarExportarContent() {
                       <div className="flex flex-wrap gap-2">
                         {contract.googleDocLink ? <Button variant="outline" size="sm" asChild><a href={contract.googleDocLink} target="_blank" rel="noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Google Docs</a></Button> : null}
                         <Button variant="outline" size="sm" onClick={() => { setSelectedContract(contract); setIsPreviewOpen(true); }}><Eye className="mr-2 h-4 w-4" /> Visualizar</Button>
+                        <Button variant="outline" size="sm" className="text-purple-600 hover:text-purple-700 hover:bg-purple-50" onClick={async () => {
+                          const docId = extractDocumentId(contract.googleDocLink ?? '');
+                          if (!user?.uid || !docId) return;
+                          setIsAIReviewing(true);
+                          setAiReviewingContract(contract);
+                          setAiReviewResult(null);
+                          setSelectedEditIndexes(new Set());
+                          setIsAIReviewOpen(true);
+                          try {
+                            const result = await reviewContractWithAI(user.uid, {
+                              documentId: docId,
+                              documentName: contract.name,
+                              reviewFocus: "all",
+                            });
+                            setAiReviewResult(result);
+                            // Pre-select all suggestions
+                            if (result.success && result.suggestions.length > 0) {
+                              setSelectedEditIndexes(new Set(result.suggestions.map((_, i) => i)));
+                            }
+                          } catch (e) {
+                            setAiReviewResult({ success: false, summary: "", overallQuality: "requires_revision", suggestions: [], reviewedAt: new Date().toISOString(), error: String(e) });
+                          } finally {
+                            setIsAIReviewing(false);
+                          }
+                        }} disabled={!extractDocumentId(contract.googleDocLink ?? '') || isAIReviewing || isApplyingEdits}>
+                          {isAIReviewing && aiReviewingContract?.id === contract.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                          Revisar com IA
+                        </Button>
                         <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteContract(contract.id)}><Trash2 className="mr-2 h-4 w-4" /> Excluir</Button>
+                        {contractWithAppliedReview?.id === contract.id && appliedReviewEdits && appliedReviewEdits.length > 0 && (
+                          <Button variant="outline" size="sm" className="text-orange-600 hover:text-orange-700 hover:bg-orange-50" onClick={() => setIsUndoConfirmOpen(true)}>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Desfazer Revisão
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -678,7 +763,8 @@ function GerarExportarContent() {
                       </TableCell>
                       <TableCell className="text-xs">
                         <div className="flex flex-wrap gap-1">
-                        {contract.generationMethod === "google-docs" ? <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700 border-blue-200">Google Docs</Badge> : <span className="text-muted-foreground">-</span>}
+                        {contract.generationMethod === "google-docs" && <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700 border-blue-200">Google Docs</Badge>}
+                        {contract.generationMethod === "ai-enriched" && <Badge variant="outline" className="text-[9px] bg-purple-50 text-purple-700 border-purple-200">AI Enriquecido</Badge>}
                         {contract.templateSource === "projectDocLink" && <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">Fallback</Badge>}
                         </div>
                         {contract.sourceDocumentIds && <span className="block text-[9px] text-muted-foreground mt-1">{contract.sourceDocumentIds.length} doc(s)</span>}
@@ -690,7 +776,37 @@ function GerarExportarContent() {
                           <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                           <DropdownMenuContent>
                             <DropdownMenuItem onClick={() => { setSelectedContract(contract); setIsPreviewOpen(true); }}><Eye className="mr-2 h-4 w-4" /> Visualizar</DropdownMenuItem>
+                            <DropdownMenuItem onClick={async () => {
+                              const docId = extractDocumentId(contract.googleDocLink ?? '');
+                              if (!user?.uid || !docId) return;
+                              setIsAIReviewing(true);
+                              setAiReviewingContract(contract);
+                              setAiReviewResult(null);
+                              setSelectedEditIndexes(new Set());
+                              setIsAIReviewOpen(true);
+                              try {
+                                const result = await reviewContractWithAI(user.uid, {
+                                  documentId: docId,
+                                  documentName: contract.name,
+                                  reviewFocus: "all",
+                                });
+                                setAiReviewResult(result);
+                                if (result.success && result.suggestions.length > 0) {
+                                  setSelectedEditIndexes(new Set(result.suggestions.map((_, i) => i)));
+                                }
+                              } catch (e) {
+                                setAiReviewResult({ success: false, summary: "", overallQuality: "requires_revision", suggestions: [], reviewedAt: new Date().toISOString(), error: String(e) });
+                              } finally {
+                                setIsAIReviewing(false);
+                              }
+                            }} disabled={!extractDocumentId(contract.googleDocLink ?? '') || isAIReviewing || isApplyingEdits} className={extractDocumentId(contract.googleDocLink ?? '') ? "text-purple-600" : ""}>
+                              {isAIReviewing && aiReviewingContract?.id === contract.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                              Revisar com IA
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleDeleteContract(contract.id)} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Deletar</DropdownMenuItem>
+                            {contractWithAppliedReview?.id === contract.id && appliedReviewEdits && appliedReviewEdits.length > 0 && (
+                              <DropdownMenuItem onClick={() => setIsUndoConfirmOpen(true)} className="text-orange-600"><Sparkles className="mr-2 h-4 w-4" /> Desfazer Revisão</DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -708,6 +824,253 @@ function GerarExportarContent() {
       {selectedContract && <ContractPreviewModal contract={selectedContract} isOpen={isPreviewOpen} initialEditMode={false} onClose={() => setIsPreviewOpen(false)} onSave={() => {}} />}
       <ComparisonModal isOpen={isComparisonOpen} onOpenChange={setIsComparisonOpen} contracts={sortedContracts.filter((contract) => selectedContracts.includes(contract.id))} />
       <EntityEditModal isOpen={isEntityModalOpen} onClose={() => setIsEntityModalOpen(false)} onConfirm={handleConfirmGeneration} placeholderDefinitions={reviewPlaceholderDefinitions} extractedEntities={preparedEntities} entityDescriptions={entityDescriptions} />
+
+      {/* AI Review Dialog */}
+      <Dialog open={isAIReviewOpen} onOpenChange={(open) => {
+        setIsAIReviewOpen(open);
+        if (!open) {
+          setAiReviewResult(null);
+          setSelectedEditIndexes(new Set());
+          setAiReviewingContract(null);
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-500" />
+              Revisão com IA
+            </DialogTitle>
+            <DialogDescription>
+              {aiReviewingContract?.name}
+              {aiReviewResult?.success && aiReviewResult.summary && (
+                <span className="block mt-1 text-sm font-medium text-foreground">{aiReviewResult.summary}</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {isAIReviewing && (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+              <span className="ml-3 text-muted-foreground">Revisando documento com IA...</span>
+            </div>
+          )}
+
+          {aiReviewResult && !aiReviewResult.success && (
+            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-sm text-destructive">
+              {aiReviewResult.error || "Erro ao revisar documento."}
+            </div>
+          )}
+
+          {aiReviewResult?.success && aiReviewResult.suggestions.length === 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700">
+              O documento está em boa qualidade! Nenhuma sugestão de melhoria encontrada.
+            </div>
+          )}
+
+          {aiReviewResult?.success && aiReviewResult.suggestions.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">{aiReviewResult.suggestions.length} sugestão(ões) encontrada(s)</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (selectedEditIndexes.size === aiReviewResult.suggestions.length) {
+                      setSelectedEditIndexes(new Set());
+                    } else {
+                      setSelectedEditIndexes(new Set(aiReviewResult.suggestions.map((_, i) => i)));
+                    }
+                  }}
+                >
+                  {selectedEditIndexes.size === aiReviewResult.suggestions.length ? "Desmarcar Todas" : "Selecionar Todas"}
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {aiReviewResult.suggestions.map((suggestion, idx) => (
+                  <div key={idx} className={cn(
+                    "border rounded-lg p-3 transition-colors",
+                    selectedEditIndexes.has(idx)
+                      ? "border-purple-300 bg-purple-50/50"
+                      : "border-border"
+                  )}>
+                    <div className="flex items-start gap-2">
+                      <Checkbox
+                        checked={selectedEditIndexes.has(idx)}
+                        onCheckedChange={() => {
+                          const newSet = new Set(selectedEditIndexes);
+                          if (newSet.has(idx)) {
+                            newSet.delete(idx);
+                          } else {
+                            newSet.add(idx);
+                          }
+                          setSelectedEditIndexes(newSet);
+                        }}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-medium text-muted-foreground">{suggestion.section}</span>
+                          {suggestion.severity && (
+                            <span className={cn(
+                              "text-[10px] px-1.5 py-0.5 rounded font-medium",
+                              suggestion.severity === "critical" ? "bg-red-100 text-red-700" :
+                              suggestion.severity === "suggestion" ? "bg-amber-100 text-amber-700" :
+                              "bg-gray-100 text-gray-600"
+                            )}>
+                              {suggestion.severity}
+                            </span>
+                          )}
+                          {suggestion.confidence && (
+                            <span className="text-[10px] text-muted-foreground">
+                              Confiança: {suggestion.confidence}
+                            </span>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-start gap-2">
+                            <span className="text-xs text-red-600 font-mono bg-red-50 px-1.5 py-0.5 rounded border border-red-100 shrink-0" style={{ fontSize: "10px" }}>-</span>
+                            <p className="text-xs text-red-700 font-mono leading-relaxed">{suggestion.originalText}</p>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <span className="text-xs text-green-600 font-mono bg-green-50 px-1.5 py-0.5 rounded border border-green-100 shrink-0" style={{ fontSize: "10px" }}>+</span>
+                            <p className="text-xs text-green-700 font-mono leading-relaxed">{suggestion.suggestedText}</p>
+                          </div>
+                        </div>
+                        {suggestion.reason && (
+                          <p className="text-xs text-muted-foreground mt-2 italic">{suggestion.reason}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAIReviewOpen(false);
+                setAiReviewResult(null);
+                setSelectedEditIndexes(new Set());
+                setAiReviewingContract(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            {aiReviewResult?.success && aiReviewResult.suggestions.length > 0 && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    const docId = extractDocumentId(aiReviewingContract?.googleDocLink ?? '');
+                    if (!user?.uid || !docId || selectedEditIndexes.size === 0) return;
+                    setIsApplyingEdits(true);
+                    try {
+                      const editsToApply = Array.from(selectedEditIndexes).map((i) => aiReviewResult!.suggestions[i]);
+                      const applyResult = await applyReviewEdits(user.uid, {
+                        documentId: docId,
+                        contractId: aiReviewingContract?.id,
+                        edits: editsToApply.map((s) => ({
+                          section: s.section,
+                          originalText: s.originalText,
+                          suggestedText: s.suggestedText,
+                          reason: s.reason,
+                          severity: s.severity as "critical" | "suggestion" | "optional",
+                          confidence: s.confidence as "HIGH" | "MEDIUM" | "LOW",
+                        })),
+                      });
+                      if (applyResult.success) {
+                        // Store applied edits for potential undo
+                        setAppliedReviewEdits(editsToApply.map((s) => ({
+                          section: s.section,
+                          originalText: s.originalText,
+                          suggestedText: s.suggestedText,
+                          reason: s.reason,
+                          severity: s.severity,
+                          confidence: s.confidence,
+                        })));
+                        // Track the contract for undo so button persists even after dialog closes
+                        setContractWithAppliedReview(aiReviewingContract);
+                        setIsAIReviewOpen(false);
+                        setAiReviewResult(null);
+                        setSelectedEditIndexes(new Set());
+                        setAiReviewingContract(null);
+                        toast({ title: "Edições aplicadas", description: `${applyResult.editsApplied} edição(ões) aplicada(s) com sucesso. Você pode desfazer em até 24h.` });
+                      } else {
+                        toast({ title: "Erro", description: applyResult.error || "Falha ao aplicar edições.", variant: "destructive" });
+                      }
+                    } catch (e) {
+                      toast({ title: "Erro", description: String(e), variant: "destructive" });
+                    } finally {
+                      setIsApplyingEdits(false);
+                    }
+                  }}
+                  disabled={selectedEditIndexes.size === 0 || isApplyingEdits}
+                >
+                  {isApplyingEdits ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Aplicar {selectedEditIndexes.size} edição(ões)
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Undo Confirmation AlertDialog */}
+      <AlertDialog open={isUndoConfirmOpen} onOpenChange={setIsUndoConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desfazer revisão?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso irá reverter as {appliedReviewEdits?.length ?? 0} edição(ões) aplicadas pelo AI Review e restaurar o texto original no Google Docs.
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!user?.uid || !contractWithAppliedReview || !appliedReviewEdits) return;
+                const docId = extractDocumentId(contractWithAppliedReview.googleDocLink ?? '');
+                if (!docId) return;
+                setIsRevertingEdits(true);
+                try {
+                  const revertResult = await revertReviewEdits(user.uid, {
+                    documentId: docId,
+                    contractId: contractWithAppliedReview?.id,
+                    edits: appliedReviewEdits!.map((s) => ({
+                      section: s.section,
+                      originalText: s.originalText,
+                      suggestedText: s.suggestedText,
+                      reason: s.reason ?? "",
+                      severity: s.severity as "critical" | "suggestion" | "optional",
+                      confidence: s.confidence as "HIGH" | "MEDIUM" | "LOW",
+                    })),
+                  });
+                  if (revertResult.success) {
+                    setAppliedReviewEdits(null);
+                    setContractWithAppliedReview(null);
+                    toast({ title: "Revisão desfeita", description: `${revertResult.editsReverted} edição(ões) revertida(s) com sucesso.` });
+                  } else {
+                    toast({ title: "Erro", description: revertResult.error || "Falha ao desfazer.", variant: "destructive" });
+                  }
+                } catch (e) {
+                  toast({ title: "Erro", description: String(e), variant: "destructive" });
+                } finally {
+                  setIsRevertingEdits(false);
+                  setIsUndoConfirmOpen(false);
+                }
+              }}
+            >
+              {isRevertingEdits ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Desfazer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

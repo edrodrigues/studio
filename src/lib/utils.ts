@@ -96,3 +96,15 @@ export function extractGoogleDocId(link: string): string | null {
   if (/^[a-zA-Z0-9-_]{20,}$/.test(link)) return link;
   return null;
 }
+
+/**
+ * Extracts the document ID from a Google Docs URL.
+ * Specifically matches /document/d/ pattern to avoid matching other /d/ segments.
+ * @param url A Google Docs URL (e.g., https://docs.google.com/document/d/DOCUMENT_ID/edit)
+ * @returns The document ID or null if not found
+ */
+export function extractDocumentId(url: string): string | null {
+  if (!url) return null;
+  const match = url.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : null;
+}

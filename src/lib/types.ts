@@ -456,12 +456,24 @@ export interface Contract {
   // NOVOS CAMPOS
   sourceDocumentIds?: string[]; // IDs dos documentos usados
   entityCount?: number; // Quantidade de entidades preenchidas
-  generationMethod?: 'google-docs';
+  generationMethod?: 'google-docs' | 'ai-enriched';
   templateName?: string; // Nome do template usado
   extractionDate?: string; // Data da extração das entidades
   // Template source tracking
   templateSource?: 'googleDocLink' | 'projectDocLink';
   fallbackUsed?: boolean;
+  // AI review undo support — stores last applied review edits for revert
+  lastReviewEdits?: {
+    appliedAt: string;
+    edits: Array<{
+      section: string;
+      originalText: string;
+      suggestedText: string;
+      reason?: string;
+      severity?: string;
+      confidence?: string;
+    }>;
+  };
 }
 
 export interface UploadedFile {

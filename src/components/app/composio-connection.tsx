@@ -1,0 +1,275 @@
+'use client';
+
+import { useState, useEffect, ReactNode } from 'react';
+import { useUser } from '@/firebase/provider';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import type { ConnectionStatus } from '@/lib/composio-types';
+import { checkComposioConnectionStatus, initiateComposioConnection } from '@/lib/actions/composio-connection-actions';
+
+interface ComposioConnectionState {
+  status: ConnectionStatus;
+  loading: boolean;
+  error: string | null;
+}
+
+interface ComposioConnectionProps {
+  onConnected?: () => void;
+  onError?: (error: string) => void;
+  children?: ReactNode;
+  /** If true, shows a button that opens the connection dialog */
+  showButton?: boolean;
+  /** Button label */
+  buttonLabel?: string;
+  /** If true, shows inline status instead of button */
+  inline?: boolean;
+  className?: string;
+}
+
+type ConnectionStatusInfo = {
+  label: string;
+  description: string;
+  variant: 'success' | 'warning' | 'error' | 'default' | 'secondary';
+  icon: string;
+};
+
+const STATUS_INFO: Record<ConnectionStatus, ConnectionStatusInfo> = {
+  ACTIVE: {
+    label: 'Google conectado',
+    description: 'Sua conta Google está conectada e pronta para geração de contratos.',
+    variant: 'success',
+    icon: '✅',
+  },
+  INITIATED: {
+    label: 'Conexão em andamento',
+    description: 'Aguarde enquanto redirecionamos você para confirmar o acesso.',
+    variant: 'warning',
+    icon: '🔄',
+  },
+  EXPIRED: {
+    label: 'Conexão expirada',
+    description: 'Sua conexão com Google expirou. Conecte-se novamente.',
+    variant: 'warning',
+    icon: '⚠️',
+  },
+  FAILED: {
+    label: 'Erro na conexão',
+    description: 'Não foi possível conectar sua conta Google. Tente novamente.',
+    variant: 'error',
+    icon: '❌',
+  },
+  INACTIVE: {
+    label: 'Google não conectado',
+    description: 'Conecte sua conta Google para gerar contratos a partir de templates.',
+    variant: 'default',
+    icon: '🔗',
+  },
+};
+
+export function ComposioConnection({
+  onConnected,
+  onError,
+  children,
+  showButton = true,
+  buttonLabel = 'Conectar Google',
+  inline = false,
+  className = '',
+}: ComposioConnectionProps) {
+  const { user } = useUser();
+  const { toast } = useToast();
+  const [state, setState] = useState<ComposioConnectionState>({
+    status: 'INACTIVE',
+    loading: true,
+    error: null,
+  });
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setState({ status: 'INACTIVE', loading: false, error: null });
+      return;
+    }
+    checkConnectionStatus();
+  }, [user]);
+
+  async function checkConnectionStatus() {
+    if (!user) return;
+
+    setState((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      const result = await checkComposioConnectionStatus(user.uid);
+      setState({ status: result.status, loading: false, error: null });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Erro ao verificar conexão';
+      setState({ status: 'FAILED', loading: false, error: errorMsg });
+      onError?.(errorMsg);
+    }
+  }
+
+  async function initiateConnection() {
+    if (!user) return;
+
+    setState((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      const { redirectUrl } = await initiateComposioConnection(user.uid);
+
+      // Redirect to Composio OAuth
+      window.location.href = redirectUrl;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Erro ao iniciar conexão';
+      setState({ status: 'FAILED', loading: false, error: errorMsg });
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao conectar',
+        description: errorMsg,
+      });
+    }
+  }
+
+  const statusInfo = STATUS_INFO[state.status];
+
+  // Check URL params for callback status
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get('composio_connected');
+    const error = params.get('composio_error');
+
+    if (connected === 'true') {
+      toast({
+        title: 'Google conectado!',
+        description: 'Sua conta Google foi conectada com sucesso.',
+      });
+      checkConnectionStatus();
+      onConnected?.();
+      // Clean URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('composio_connected');
+      window.history.replaceState({}, '', url.toString());
+    } else if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro na conexão',
+        description: error,
+      });
+      setState({ status: 'FAILED', loading: false, error });
+      onError?.(error);
+      // Clean URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('composio_error');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
+
+  if (state.loading) {
+    return (
+      <div className={`flex items-center gap-2 text-muted-foreground ${className}`}>
+        <span className="animate-spin text-sm">⏳</span>
+        <span className="text-sm">Verificando conexão...</span>
+      </div>
+    );
+  }
+
+  if (inline) {
+    return (
+      <div className={`flex items-center gap-2 ${className}`}>
+        <span>{statusInfo.icon}</span>
+        <div>
+          <p className="text-sm font-medium">{statusInfo.label}</p>
+          <p className="text-xs text-muted-foreground">{statusInfo.description}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (showButton) {
+    return (
+      <>
+        <Button
+          onClick={() => setDialogOpen(true)}
+          variant={state.status === 'ACTIVE' ? 'secondary' : 'default'}
+          className={className}
+        >
+          {statusInfo.icon} {state.status === 'ACTIVE' ? 'Verificar conexão' : buttonLabel}
+        </Button>
+
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {statusInfo.icon} {statusInfo.label}
+              </DialogTitle>
+              <DialogDescription>{statusInfo.description}</DialogDescription>
+            </DialogHeader>
+
+            {state.error && (
+              <div className="text-sm text-destructive bg-destructive/10 rounded-md p-3">
+                {state.error}
+              </div>
+            )}
+
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancelar
+              </Button>
+              {state.status !== 'ACTIVE' && (
+                <Button onClick={initiateConnection} disabled={state.loading}>
+                  {state.loading ? 'Redirecionando...' : 'Conectar Google'}
+                </Button>
+              )}
+              {state.status === 'ACTIVE' && (
+                <Button onClick={checkConnectionStatus} variant="secondary">
+                  Atualizar status
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
+  return children ? (
+    <div className={className}>{children}</div>
+  ) : null;
+}
+
+/**
+ * Hook to check Composio connection status
+ */
+export function useComposioConnection() {
+  const { user } = useUser();
+  const [status, setStatus] = useState<ConnectionStatus>('INACTIVE');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      setStatus('INACTIVE');
+      setLoading(false);
+      return;
+    }
+
+    async function check() {
+      if (!user) return;
+      try {
+        const result = await checkComposioConnectionStatus(user.uid);
+        setStatus(result.status);
+      } catch {
+        setStatus('FAILED');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    check();
+  }, [user]);
+
+  return { status, loading, isConnected: status === 'ACTIVE' };
+}

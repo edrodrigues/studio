@@ -5,13 +5,13 @@ import { z } from "zod";
 import { validateTemplateLinksForPersistence } from "@/lib/template-link-validation.server";
 
 const validateTemplateLinksSchema = z.object({
-  accessToken: z.string().min(1, "Conecte sua conta Google para validar os templates."),
+  userId: z.string().min(1, "Usuário não autenticado."),
   googleDocLink: z.string().optional(),
   projectDocLink: z.string().optional(),
 });
 
 export async function handleValidateTemplateLinksForSave(input: {
-  accessToken: string;
+  userId: string;
   googleDocLink?: string;
   projectDocLink?: string;
 }) {
@@ -29,7 +29,7 @@ export async function handleValidateTemplateLinksForSave(input: {
 
   try {
     const result = await validateTemplateLinksForPersistence(
-      validatedInput.data.accessToken,
+      validatedInput.data.userId,
       validatedInput.data
     );
 

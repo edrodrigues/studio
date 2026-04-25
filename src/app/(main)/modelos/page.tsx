@@ -156,7 +156,7 @@ function TemplateEditor({
 export default function ModelosPage() {
     const { user } = useUser();
     const { firestore } = useFirebase();
-    const { accessToken, signInWithGoogle } = useAuthContext();
+    const { signInWithGoogle } = useAuthContext();
 
     const templatesQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
@@ -316,7 +316,7 @@ export default function ModelosPage() {
             return;
         }
 
-        if (!accessToken) {
+        if (!user) {
             toast({
                 title: "Conecte sua conta Google",
                 description: "Precisamos validar os links dos templates antes de salvar.",
@@ -330,7 +330,7 @@ export default function ModelosPage() {
         }
 
         const validation = await handleValidateTemplateLinksForSave({
-            accessToken,
+            userId: user.uid,
             googleDocLink: editingTemplate.googleDocLink,
             projectDocLink: editingTemplate.projectDocLink,
         });
@@ -387,7 +387,7 @@ export default function ModelosPage() {
         // Exit editing mode
         setEditingTemplate(null);
 
-    }, [accessToken, editingTemplate, firestore, signInWithGoogle, toast, user]);
+    }, [editingTemplate, firestore, signInWithGoogle, toast, user]);
 
     const handleCancelEditing = useCallback(() => {
         setEditingTemplate(null);

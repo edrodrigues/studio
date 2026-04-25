@@ -57,7 +57,7 @@ function buildInaccessibleValidation(
 }
 
 async function validateSingleTemplateLink(
-  accessToken: string,
+  userId: string,
   field: TemplateSourceField,
   link: string,
   validatedAt: string
@@ -83,7 +83,7 @@ async function validateSingleTemplateLink(
   }
 
   try {
-    const metadata = await getFileMetadata(accessToken, audit.fileId);
+    const metadata = await getFileMetadata(userId, audit.fileId);
 
     if (metadata.mimeType !== GOOGLE_DOCS_MIME_TYPE) {
       return {
@@ -118,7 +118,7 @@ async function validateSingleTemplateLink(
 }
 
 export async function validateTemplateLinksForPersistence(
-  accessToken: string,
+  userId: string,
   input: ValidateTemplateLinksInput
 ): Promise<ValidateTemplateLinksResult> {
   const validatedAt = new Date().toISOString();
@@ -126,8 +126,8 @@ export async function validateTemplateLinksForPersistence(
   const projectDocLink = input.projectDocLink?.trim() || "";
 
   const [original, custom] = await Promise.all([
-    validateSingleTemplateLink(accessToken, "googleDocLink", googleDocLink, validatedAt),
-    validateSingleTemplateLink(accessToken, "projectDocLink", projectDocLink, validatedAt),
+    validateSingleTemplateLink(userId, "googleDocLink", googleDocLink, validatedAt),
+    validateSingleTemplateLink(userId, "projectDocLink", projectDocLink, validatedAt),
   ]);
 
   const validations: TemplateLinkValidationState = {

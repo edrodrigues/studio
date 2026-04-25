@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { type Template } from '@/lib/types';
 import { handleUpdateTemplateLink } from '@/lib/actions';
 import { useAuthContext } from '@/context/auth-context';
+import { useUser } from '@/firebase/provider';
 
 interface EditLinkModalProps {
   template: Template | null;
@@ -30,7 +31,8 @@ export function EditLinkModal({ template, isOpen, onClose, projectId }: EditLink
   const [link, setLink] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
-  const { accessToken, signInWithGoogle } = useAuthContext();
+  const { signInWithGoogle } = useAuthContext();
+  const { user } = useUser();
 
   // Reset link when template changes
   useEffect(() => {
@@ -43,7 +45,7 @@ export function EditLinkModal({ template, isOpen, onClose, projectId }: EditLink
 
   const handleSave = async () => {
     if (!template) return;
-    if (!accessToken) {
+    if (!user) {
       toast({
         title: 'Conecte sua conta Google',
         description: 'Precisamos validar o Google Docs antes de salvar o fallback do projeto.',
@@ -60,7 +62,7 @@ export function EditLinkModal({ template, isOpen, onClose, projectId }: EditLink
     try {
       const result = await handleUpdateTemplateLink({
         templateId: template.id,
-        accessToken,
+        userId: user.uid,
         projectDocLink: link.trim() || undefined,
         projectId,
       });

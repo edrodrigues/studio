@@ -766,7 +766,7 @@ export async function handleExtractTemplateFromDocument(input: {
  */
 const updateTemplateLinkSchema = z.object({
   templateId: z.string().min(1, "ID do template é obrigatório"),
-  accessToken: z.string().min(1, "Conecte sua conta Google para validar o link."),
+  userId: z.string().min(1, "Usuário não autenticado."),
   projectDocLink: z.string().url("URL inválida").optional(),
   projectId: z.string().optional(),
 });
@@ -776,7 +776,7 @@ const updateTemplateLinkSchema = z.object({
  */
 export async function handleUpdateTemplateLink(input: {
   templateId: string;
-  accessToken: string;
+  userId: string;
   projectDocLink?: string;
   projectId?: string;
 }): Promise<{
@@ -792,7 +792,7 @@ export async function handleUpdateTemplateLink(input: {
       return { success: false, error: errorMessage };
     }
 
-    const { templateId, accessToken, projectDocLink, projectId } = validatedData.data;
+    const { templateId, userId, projectDocLink, projectId } = validatedData.data;
 
     // Buscar documento do template
     const templateRef = db.collection('contractModels').doc(templateId);
@@ -803,7 +803,7 @@ export async function handleUpdateTemplateLink(input: {
     }
 
     const templateData = templateSnap.data() as Template;
-    const validationResult = await validateTemplateLinksForPersistence(accessToken, {
+    const validationResult = await validateTemplateLinksForPersistence(userId, {
       googleDocLink: templateData.googleDocLink,
       projectDocLink,
     });

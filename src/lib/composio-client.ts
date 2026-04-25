@@ -1,7 +1,4 @@
-'use server';
-
 import { Composio } from '@composio/core';
-import { GoogleProvider } from '@composio/google';
 import {
   COMPOSIO_GOOGLE_TOOLS,
   type ComposioFileMetadata,
@@ -48,48 +45,38 @@ export interface ComposioClient {
 // COMPOSIO CLIENT IMPLEMENTATION
 // ============================================================
 
-let globalComposioInstance: Composio | null = null;
-let globalGoogleProvider: GoogleProvider | null = null;
+const globalForComposio = globalThis as typeof globalThis & {
+  __composioInstance?: Composio;
+};
 
 function getComposioInstance(apiKey?: string): Composio {
-  if (!globalComposioInstance) {
-    globalComposioInstance = new Composio({
+  if (!globalForComposio.__composioInstance) {
+    globalForComposio.__composioInstance = new Composio({
       apiKey: apiKey || process.env.COMPOSIO_API_KEY,
     });
   }
-  return globalComposioInstance;
-}
-
-function getGoogleProvider(): GoogleProvider {
-  if (!globalGoogleProvider) {
-    globalGoogleProvider = new GoogleProvider();
-  }
-  return globalGoogleProvider;
+  return globalForComposio.__composioInstance;
 }
 
 /**
  * Executes a Composio tool and returns the result.
- * Uses the Composio provider's executeToolCall method.
+ * Uses composio.tools.execute() — the correct v0.6.x API for direct tool execution.
  */
-async function executeToolCall(
+async function executeTool(
   composio: Composio,
-  provider: GoogleProvider,
-  userId: string,
-  toolName: string,
-  params: Record<string, any>,
+  toolSlug: string,
+  params: Record<string, unknown>,
   connectedAccountId?: string
-): Promise<any> {
+): Promise<unknown> {
   try {
-    const result = await (composio as any).executeToolCall(
-      userId,
-      { name: toolName, arguments: JSON.stringify(params) },
-      {
-        connectedAccountId,
-      }
+    const result = await composio.tools.execute(
+      toolSlug,
+      { connectedAccountId },
+      { entityId: '' }
     );
     return result;
   } catch (error) {
-    throw mapComposioError(error, toolName);
+    throw mapComposioError(error, toolSlug);
   }
 }
 
@@ -99,29 +86,30 @@ async function executeToolCall(
  *
  * Composio SDK v0.6.x API:
  * - composio.connectedAccounts.initiate(userId, authConfigId, options) → starts OAuth
- * - composio.connectedAccounts.list({ userId }) → lists connected accounts
- * - composio.tools.get(entityId, toolName) → gets tool definition
- * - composio.executeToolCall(entityId, toolCall, options) → executes a tool
+ * - composio.connectedAccounts.list({ entityId }) → lists connected accounts
+ * - composio.tools.execute(slug, body, modifiers) → executes a tool
  */
 export async function createComposioClient(
   userId: string,
   config: ComposioClientConfig = {}
 ): Promise<ComposioClient> {
   const composio = getComposioInstance(config.apiKey);
-  const provider = getGoogleProvider();
 
   // Helper to get connected account for this user
   async function getConnectedAccountId(): Promise<string | undefined> {
     try {
-      const accounts = await (composio.connectedAccounts as any).list({ userId });
-      const googleAccounts = accounts?.filter(
-        (a: any) => a.integrationType === 'google' || a.provider === 'google'
+      const accounts = await composio.connectedAccounts.list({ entityId: userId });
+      const googleAccounts = accounts?.items?.filter(
+        (a: { integrationId?: string; integrationName?: string }) =>
+          a.integrationId?.toLowerCase().includes('google') ||
+          a.integrationName?.toLowerCase().includes('google')
       );
       if (googleAccounts && googleAccounts.length > 0) {
         return googleAccounts[0].id;
       }
       return undefined;
-    } catch {
+    } catch (error) {
+      console.error('[Composio] getConnectedAccountId error:', error);
       return undefined;
     }
   }
@@ -134,15 +122,13 @@ export async function createComposioClient(
     async getDocumentContent(documentId: string): Promise<string> {
       try {
         const connectedAccountId = await getConnectedAccountId();
-        const result = await executeToolCall(
+        const result = await executeTool(
           composio,
-          provider,
-          userId,
           COMPOSIO_GOOGLE_TOOLS.DOCS_GET_DOCUMENT,
           { document_id: documentId },
           connectedAccountId
         );
-        const docData = (result as any)?.data || result;
+        const docData = (result as { data?: unknown })?.data ?? result;
         return extractTextFromDocument(docData);
       } catch (error) {
         mapGoogleDocsErrorToComposio(error, documentId);
@@ -163,10 +149,8 @@ export async function createComposioClient(
         const connectedAccountId = await getConnectedAccountId();
         const composioRequests = convertBatchRequestsToComposio(requests);
         for (const req of composioRequests) {
-          await executeToolCall(
+          await executeTool(
             composio,
-            provider,
-            userId,
             COMPOSIO_GOOGLE_TOOLS.DOCS_UPDATE_DOCUMENT,
             { document_id: documentId, ...req },
             connectedAccountId
@@ -184,19 +168,17 @@ export async function createComposioClient(
     async getFileMetadata(fileId: string): Promise<ComposioFileMetadata> {
       try {
         const connectedAccountId = await getConnectedAccountId();
-        const result = await executeToolCall(
+        const result = await executeTool(
           composio,
-          provider,
-          userId,
           COMPOSIO_GOOGLE_TOOLS.DRIVE_GET_FILE,
           { file_id: fileId },
           connectedAccountId
         );
-        const data = (result as any)?.data || result;
+        const data = (result as { data?: Record<string, unknown> })?.data ?? (result as Record<string, unknown>);
         return {
-          id: data.id || fileId,
-          name: data.name || data.title || 'unknown',
-          mimeType: data.mimeType || data.mime_type || 'application/vnd.google-apps.document',
+          id: (data.id as string) || fileId,
+          name: (data.name as string) || (data.title as string) || 'unknown',
+          mimeType: (data.mimeType as string) || (data.mime_type as string) || 'application/vnd.google-apps.document',
         };
       } catch (error) {
         mapGoogleDriveErrorToComposio(error, fileId);
@@ -206,16 +188,14 @@ export async function createComposioClient(
     async copyFile(fileId: string, newName: string): Promise<string> {
       try {
         const connectedAccountId = await getConnectedAccountId();
-        const result = await executeToolCall(
+        const result = await executeTool(
           composio,
-          provider,
-          userId,
           COMPOSIO_GOOGLE_TOOLS.DRIVE_COPY_FILE,
           { file_id: fileId, name: newName },
           connectedAccountId
         );
-        const data = (result as any)?.data || result;
-        return data.id || data.fileId;
+        const data = (result as { data?: Record<string, unknown> })?.data ?? (result as Record<string, unknown>);
+        return (data.id as string) || (data.fileId as string);
       } catch (error) {
         mapGoogleDriveErrorToComposio(error, fileId);
       }
@@ -228,18 +208,16 @@ export async function createComposioClient(
     ): Promise<ComposioShareResult> {
       try {
         const connectedAccountId = await getConnectedAccountId();
-        const result = await executeToolCall(
+        const result = await executeTool(
           composio,
-          provider,
-          userId,
           COMPOSIO_GOOGLE_TOOLS.DRIVE_CREATE_PERMISSION,
           { file_id: fileId, email, role },
           connectedAccountId
         );
-        const data = (result as any)?.data || result;
+        const data = (result as { data?: Record<string, unknown> })?.data ?? (result as Record<string, unknown>);
         return {
           fileId,
-          permissionId: data.permissionId || data.id || 'unknown',
+          permissionId: (data.permissionId as string) || (data.id as string) || 'unknown',
         };
       } catch (error) {
         mapGoogleDriveErrorToComposio(error, fileId);
@@ -252,13 +230,16 @@ export async function createComposioClient(
 
     async getConnectionStatus(userId: string): Promise<ConnectionStatus> {
       try {
-        const accounts = await (composio.connectedAccounts as any).list({ userId });
-        if (!accounts || accounts.length === 0) {
+        const accounts = await composio.connectedAccounts.list({ entityId: userId });
+        const items = accounts?.items ?? accounts;
+        if (!items || items.length === 0) {
           return 'INACTIVE';
         }
         // Find the Google account
-        const googleAccount = accounts.find(
-          (a: any) => a.integrationType === 'google' || a.provider === 'google'
+        const googleAccount = items.find(
+          (a: { integrationId?: string; integrationName?: string; status?: string }) =>
+            a.integrationId?.toLowerCase().includes('google') ||
+            a.integrationName?.toLowerCase().includes('google')
         );
         if (!googleAccount) {
           return 'INACTIVE';
@@ -275,7 +256,6 @@ export async function createComposioClient(
     },
 
     async initiateConnection(userId: string): Promise<string> {
-      // Use the GoogleProvider to initiate OAuth via Composio
       const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
       if (!authConfigId) {
         throw new Error(
@@ -284,18 +264,23 @@ export async function createComposioClient(
         );
       }
       const callbackUrl = config.callbackUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/composio/callback`;
+
+      if (process.env.NODE_ENV === 'production' && (!process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL.includes('localhost'))) {
+        console.warn('[Composio] NEXT_PUBLIC_APP_URL is not set or points to localhost. OAuth callbacks will fail in production.');
+      }
+
       try {
-        const connectionRequest = await (composio.connectedAccounts as any).initiate(
+        const connectionRequest = await composio.connectedAccounts.initiate(
           userId,
           authConfigId,
-          { callbackUrl }
+          { redirectUri: callbackUrl }
         );
-        // The initiate method returns a redirect URL directly
-        if (typeof connectionRequest === 'string') {
-          return connectionRequest;
+        const redirectUrl = connectionRequest?.redirectUrl;
+        if (!redirectUrl) {
+          throw new Error('Composio did not return a redirect URL for OAuth.');
         }
-        // Or it might return an object with a redirect URL
-        return (connectionRequest as any)?.redirectUrl || (connectionRequest as any)?.url || '';
+        console.info('[Composio] initiateConnection redirect:', redirectUrl);
+        return redirectUrl;
       } catch (error) {
         console.error('[Composio] initiateConnection error:', error);
         throw new Error('Falha ao iniciar conexão com Google. Tente novamente.');
@@ -317,14 +302,15 @@ export async function createComposioClient(
 // HELPER FUNCTIONS
 // ============================================================
 
-function extractTextFromDocument(docData: any): string {
+function extractTextFromDocument(docData: unknown): string {
   if (!docData) return '';
   if (typeof docData === 'string') return docData;
-  if (docData.body?.content) {
+  const doc = docData as { body?: { content?: Array<{ paragraph?: { elements?: Array<{ textRun?: { content?: string } }> } }> } };
+  if (doc.body?.content) {
     let text = '';
-    docData.body.content.forEach((element: any) => {
+    doc.body.content.forEach((element) => {
       if (element.paragraph?.elements) {
-        element.paragraph.elements.forEach((el: any) => {
+        element.paragraph.elements.forEach((el) => {
           if (el.textRun?.content) {
             text += el.textRun.content;
           }
@@ -333,7 +319,8 @@ function extractTextFromDocument(docData: any): string {
     });
     return text;
   }
-  return docData.text || docData.content || docData.body || JSON.stringify(docData);
+  const docAny = docData as Record<string, unknown>;
+  return (docAny.text as string) || (docAny.content as string) || (docAny.body as string) || JSON.stringify(docData);
 }
 
 function convertBatchRequestsToComposio(requests: any[]): any[] {
@@ -371,7 +358,3 @@ function mapGoogleDocsErrorToComposio(composioError: unknown, documentId: string
 function mapGoogleDriveErrorToComposio(composioError: unknown, fileId: string): never {
   throw mapComposioDriveError(composioError, fileId);
 }
-
-// ============================================================
-// MOCKABLE FACTORY (for tests)
-

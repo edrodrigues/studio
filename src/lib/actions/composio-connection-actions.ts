@@ -18,7 +18,8 @@ export async function checkComposioConnectionStatus(
   try {
     const client = await createComposioClient(userId);
     return await client.checkConnection(userId);
-  } catch {
+  } catch (error) {
+    console.error('[Composio] checkComposioConnectionStatus error:', error, { userId });
     return { connected: false, status: 'FAILED' };
   }
 }
@@ -36,7 +37,7 @@ export async function initiateComposioConnection(
     return { redirectUrl };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Falha ao iniciar conexão com Google. Tente novamente.';
-    console.error('[Composio] initiateComposioConnection error:', error);
+    console.error('[Composio] initiateComposioConnection error:', error, { userId });
     return { error: errorMsg };
   }
 }

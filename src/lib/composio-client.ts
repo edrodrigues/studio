@@ -86,7 +86,7 @@ async function executeTool(
  *
  * Composio SDK v0.6.x API:
  * - composio.connectedAccounts.initiate(userId, authConfigId, options) → starts OAuth
- * - composio.connectedAccounts.list({ entityId }) → lists connected accounts
+ * - composio.connectedAccounts.list({ userIds: [userId] }) → lists connected accounts
  * - composio.tools.execute(slug, body, modifiers) → executes a tool
  */
 export async function createComposioClient(
@@ -98,7 +98,7 @@ export async function createComposioClient(
   // Helper to get connected account for this user
   async function getConnectedAccountId(): Promise<string | undefined> {
     try {
-      const accounts = await composio.connectedAccounts.list({ entityId: userId });
+      const accounts = await composio.connectedAccounts.list({ userIds: [userId] });
       const googleAccounts = accounts?.items?.filter(
         (a: { integrationId?: string; integrationName?: string }) =>
           a.integrationId?.toLowerCase().includes('google') ||
@@ -230,7 +230,7 @@ export async function createComposioClient(
 
     async getConnectionStatus(userId: string): Promise<ConnectionStatus> {
       try {
-        const accounts = await composio.connectedAccounts.list({ entityId: userId });
+        const accounts = await composio.connectedAccounts.list({ userIds: [userId] });
         const items = accounts?.items ?? accounts;
         if (!items || items.length === 0) {
           return 'INACTIVE';
@@ -273,7 +273,7 @@ export async function createComposioClient(
         const connectionRequest = await composio.connectedAccounts.initiate(
           userId,
           authConfigId,
-          { redirectUri: callbackUrl }
+          { callbackUrl: callbackUrl, allowMultiple: true }
         );
         const redirectUrl = connectionRequest?.redirectUrl;
         if (!redirectUrl) {
@@ -282,8 +282,9 @@ export async function createComposioClient(
         console.info('[Composio] initiateConnection redirect:', redirectUrl);
         return redirectUrl;
       } catch (error) {
+        const sdkMessage = error instanceof Error ? error.message : String(error);
         console.error('[Composio] initiateConnection error:', error);
-        throw new Error('Falha ao iniciar conexão com Google. Tente novamente.');
+        throw new Error(`Falha ao iniciar conexão com Google: ${sdkMessage}`);
       }
     },
 

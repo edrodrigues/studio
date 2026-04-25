@@ -15,7 +15,7 @@ async function main() {
         // There isn't a direct "listModels" in Genkit core easily accessible without trial/error, 
         // so we'll try a very simple generation with the model we want to use.
         const response = await ai.generate({
-            model: 'googleai/gemini-31-flash-lite-preview',
+            model: 'googleai/gemini-3.1-flash-lite-preview',
             prompt: 'Oi',
         });
         console.log('Success! Response:', response.text);

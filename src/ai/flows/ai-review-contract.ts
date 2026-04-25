@@ -86,7 +86,7 @@ export type ReviewEditSuggestion = z.infer<typeof ReviewEditSuggestionSchema>;
 
 const reviewContractPrompt = ai.definePrompt({
   name: 'reviewContractPrompt',
-  model: 'googleai/gemini-31-flash-lite-preview',
+  model: 'googleai/gemini-3.1-flash-lite-preview',
   input: {
     schema: z.object({
       documentContent: z.string(),

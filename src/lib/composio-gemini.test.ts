@@ -42,7 +42,7 @@ describe('composio-gemini', () => {
       expect(mockAiGenerate).toHaveBeenCalledWith(
         expect.objectContaining({
           prompt: 'What is 2+2?',
-          model: 'googleai/gemini-31-flash-lite-preview',
+          model: 'googleai/gemini-3.1-flash-lite-preview',
         })
       );
     });
@@ -63,7 +63,7 @@ describe('composio-gemini', () => {
       expect(mockAiGenerate).toHaveBeenCalledWith(
         expect.objectContaining({
           prompt: 'Get person info',
-          model: 'googleai/gemini-31-flash-lite-preview',
+          model: 'googleai/gemini-3.1-flash-lite-preview',
         })
       );
     });
@@ -92,7 +92,7 @@ describe('composio-gemini', () => {
         expect.objectContaining({
           prompt: 'Show me the document',
           system: 'You are a helpful assistant.',
-          model: 'googleai/gemini-31-flash-lite-preview',
+          model: 'googleai/gemini-3.1-flash-lite-preview',
         })
       );
     });

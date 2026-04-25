@@ -28,7 +28,7 @@ async function main() {
             plugins: [
                 googleAI({ apiKey }),
             ],
-            model: 'googleai/gemini-31-flash-lite-preview',
+            model: 'googleai/gemini-3.1-flash-lite-preview',
         });
 
         console.log('Generating content...');

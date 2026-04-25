@@ -33,7 +33,7 @@ async function main() {
     }
     log(`✅ API Key found (ends with ...${apiKey.slice(-4)})`);
 
-    const modelName = 'gemini-31-flash-lite-preview';
+    const modelName = 'gemini-3.1-flash-lite-preview';
     const baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
 
     log('\n--- Test 1: List Models ---');

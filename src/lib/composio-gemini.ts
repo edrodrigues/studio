@@ -38,14 +38,14 @@ export async function inferWithGemini<T = Record<string, unknown>>(
     const response = await ai.generate({
       prompt,
       output: { schema: outputSchema },
-      model: 'googleai/gemini-31-flash-lite-preview',
+      model: 'googleai/gemini-3.1-flash-lite-preview',
     });
     return response.output as T;
   }
 
   const response = await ai.generate({
     prompt,
-    model: 'googleai/gemini-31-flash-lite-preview',
+    model: 'googleai/gemini-3.1-flash-lite-preview',
   });
   return response.text as unknown as T;
 }
@@ -81,7 +81,7 @@ export async function runComposioAgent(
   const response = await ai.generate({
     prompt: userMessage,
     system: systemPrompt,
-    model: 'googleai/gemini-31-flash-lite-preview',
+    model: 'googleai/gemini-3.1-flash-lite-preview',
   });
 
   return {

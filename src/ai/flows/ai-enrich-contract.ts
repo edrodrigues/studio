@@ -57,7 +57,7 @@ export type AIEnrichContractOutput = z.infer<typeof AIEnrichContractOutputSchema
 
 const enrichContractPrompt = ai.definePrompt({
   name: 'enrichContractPrompt',
-  model: 'googleai/gemini-31-flash-lite-preview',
+  model: 'googleai/gemini-3.1-flash-lite-preview',
   input: {
     schema: z.object({
       placeholdersList: z.string(),

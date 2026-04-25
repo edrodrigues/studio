@@ -132,6 +132,8 @@ export function ComposioConnection({
         return;
       }
 
+      // Store current path to return to after OAuth
+      sessionStorage.setItem('composio_return_to', window.location.pathname + window.location.search);
       // Redirect to Composio OAuth
       window.location.href = result.redirectUrl;
     } catch (error) {
@@ -167,6 +169,12 @@ export function ComposioConnection({
       const url = new URL(window.location.href);
       url.searchParams.delete('composio_connected');
       window.history.replaceState({}, '', url.toString());
+      // Return to the page the user was on before OAuth
+      const returnTo = sessionStorage.getItem('composio_return_to');
+      if (returnTo) {
+        sessionStorage.removeItem('composio_return_to');
+        window.location.href = returnTo;
+      }
     } else if (error) {
       toast({
         variant: 'destructive',

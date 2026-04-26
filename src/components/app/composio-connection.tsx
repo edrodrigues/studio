@@ -159,22 +159,18 @@ export function ComposioConnection({
     const error = params.get('composio_error');
 
     if (connected === 'true') {
+      // Clean URL params first — no page reload needed since we're already on the target page
       toast({
         title: 'Google conectado!',
         description: 'Sua conta Google foi conectada com sucesso.',
       });
-      checkConnectionStatus();
-      onConnected?.();
-      // Clean URL
       const url = new URL(window.location.href);
       url.searchParams.delete('composio_connected');
       window.history.replaceState({}, '', url.toString());
-      // Return to the page the user was on before OAuth
-      const returnTo = sessionStorage.getItem('composio_return_to');
-      if (returnTo) {
-        sessionStorage.removeItem('composio_return_to');
-        window.location.href = returnTo;
-      }
+      sessionStorage.removeItem('composio_return_to');
+      // Re-check connection status now that OAuth has completed
+      checkConnectionStatus();
+      onConnected?.();
     } else if (error) {
       toast({
         variant: 'destructive',

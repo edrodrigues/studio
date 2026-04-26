@@ -104,12 +104,12 @@ export async function createComposioClient(
     if (config.googleAuthConfigId) {
       // If we have authConfigId, the connected account ID IS the authConfigId for this integration
       // But we need to list accounts to find the actual connectedAccountId
-      // Use the authConfigId as an integrationId filter for precise matching
+      // Use the authConfigId as an authConfig.id filter for precise matching
       try {
         const accounts = await composio.connectedAccounts.list({ userIds: [userId] });
         const matched = accounts?.items?.find(
-          (a: { integrationId?: string; id?: string }) =>
-            a.integrationId === config.googleAuthConfigId
+          (a: { authConfig?: { id?: string }; id?: string }) =>
+            a.authConfig?.id === config.googleAuthConfigId
         );
         return matched?.id;
       } catch (error) {
@@ -118,15 +118,15 @@ export async function createComposioClient(
       }
     }
 
-    // Fallback: filter by exact integrationId or integrationName match for Google
+    // Fallback: filter by toolkit slug/name match for Google
     try {
       const accounts = await composio.connectedAccounts.list({ userIds: [userId] });
       const googleAccounts = accounts?.items?.filter(
-        (a: { integrationId?: string; integrationName?: string }) =>
-          a.integrationId?.toLowerCase() === 'google' ||
-          a.integrationId?.toLowerCase() === 'googleworkspace' ||
-          a.integrationName?.toLowerCase() === 'google' ||
-          a.integrationName?.toLowerCase() === 'google workspace'
+        (a: { toolkit?: { slug?: string; name?: string } }) =>
+          a.toolkit?.slug?.toLowerCase() === 'google' ||
+          a.toolkit?.slug?.toLowerCase() === 'googleworkspace' ||
+          a.toolkit?.name?.toLowerCase() === 'google' ||
+          a.toolkit?.name?.toLowerCase() === 'google workspace'
       );
       if (googleAccounts && googleAccounts.length > 0) {
         return googleAccounts[0].id;
@@ -264,14 +264,30 @@ export async function createComposioClient(
         if (!items || items.length === 0) {
           return 'INACTIVE';
         }
-        // Find the Google account using exact match or known Google integration IDs
-        const googleAccount = items.find(
-          (a: { integrationId?: string; integrationName?: string; status?: string }) =>
-            a.integrationId?.toLowerCase() === 'google' ||
-            a.integrationId?.toLowerCase() === 'googleworkspace' ||
-            a.integrationName?.toLowerCase() === 'google' ||
-            a.integrationName?.toLowerCase() === 'google workspace'
-        );
+
+        const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+
+        // Prefer authConfigId-based lookup if available (most precise)
+        let googleAccount: { status?: string; authConfig?: { id?: string }; toolkit?: { slug?: string; name?: string } } | undefined;
+
+        if (authConfigId) {
+          googleAccount = items.find(
+            (a: { authConfig?: { id?: string }; status?: string }) =>
+              a.authConfig?.id === authConfigId
+          );
+        }
+
+        // Fallback: match by toolkit slug/name
+        if (!googleAccount) {
+          googleAccount = items.find(
+            (a: { toolkit?: { slug?: string; name?: string }; status?: string }) =>
+              a.toolkit?.slug?.toLowerCase() === 'google' ||
+              a.toolkit?.slug?.toLowerCase() === 'googleworkspace' ||
+              a.toolkit?.name?.toLowerCase() === 'google' ||
+              a.toolkit?.name?.toLowerCase() === 'google workspace'
+          );
+        }
+
         if (!googleAccount) {
           return 'INACTIVE';
         }

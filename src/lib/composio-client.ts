@@ -1,4 +1,5 @@
 import { Composio } from '@composio/core';
+import { GoogleProvider } from '@composio/google';
 import {
   COMPOSIO_GOOGLE_TOOLS,
   type ComposioFileMetadata,
@@ -53,6 +54,7 @@ function getComposioInstance(apiKey?: string): Composio {
   if (!globalForComposio.__composioInstance) {
     globalForComposio.__composioInstance = new Composio({
       apiKey: apiKey || process.env.COMPOSIO_API_KEY,
+      provider: new GoogleProvider(),
     });
   }
   return globalForComposio.__composioInstance;
@@ -66,14 +68,15 @@ async function executeTool(
   composio: Composio,
   toolSlug: string,
   params: Record<string, unknown>,
+  userId: string,
   connectedAccountId?: string
 ): Promise<unknown> {
   try {
-    const result = await composio.tools.execute(
-      toolSlug,
-      { connectedAccountId },
-      { entityId: '' }
-    );
+    const result = await composio.tools.execute(toolSlug, {
+      connectedAccountId,
+      arguments: params,
+      userId,
+    });
     return result;
   } catch (error) {
     throw mapComposioError(error, toolSlug);
@@ -97,12 +100,33 @@ export async function createComposioClient(
 
   // Helper to get connected account for this user
   async function getConnectedAccountId(): Promise<string | undefined> {
+    // Prefer authConfigId from config if available (no filtering needed)
+    if (config.googleAuthConfigId) {
+      // If we have authConfigId, the connected account ID IS the authConfigId for this integration
+      // But we need to list accounts to find the actual connectedAccountId
+      // Use the authConfigId as an integrationId filter for precise matching
+      try {
+        const accounts = await composio.connectedAccounts.list({ userIds: [userId] });
+        const matched = accounts?.items?.find(
+          (a: { integrationId?: string; id?: string }) =>
+            a.integrationId === config.googleAuthConfigId
+        );
+        return matched?.id;
+      } catch (error) {
+        console.error('[Composio] getConnectedAccountId error:', error);
+        return undefined;
+      }
+    }
+
+    // Fallback: filter by exact integrationId or integrationName match for Google
     try {
       const accounts = await composio.connectedAccounts.list({ userIds: [userId] });
       const googleAccounts = accounts?.items?.filter(
         (a: { integrationId?: string; integrationName?: string }) =>
-          a.integrationId?.toLowerCase().includes('google') ||
-          a.integrationName?.toLowerCase().includes('google')
+          a.integrationId?.toLowerCase() === 'google' ||
+          a.integrationId?.toLowerCase() === 'googleworkspace' ||
+          a.integrationName?.toLowerCase() === 'google' ||
+          a.integrationName?.toLowerCase() === 'google workspace'
       );
       if (googleAccounts && googleAccounts.length > 0) {
         return googleAccounts[0].id;
@@ -126,6 +150,7 @@ export async function createComposioClient(
           composio,
           COMPOSIO_GOOGLE_TOOLS.DOCS_GET_DOCUMENT,
           { document_id: documentId },
+          userId,
           connectedAccountId
         );
         const docData = (result as { data?: unknown })?.data ?? result;
@@ -153,6 +178,7 @@ export async function createComposioClient(
             composio,
             COMPOSIO_GOOGLE_TOOLS.DOCS_UPDATE_DOCUMENT,
             { document_id: documentId, ...req },
+            userId,
             connectedAccountId
           );
         }
@@ -172,6 +198,7 @@ export async function createComposioClient(
           composio,
           COMPOSIO_GOOGLE_TOOLS.DRIVE_GET_FILE,
           { file_id: fileId },
+          userId,
           connectedAccountId
         );
         const data = (result as { data?: Record<string, unknown> })?.data ?? (result as Record<string, unknown>);
@@ -192,6 +219,7 @@ export async function createComposioClient(
           composio,
           COMPOSIO_GOOGLE_TOOLS.DRIVE_COPY_FILE,
           { file_id: fileId, name: newName },
+          userId,
           connectedAccountId
         );
         const data = (result as { data?: Record<string, unknown> })?.data ?? (result as Record<string, unknown>);
@@ -212,6 +240,7 @@ export async function createComposioClient(
           composio,
           COMPOSIO_GOOGLE_TOOLS.DRIVE_CREATE_PERMISSION,
           { file_id: fileId, email, role },
+          userId,
           connectedAccountId
         );
         const data = (result as { data?: Record<string, unknown> })?.data ?? (result as Record<string, unknown>);
@@ -235,11 +264,13 @@ export async function createComposioClient(
         if (!items || items.length === 0) {
           return 'INACTIVE';
         }
-        // Find the Google account
+        // Find the Google account using exact match or known Google integration IDs
         const googleAccount = items.find(
           (a: { integrationId?: string; integrationName?: string; status?: string }) =>
-            a.integrationId?.toLowerCase().includes('google') ||
-            a.integrationName?.toLowerCase().includes('google')
+            a.integrationId?.toLowerCase() === 'google' ||
+            a.integrationId?.toLowerCase() === 'googleworkspace' ||
+            a.integrationName?.toLowerCase() === 'google' ||
+            a.integrationName?.toLowerCase() === 'google workspace'
         );
         if (!googleAccount) {
           return 'INACTIVE';
@@ -326,7 +357,7 @@ function extractTextFromDocument(docData: unknown): string {
 
 function convertBatchRequestsToComposio(requests: any[]): any[] {
   return requests
-    .filter((req) => req.replaceAllText || req.insertText || req.textStyleUpdate)
+    .filter((req) => req.replaceAllText || req.insertText)
     .map((req) => {
       if (req.replaceAllText) {
         return {
@@ -344,8 +375,9 @@ function convertBatchRequestsToComposio(requests: any[]): any[] {
           },
         };
       }
-      return req;
-    });
+      return null;
+    })
+    .filter(Boolean);
 }
 
 // ============================================================

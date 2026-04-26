@@ -100,18 +100,28 @@ export async function createComposioClient(
 
   // Helper to get connected account for this user
   async function getConnectedAccountId(): Promise<string | undefined> {
-    // Prefer authConfigId from config if available (no filtering needed)
-    if (config.googleAuthConfigId) {
-      // If we have authConfigId, the connected account ID IS the authConfigId for this integration
-      // But we need to list accounts to find the actual connectedAccountId
-      // Use the authConfigId as an authConfig.id filter for precise matching
+    const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+
+    // Prefer authConfigId-based lookup (most precise)
+    if (authConfigId) {
       try {
         const accounts = await composio.connectedAccounts.list({ userIds: [userId] });
         const matched = accounts?.items?.find(
           (a: { authConfig?: { id?: string }; id?: string }) =>
-            a.authConfig?.id === config.googleAuthConfigId
+            a.authConfig?.id === authConfigId
         );
-        return matched?.id;
+        if (matched?.id) {
+          console.info('[Composio] getConnectedAccountId: found account via authConfigId:', matched.id);
+          return matched.id;
+        }
+        console.warn('[Composio] getConnectedAccountId: authConfigId provided but no match found.', {
+          authConfigId,
+          availableAccounts: accounts?.items?.map((a: { id?: string; authConfig?: { id?: string }; toolkit?: { slug?: string } }) => ({
+            id: a.id,
+            authConfigId: a.authConfig?.id,
+            toolkitSlug: a.toolkit?.slug,
+          })),
+        });
       } catch (error) {
         console.error('[Composio] getConnectedAccountId error:', error);
         return undefined;
@@ -129,8 +139,17 @@ export async function createComposioClient(
           a.toolkit?.name?.toLowerCase() === 'google workspace'
       );
       if (googleAccounts && googleAccounts.length > 0) {
+        console.info('[Composio] getConnectedAccountId: found account via toolkit fallback:', googleAccounts[0].id);
         return googleAccounts[0].id;
       }
+      console.warn('[Composio] getConnectedAccountId: no Google accounts found.', {
+        userId,
+        availableAccounts: accounts?.items?.map((a: { id?: string; toolkit?: { slug?: string; name?: string } }) => ({
+          id: a.id,
+          slug: a.toolkit?.slug,
+          name: a.toolkit?.name,
+        })),
+      });
       return undefined;
     } catch (error) {
       console.error('[Composio] getConnectedAccountId error:', error);
@@ -289,10 +308,25 @@ export async function createComposioClient(
         }
 
         if (!googleAccount) {
+          console.warn('[Composio] getConnectionStatus: no Google account found for userId', userId, {
+            authConfigId,
+            availableAccounts: items.map((a: { id?: string; authConfig?: { id?: string }; toolkit?: { slug?: string; name?: string }; status?: string }) => ({
+              id: a.id,
+              authConfigId: a.authConfig?.id,
+              toolkitSlug: a.toolkit?.slug,
+              toolkitName: a.toolkit?.name,
+              status: a.status,
+            })),
+          });
           return 'INACTIVE';
         }
         const status = googleAccount.status;
+        console.info('[Composio] getConnectionStatus: found Google account with status:', status, {
+          accountId: googleAccount.id,
+          toolkitSlug: googleAccount.toolkit?.slug,
+        });
         if (status === 'ACTIVE') return 'ACTIVE';
+        if (status === 'INITIALIZING') return 'INITIATED';
         if (status === 'INITIATED') return 'INITIATED';
         if (status === 'EXPIRED') return 'EXPIRED';
         if (status === 'INACTIVE') return 'INACTIVE';

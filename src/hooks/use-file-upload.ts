@@ -8,7 +8,8 @@ import {
   generateStoragePath,
   validateFile,
   UploadProgress,
-  formatFileSize
+  formatFileSize,
+  withRetry
 } from '@/lib/storage';
 import { DocumentStatus, ProjectDocument } from '@/lib/types';
 import { getUploadUrl } from '@/lib/actions/storage-actions';
@@ -91,28 +92,31 @@ export function useFileUpload(projectId: string | null): UseFileUploadReturn {
         ) || [];
         const nextVersion = existingDocs.length + 1;
 
-        // 1. Get signed URL from server for R2 upload
-        const uploadUrlResult = await getUploadUrl(
-          projectId,
-          user.uid,
-          file.name,
-          file.type
+        // 1. Get signed URL from server for R2 upload (with retry)
+        const uploadUrlResult = await withRetry(
+          () => getUploadUrl(projectId, user.uid, file.name, file.type),
+          2,  // max retries
+          1000 // base delay 1s
         );
 
         if (!uploadUrlResult.success || !uploadUrlResult.url) {
           throw new Error(uploadUrlResult.error || 'Falha ao obter URL de upload do servidor');
         }
 
-        // 2. Upload to Cloudflare R2
-        await uploadFileToR2(
-          file,
-          uploadUrlResult.url,
-          (progress: UploadProgress) => {
-            setUploadState(prev => ({
-              ...prev,
-              progress: progress.progress
-            }));
-          }
+        // 2. Upload to Cloudflare R2 (with retry)
+        await withRetry(
+          () => uploadFileToR2(
+            file,
+            uploadUrlResult.url!,
+            (progress: UploadProgress) => {
+              setUploadState(prev => ({
+                ...prev,
+                progress: progress.progress
+              }));
+            }
+          ),
+          2,  // max retries
+          1500 // base delay 1.5s
         );
 
         // 3. Create document metadata in Firestore

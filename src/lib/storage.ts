@@ -180,23 +180,35 @@ export function uploadFileToStorage(
 }
 
 /**
- * Uploads a file to Cloudflare R2 using a presigned URL with progress tracking
+ * Uploads a file to Cloudflare R2 using a presigned URL with progress tracking.
+ * Includes CORS preflight detection for better error messages.
  */
 export async function uploadFileToR2(
   file: File,
   presignedUrl: string,
   onProgress?: (progress: UploadProgress) => void
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    // Validate file
-    const validation = validateFile(file);
-    if (!validation.valid) {
-      const error = new Error(validation.error);
-      (error as StorageError).code = 'file/too-large';
-      reject(error);
-      return;
-    }
+  // Validate file first (client-side check before any network request)
+  const validation = validateFile(file);
+  if (!validation.valid) {
+    const error = new Error(validation.error);
+    (error as StorageError).code = 'file/too-large';
+    throw error;
+  }
 
+  // CORS preflight check: send a lightweight HEAD request to detect CORS issues early
+  try {
+    await fetch(presignedUrl, { method: 'HEAD', mode: 'cors' });
+  } catch (preflightError) {
+    // If HEAD fails with a network error (not a 4xx/5xx), it's likely CORS
+    throw new Error(
+      'Não foi possível conectar ao armazenamento em nuvem. ' +
+      'Isso geralmente ocorre por configuração de CORS no bucket do Cloudflare R2. ' +
+      'Contate o administrador para verificar as regras de CORS do bucket.'
+    );
+  }
+
+  return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     
     xhr.upload.addEventListener('progress', (event) => {
@@ -220,18 +232,45 @@ export async function uploadFileToR2(
           totalBytes: file.size
         });
         resolve();
+      } else if (xhr.status === 403) {
+        reject(new Error(
+          'Acesso negado ao armazenamento (erro 403). A URL de upload pode ter expirado. ' +
+          'Tente novamente ou contate o administrador.'
+        ));
+      } else if (xhr.status === 0) {
+        // status 0 = network error, most likely CORS
+        reject(new Error(
+          'Erro de rede durante o upload. ' +
+          'Isso geralmente indica um problema de configuração CORS no Cloudflare R2. ' +
+          'Contate o administrador do sistema.'
+        ));
       } else {
-        reject(new Error(`Upload falhou com status ${xhr.status}. Verifique as configurações de CORS.`));
+        reject(new Error(
+          `Upload falhou com status ${xhr.status}. Verifique as configurações de CORS e permissões do bucket.`
+        ));
       }
     });
 
     xhr.addEventListener('error', () => {
-      reject(new Error('Erro de rede durante o upload para o R2.'));
+      reject(new Error(
+        'Erro de rede durante o upload para o armazenamento em nuvem. ' +
+        'Verifique sua conexão com a internet e tente novamente.'
+      ));
     });
 
     xhr.addEventListener('abort', () => {
       reject(new Error('Upload cancelado pelo usuário.'));
     });
+
+    xhr.addEventListener('timeout', () => {
+      reject(new Error(
+        'O upload excedeu o tempo limite. ' +
+        'Arquivos grandes podem levar mais tempo — tente novamente.'
+      ));
+    });
+
+    // Set a generous timeout for large files (5 minutes)
+    xhr.timeout = 5 * 60 * 1000;
 
     xhr.open('PUT', presignedUrl);
     xhr.setRequestHeader('Content-Type', file.type);
@@ -256,13 +295,6 @@ export async function deleteFileFromStorage(storagePath: string, storage: Fireba
 }
 
 /**
- * Gets file extension from filename
- */
-export function getFileExtension(fileName: string): string {
-  return fileName.slice(((fileName.lastIndexOf('.') - 1) >>> 0) + 2);
-}
-
-/**
  * Formats file size for display
  */
 export function formatFileSize(bytes: number): string {
@@ -271,4 +303,30 @@ export function formatFileSize(bytes: number): string {
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+/**
+ * Retries an async operation with exponential backoff.
+ * @param fn - The async function to retry
+ * @param maxRetries - Maximum number of retries (default 2)
+ * @param baseDelayMs - Base delay in ms, doubled each retry (default 1000)
+ */
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 2,
+  baseDelayMs: number = 1000
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxRetries) {
+        const delay = baseDelayMs * Math.pow(2, attempt);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
 }

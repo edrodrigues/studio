@@ -1,6 +1,6 @@
 'use server';
 
-import { r2Client, R2_BUCKET_NAME } from '@/lib/r2';
+import { getR2Client, isR2Configured, R2_BUCKET_NAME } from '@/lib/r2';
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ProjectRole, ProjectMember } from '@/lib/types';
@@ -35,6 +35,14 @@ export async function getUploadUrl(
   fileName: string, 
   contentType: string
 ) {
+  // 0. Fail fast if R2 is not configured
+  if (!isR2Configured()) {
+    return {
+      success: false,
+      error: 'Armazenamento em nuvem não configurado. As variáveis de ambiente do Cloudflare R2 estão ausentes. Contate o administrador do sistema. (R2 credentials missing)',
+    };
+  }
+
   // 1. Verify permission (must be at least EDITOR to upload)
   const hasPermission = await checkProjectPermission(projectId, userId, ProjectRole.EDITOR);
   if (!hasPermission) {
@@ -47,6 +55,8 @@ export async function getUploadUrl(
   const key = `projects/${projectId}/documents/uploads/${timestamp}_${sanitizedFileName}`;
 
   try {
+    const client = getR2Client();
+
     // 3. Generate presigned URL for PUT
     const command = new PutObjectCommand({
       Bucket: R2_BUCKET_NAME,
@@ -55,7 +65,7 @@ export async function getUploadUrl(
     });
 
     // URL expires in 1 hour
-    const url = await getSignedUrl(r2Client, command, { expiresIn: 3600 });
+    const url = await getSignedUrl(client, command, { expiresIn: 3600 });
 
     return { 
       success: true, 
@@ -65,9 +75,15 @@ export async function getUploadUrl(
     };
   } catch (error) {
     console.error('Error generating upload URL:', error);
+    
+    const rootCause = error instanceof Error ? error.message : String(error);
+    const isConfigError = rootCause.includes('R2') || rootCause.includes('credentials') || rootCause.includes('configura');
+    
     return { 
       success: false, 
-      error: 'Failed to generate upload URL' 
+      error: isConfigError
+        ? `Configuração do armazenamento incompleta: ${rootCause}`
+        : `Erro ao gerar URL de upload: ${rootCause}`,
     };
   }
 }
@@ -80,6 +96,14 @@ export async function getDownloadUrl(
   userId: string, 
   key: string
 ) {
+  // 0. Fail fast if R2 is not configured
+  if (!isR2Configured()) {
+    return {
+      success: false,
+      error: 'Armazenamento em nuvem não configurado. Contate o administrador do sistema.',
+    };
+  }
+
   // 1. Verify permission (must be at least VIEWER to download)
   const hasPermission = await checkProjectPermission(projectId, userId, ProjectRole.VIEWER);
   if (!hasPermission) {
@@ -87,6 +111,8 @@ export async function getDownloadUrl(
   }
 
   try {
+    const client = getR2Client();
+
     // 2. Generate presigned URL for GET
     const command = new GetObjectCommand({
       Bucket: R2_BUCKET_NAME,
@@ -94,7 +120,7 @@ export async function getDownloadUrl(
     });
 
     // URL expires in 15 minutes (short duration for security)
-    const url = await getSignedUrl(r2Client, command, { expiresIn: 900 });
+    const url = await getSignedUrl(client, command, { expiresIn: 900 });
 
     return { 
       success: true, 
@@ -102,9 +128,12 @@ export async function getDownloadUrl(
     };
   } catch (error) {
     console.error('Error generating download URL:', error);
+
+    const rootCause = error instanceof Error ? error.message : String(error);
+    
     return { 
       success: false, 
-      error: 'Failed to generate download URL' 
+      error: `Erro ao gerar URL de download: ${rootCause}`,
     };
   }
 }

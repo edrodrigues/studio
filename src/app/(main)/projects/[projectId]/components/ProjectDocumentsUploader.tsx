@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
-import { CircleDollarSign, Clock, Download, File, FileText, Loader2, Minus, MoreVertical, Plus, Trash2 } from 'lucide-react';
+import { CircleDollarSign, Clock, Download, File, FileText, Loader2, Minus, MoreVertical, Plus, Trash2, XCircle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/firebase/provider';
@@ -24,6 +24,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { formatFileSize } from '@/lib/storage';
 import { DocumentStatus, ProjectDocument, UploadedFile } from '@/lib/types';
 
@@ -114,6 +120,7 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
   const [feedbackFiles, setFeedbackFiles] = useState<UploadedFile[]>([]);
   const [feedbackDocumentId, setFeedbackDocumentId] = useState<string | null>(null);
   const [isConsistencyModalOpen, setIsConsistencyModalOpen] = useState(false);
+  const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!project) return;
@@ -164,9 +171,14 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
   };
 
   const handleFileSelect = (documentType: string, documentName: string) => async (file: File | null) => {
-    if (!file || !contractType) return;
+    if (!contractType) {
+      toast({ variant: 'destructive', title: 'Tipo de contrato obrigatório', description: 'Selecione o tipo de contrato antes de enviar documentos.' });
+      return;
+    }
+    if (!file) return;
     setFiles((prev) => ({ ...prev, [documentType]: file }));
     setUploadingType(documentType);
+    setUploadErrors((prev) => { const { [documentType]: _, ...rest } = prev; return rest; });
 
     try {
       const documentId = await uploadFile(file, projectId, documentType, documentName);
@@ -177,10 +189,13 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
         });
         setFiles((prev) => ({ ...prev, [documentType]: null }));
       } else if (uploadState.error) {
+        setUploadErrors((prev) => ({ ...prev, [documentType]: uploadState.error! }));
         toast({ variant: 'destructive', title: 'Erro no upload', description: uploadState.error });
       }
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Erro no upload', description: 'Não foi possível fazer o upload do arquivo.' });
+      const errorMessage = error instanceof Error ? error.message : 'Não foi possível fazer o upload do arquivo.';
+      setUploadErrors((prev) => ({ ...prev, [documentType]: errorMessage }));
+      toast({ variant: 'destructive', title: 'Erro no upload', description: errorMessage });
     } finally {
       setUploadingType(null);
       resetUpload();
@@ -269,6 +284,23 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
             feedbackDisabled={!latestDoc}
           />
           {isUploading && <div className="space-y-2"><div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Enviando...</span><span className="font-medium">{Math.round(uploadState.progress)}%</span></div><Progress value={uploadState.progress} className="h-2" /></div>}
+          {uploadErrors[config.key] && !isUploading && (
+            <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+              <XCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-red-800 dark:text-red-200">Falha no upload</p>
+                <p className="text-xs text-red-600 dark:text-red-400 mt-0.5 break-words">{uploadErrors[config.key]}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 text-red-700 border-red-300 hover:bg-red-100 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-950"
+                onClick={() => setUploadErrors((prev) => { const { [config.key]: _, ...rest } = prev; return rest; })}
+              >
+                Fechar
+              </Button>
+            </div>
+          )}
           {latestDoc ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -366,10 +398,40 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
         </div>
 
         <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
-          <Button onClick={() => setIsConsistencyModalOpen(true)} disabled={getSelectedDocumentIds().length < 2} variant="outline" size="lg">Análise da consistência de documentos com IA</Button>
-          <Button onClick={handleSubmit} disabled={getSelectedDocumentIds().length < 1 || isSyncing} size="lg">
-            {isSyncing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sincronizando...</> : 'Sincronizar Arquivos'}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={0}>
+                  <Button onClick={() => setIsConsistencyModalOpen(true)} disabled={getSelectedDocumentIds().length < 2} variant="outline" size="lg">Análise da consistência de documentos com IA</Button>
+                </span>
+              </TooltipTrigger>
+              {getSelectedDocumentIds().length < 2 && (
+                <TooltipContent side="bottom" className="max-w-xs text-center">
+                  {Object.keys(documentsByType || {}).length === 0
+                    ? 'Envie documentos primeiro usando os campos acima.'
+                    : 'Selecione pelo menos 2 documentos para realizar a análise.'}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={0}>
+                  <Button onClick={handleSubmit} disabled={getSelectedDocumentIds().length < 1 || isSyncing} size="lg">
+                    {isSyncing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sincronizando...</> : 'Sincronizar Arquivos'}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {getSelectedDocumentIds().length < 1 && (
+                <TooltipContent side="bottom" className="max-w-xs text-center">
+                  {Object.keys(documentsByType || {}).length === 0
+                    ? 'Envie documentos primeiro usando os campos acima.'
+                    : 'Selecione pelo menos 1 documento para sincronizar.'}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 

@@ -55,7 +55,7 @@ export default function NewProjectPage() {
       const now = new Date().toISOString();
       const projectData: Omit<Project, 'id'> = {
         name: formData.name.trim(),
-        description: formData.description.trim() || undefined,
+        description: formData.description.trim() || '',
         clientName: formData.clientName.trim(),
         createdBy: user.uid,
         createdAt: now,
@@ -76,8 +76,8 @@ export default function NewProjectPage() {
         invitedAt: now,
         joinedAt: now,
         email: user.email || '',
-        displayName: user.displayName || undefined,
-        photoURL: user.photoURL || undefined,
+        displayName: user.displayName || '',
+        photoURL: user.photoURL || '',
       });
 
       toast({

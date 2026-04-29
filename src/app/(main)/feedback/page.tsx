@@ -235,7 +235,7 @@ export default function FeedbackPage() {
                 message: devMessage,
                 userId: user.uid,
                 userName: user.displayName || user.email?.split('@')[0] || 'Usuário',
-                userEmail: user.email || undefined,
+                userEmail: user.email || '',
             });
 
             if (!result.success) throw new Error(result.error);

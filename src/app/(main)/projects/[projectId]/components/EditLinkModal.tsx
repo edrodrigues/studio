@@ -63,7 +63,7 @@ export function EditLinkModal({ template, isOpen, onClose, projectId }: EditLink
       const result = await handleUpdateTemplateLink({
         templateId: template.id,
         userId: user.uid,
-        projectDocLink: link.trim() || undefined,
+        projectDocLink: link.trim() || '',
         projectId,
       });
 

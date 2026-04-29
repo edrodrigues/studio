@@ -196,17 +196,10 @@ export async function uploadFileToR2(
     throw error;
   }
 
-  // CORS preflight check: send a lightweight HEAD request to detect CORS issues early
-  try {
-    await fetch(presignedUrl, { method: 'HEAD', mode: 'cors' });
-  } catch (preflightError) {
-    // If HEAD fails with a network error (not a 4xx/5xx), it's likely CORS
-    throw new Error(
-      'Não foi possível conectar ao armazenamento em nuvem. ' +
-      'Isso geralmente ocorre por configuração de CORS no bucket do Cloudflare R2. ' +
-      'Contate o administrador para verificar as regras de CORS do bucket.'
-    );
-  }
+  // NOTE: HEAD preflight check was removed. Presigned URLs are method-specific
+  // (PUT only), so a HEAD request triggers a CORS preflight OPTIONS that the
+  // presigned URL doesn't authorize, causing all uploads to fail.
+  // The XHR PUT below handles CORS, network, and server errors correctly.
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();

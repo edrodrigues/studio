@@ -188,17 +188,21 @@ export function ProjectDocumentsUploader({ projectId }: ProjectDocumentsUploader
           description: `${documentName} - ${file.name} (${new Date().toLocaleString('pt-BR')})`,
         });
         setFiles((prev) => ({ ...prev, [documentType]: null }));
-      } else if (uploadState.error) {
-        setUploadErrors((prev) => ({ ...prev, [documentType]: uploadState.error! }));
-        toast({ variant: 'destructive', title: 'Erro no upload', description: uploadState.error });
+        resetUpload();
+      } else {
+        // Capture error BEFORE resetting state
+        const error = uploadState.error || 'Erro desconhecido no upload';
+        setUploadErrors((prev) => ({ ...prev, [documentType]: error }));
+        toast({ variant: 'destructive', title: 'Erro no upload', description: error });
+        resetUpload();
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Não foi possível fazer o upload do arquivo.';
       setUploadErrors((prev) => ({ ...prev, [documentType]: errorMessage }));
       toast({ variant: 'destructive', title: 'Erro no upload', description: errorMessage });
+      resetUpload();
     } finally {
       setUploadingType(null);
-      resetUpload();
     }
   };
 

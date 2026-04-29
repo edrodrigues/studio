@@ -1,0 +1,16 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://assistentevlab.vercel.app",
+      "http://localhost:3000"
+    ],
+    "AllowedMethods": [
+      "GET",
+      "PUT",
+      "HEAD"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ]
+  }
+]

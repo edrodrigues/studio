@@ -4,10 +4,11 @@ import { getR2Client, isR2Configured, R2_BUCKET_NAME } from '@/lib/r2';
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ProjectRole, ProjectMember } from '@/lib/types';
+import { db } from '@/lib/firebase-server';
 
 /**
  * Verifies if a user has the required permission in a project
- * Uses client-side auth via the user's ID token
+ * Uses Firebase Admin SDK to check actual membership and role
  */
 async function checkProjectPermission(
   projectId: string, 
@@ -20,10 +21,19 @@ async function checkProjectPermission(
     [ProjectRole.OWNER]: 3,
   };
 
-  // Since we're in a server action without direct Firestore admin access,
-  // we'll do a lightweight check. The actual permission enforcement
-  // happens on the client via security rules.
-  return true;
+  try {
+    const memberDoc = await db.doc(`projectMembers/${projectId}_${userId}`).get();
+    if (!memberDoc.exists) return false;
+    
+    const member = memberDoc.data() as { role?: string };
+    const userRoleLevel = ROLE_HIERARCHY[member.role || ''] || 0;
+    const requiredRoleLevel = ROLE_HIERARCHY[requiredRole] || 0;
+    
+    return userRoleLevel >= requiredRoleLevel;
+  } catch (error) {
+    console.error('Error checking project permission:', error);
+    return false;
+  }
 }
 
 /**

@@ -165,7 +165,7 @@ const getPlaybookAssistancePrompt = ai.definePrompt({
     name: 'getPlaybookAssistancePrompt',
     input: { schema: GetPlaybookAssistanceInputSchema },
     output: { schema: GetPlaybookAssistanceOutputSchema },
-    model: 'googleai/gemini-3.1-flash-lite-preview',
+    model: 'googleai/gemini-3-flash-preview',
     config: {
         temperature: 0.3,
     },
@@ -225,7 +225,7 @@ async function generateWithFileSearch(
         console.log('[ALEX FileSearch] Calling Google GenAI API...');
         
         const response = await genaiClient.models.generateContent({
-            model: 'gemini-3.1-flash-lite-preview',
+            model: 'gemini-3-flash-preview',
             contents,
             config: {
                 tools: [
@@ -303,7 +303,7 @@ async function generateWithPlaybookAndFaq(
         console.log('[ALEX Playbook+FAQ] Calling Google GenAI API...');
         
         const response = await genaiClient.models.generateContent({
-            model: 'gemini-3.1-flash-lite-preview',
+            model: 'gemini-3-flash-preview',
             contents,
             config: {
                 systemInstruction,

@@ -58,14 +58,22 @@ export async function getUploadUrl(
     const client = getR2Client();
 
     // 3. Generate presigned URL for PUT
+    // Note: checksumAlgorithm must NOT be set here. AWS SDK v3 adds
+    // x-amz-checksum-crc32 and x-amz-sdk-checksum-algorithm headers by
+    // default, but they are not included in X-Amz-SignedHeaders, causing
+    // Cloudflare R2 to reject the CORS preflight from the browser.
     const command = new PutObjectCommand({
       Bucket: R2_BUCKET_NAME,
       Key: key,
       ContentType: contentType,
     });
 
-    // URL expires in 1 hour
-    const url = await getSignedUrl(client, command, { expiresIn: 3600 });
+    // URL expires in 1 hour. unhoistableHeaders forces Content-Type into the
+    // signed headers so the browser PUT matches the signature exactly.
+    const url = await getSignedUrl(client, command, {
+      expiresIn: 3600,
+      unhoistableHeaders: new Set(['content-type']),
+    });
 
     return { 
       success: true, 

@@ -36,6 +36,11 @@ export function getR2Client(): S3Client {
       secretAccessKey: secretAccessKey!,
     },
     forcePathStyle: true,
+    // Disable automatic checksum injection. AWS SDK v3 adds x-amz-checksum-crc32
+    // and x-amz-sdk-checksum-algorithm to presigned URLs by default, but these
+    // headers are NOT included in X-Amz-SignedHeaders, causing Cloudflare R2
+    // to reject the CORS preflight from the browser with ERR_FAILED.
+    requestChecksumCalculation: 'WHEN_REQUIRED',
   });
 
   return client;

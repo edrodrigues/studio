@@ -14,17 +14,17 @@ import type { TemplatePlaceholderDefinition } from './google-docs';
  * See: https://docs.composio.dev/reference/api-reference/mcp
  */
 export const COMPOSIO_GOOGLE_TOOLS = {
-  // Google Docs tools
-  DOCS_GET_DOCUMENT: 'google_googleadocsgetdocs',
-  DOCS_UPDATE_DOCUMENT: 'google_googleadocsupdatedocs',
-  DOCS_CREATE_DOCUMENT: 'google_googleadocscreatedocs',
+  // Google Docs tools (UPPERCASE versioned slugs per Composio v0.6.x)
+  DOCS_GET_DOCUMENT: 'GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT',
+  DOCS_UPDATE_DOCUMENT: 'GOOGLEDOCS_UPDATE_DOCUMENT_BATCH',
+  DOCS_CREATE_DOCUMENT: 'GOOGLEDOCS_CREATE_DOCUMENT',
 
-  // Google Drive tools
-  DRIVE_GET_FILE: 'googlegoogledriveget_file',
-  DRIVE_COPY_FILE: 'googlegoogledrivecopy_file',
-  DRIVE_CREATE_PERMISSION: 'googlegoogledrivecreate_permission',
-  DRIVE_LIST_FILES: 'googlegoogledrivelist_files',
-  DRIVE_GET_PERMISSIONS: 'googlegoogledriveget_permissions',
+  // Google Drive tools (UPPERCASE versioned slugs per Composio v0.6.x)
+  DRIVE_GET_FILE: 'GOOGLEDRIVE_GET_FILE_V2',
+  DRIVE_COPY_FILE: 'GOOGLEDRIVE_COPY_FILE_ADVANCED',
+  DRIVE_CREATE_PERMISSION: 'GOOGLEDRIVE_CREATE_PERMISSION',
+  DRIVE_LIST_FILES: 'GOOGLEDRIVE_LIST_FILES',
+  DRIVE_GET_PERMISSIONS: 'GOOGLEDRIVE_GET_PERMISSIONS',
 } as const;
 
 export type ComposioGoogleTool = (typeof COMPOSIO_GOOGLE_TOOLS)[keyof typeof COMPOSIO_GOOGLE_TOOLS];
@@ -204,6 +204,25 @@ export const COMPOSIO_ERROR_MAPPINGS: ComposioErrorMapping[] = [
     errorType: 'RATE_LIMITED',
     portugueseMessage:
       'RATE_LIMITED: Muitas requisições ao Google Docs. Aguarde alguns segundos e tente novamente.',
+  },
+  // New: Tool/config specific errors
+  {
+    composioErrorPattern: /tool.*not found|invalid.*tool|slug.*not found|COMPOSIO_TOOL_NOT_FOUND/i,
+    errorType: 'INVALID_REQUEST',
+    portugueseMessage:
+      'INVALID_REQUEST: A ferramenta Composio não foi encontrada (slug: {id}). Verifique se:\n1. O Composio está configurado corretamente\n2. As credenciais da API Composio estão válidas\n3. O slug da ferramenta está correto (use maiúsculas, ex: GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT)',
+  },
+  {
+    composioErrorPattern: /connectedAccount.*not found|account.*not found|COMPOSIO_ACCOUNT_NOT_FOUND/i,
+    errorType: 'AUTH_EXPIRED',
+    portugueseMessage:
+      'AUTH_EXPIRED: Conta Google não conectada ao Composio. Por favor:\n1. Conecte sua conta Google em Configurações\n2. Verifique se a conexão não expirou\n3. Tente reconectar se necessário',
+  },
+  {
+    composioErrorPattern: /invalid.*argument|missing.*required|COMPOSIO_INVALID_PARAMS/i,
+    errorType: 'INVALID_REQUEST',
+    portugueseMessage:
+      'INVALID_REQUEST: Parâmetros inválidos para a ferramenta Composio. Verifique se os dados enviados estão corretos.',
   },
 ];
 

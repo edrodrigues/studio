@@ -172,8 +172,9 @@ export async function createComposioClient(
           userId,
           connectedAccountId
         );
-        const docData = (result as { data?: unknown })?.data ?? result;
-        return extractTextFromDocument(docData);
+        // GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT returns plain text directly
+        const text = typeof result === 'string' ? result : (result as any)?.data ?? result;
+        return typeof text === 'string' ? text : JSON.stringify(text);
       } catch (error) {
         mapGoogleDocsErrorToComposio(error, documentId);
       }
@@ -191,12 +192,18 @@ export async function createComposioClient(
     async batchUpdateDocument(documentId: string, requests: any[]): Promise<void> {
       try {
         const connectedAccountId = await getConnectedAccountId();
-        const composioRequests = convertBatchRequestsToComposio(requests);
-        for (const req of composioRequests) {
+        // Send native Google Docs API requests directly to GOOGLEDOCS_UPDATE_DOCUMENT_BATCH
+        // The tool expects requests in the format: { requests: [{ replaceAllText: { containsText: {...}, replaceText: '...' } }] }
+        const nativeRequests = requests.filter((req) => req.replaceAllText);
+        
+        if (nativeRequests.length > 0) {
           await executeTool(
             composio,
             COMPOSIO_GOOGLE_TOOLS.DOCS_UPDATE_DOCUMENT,
-            { document_id: documentId, ...req },
+            { 
+              document_id: documentId, 
+              requests: nativeRequests 
+            },
             userId,
             connectedAccountId
           );
@@ -220,6 +227,7 @@ export async function createComposioClient(
           userId,
           connectedAccountId
         );
+        // GOOGLEDRIVE_GET_FILE_V2 returns data directly or in data field
         const data = (result as { data?: Record<string, unknown> })?.data ?? (result as Record<string, unknown>);
         return {
           id: (data.id as string) || fileId,
@@ -237,12 +245,17 @@ export async function createComposioClient(
         const result = await executeTool(
           composio,
           COMPOSIO_GOOGLE_TOOLS.DRIVE_COPY_FILE,
-          { file_id: fileId, name: newName },
+          { 
+            file_id: fileId, 
+            name: newName,
+            // GOOGLEDRIVE_COPY_FILE_ADVANCED may support additional options
+            copy_title: newName,
+          },
           userId,
           connectedAccountId
         );
         const data = (result as { data?: Record<string, unknown> })?.data ?? (result as Record<string, unknown>);
-        return (data.id as string) || (data.fileId as string);
+        return (data.id as string) || (data.fileId as string) || (data.documentId as string) || fileId;
       } catch (error) {
         mapGoogleDriveErrorToComposio(error, fileId);
       }
@@ -258,7 +271,17 @@ export async function createComposioClient(
         const result = await executeTool(
           composio,
           COMPOSIO_GOOGLE_TOOLS.DRIVE_CREATE_PERMISSION,
-          { file_id: fileId, email, role },
+          { 
+            file_id: fileId, 
+            email, 
+            role,
+            // GOOGLEDRIVE_CREATE_PERMISSION may expect specific parameter names
+            permission: {
+              type: 'user',
+              role,
+              emailAddress: email,
+            }
+          },
           userId,
           connectedAccountId
         );

@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
 import { prepareContractData } from "@/lib/actions";
 import { inspectTemplateForGeneration, generateContractDoc, reviewContractWithAI, applyReviewEdits, revertReviewEdits } from "@/lib/actions/composio-actions";
+import { checkComposioConnectionStatus } from "@/lib/actions/composio-connection-actions";
 import { ComposioConnection } from "@/components/app/composio-connection";
 import { exportToDocx } from "@/lib/export";
 import {
@@ -245,6 +246,7 @@ function GerarExportarContent() {
   const [contractWithAppliedReview, setContractWithAppliedReview] = useState<ContractRecord | null>(null);
   const [isUndoConfirmOpen, setIsUndoConfirmOpen] = useState(false);
   const [isRevertingEdits, setIsRevertingEdits] = useState(false);
+  const [composioConnectPrompt, setComposioConnectPrompt] = useState(0);
 
   useEffect(() => {
     if (!projectIdFromUrl || !firestore) return;
@@ -349,6 +351,16 @@ function GerarExportarContent() {
         title: "Login Necessário",
         description: "Autentique-se para validar o template e gerar contratos via Google Docs.",
         action: <Button variant="outline" size="sm" onClick={() => signInWithGoogle()}>Conectar</Button>,
+      });
+      return;
+    }
+
+    const connectionStatus = await checkComposioConnectionStatus(user.uid);
+    if (!connectionStatus.connected) {
+      setComposioConnectPrompt((value) => value + 1);
+      toast({
+        title: "Conecte o Google Docs",
+        description: "Autorize o acesso via Composio para gerar contratos automaticamente nos links do Google Docs.",
       });
       return;
     }
@@ -555,7 +567,7 @@ function GerarExportarContent() {
           </TabsList>
         </div>
 
-        <ComposioConnection />
+        <ComposioConnection openSignal={composioConnectPrompt} />
 
         <TabsContent value="gerar" className="space-y-10">
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2 xl:gap-8">

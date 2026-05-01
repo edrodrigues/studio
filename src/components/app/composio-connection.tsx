@@ -31,6 +31,8 @@ interface ComposioConnectionProps {
   buttonLabel?: string;
   /** If true, shows inline status instead of button */
   inline?: boolean;
+  /** Increment this value to open the connection dialog from a parent flow */
+  openSignal?: number;
   className?: string;
 }
 
@@ -81,6 +83,7 @@ export function ComposioConnection({
   showButton = true,
   buttonLabel = 'Conectar Google',
   inline = false,
+  openSignal = 0,
   className = '',
 }: ComposioConnectionProps) {
   const { user } = useUser();
@@ -99,6 +102,12 @@ export function ComposioConnection({
     }
     checkConnectionStatus();
   }, [user]);
+
+  useEffect(() => {
+    if (openSignal > 0) {
+      setDialogOpen(true);
+    }
+  }, [openSignal]);
 
   async function checkConnectionStatus() {
     if (!user) return;
@@ -119,7 +128,8 @@ export function ComposioConnection({
 
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const result = await initiateComposioConnection(user.uid);
+      const returnTo = window.location.pathname + window.location.search;
+      const result = await initiateComposioConnection(user.uid, returnTo);
 
       if ('error' in result && result.error) {
         setState({ status: 'FAILED', loading: false, error: result.error });
@@ -132,8 +142,12 @@ export function ComposioConnection({
         return;
       }
 
+      if (!('redirectUrl' in result)) {
+        throw new Error('Composio não retornou a URL de conexão.');
+      }
+
       // Store current path to return to after OAuth
-      sessionStorage.setItem('composio_return_to', window.location.pathname + window.location.search);
+      sessionStorage.setItem('composio_return_to', returnTo);
       // Redirect to Composio OAuth
       window.location.href = result.redirectUrl;
     } catch (error) {
@@ -166,6 +180,7 @@ export function ComposioConnection({
       });
       const url = new URL(window.location.href);
       url.searchParams.delete('composio_connected');
+      url.searchParams.delete('return_to');
       window.history.replaceState({}, '', url.toString());
       sessionStorage.removeItem('composio_return_to');
       // Re-check connection status now that OAuth has completed
@@ -182,6 +197,7 @@ export function ComposioConnection({
       // Clean URL
       const url = new URL(window.location.href);
       url.searchParams.delete('composio_error');
+      url.searchParams.delete('return_to');
       window.history.replaceState({}, '', url.toString());
     }
   }, []);

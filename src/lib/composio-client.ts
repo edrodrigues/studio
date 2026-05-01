@@ -38,7 +38,7 @@ export interface ComposioClient {
 
   // Connection management
   getConnectionStatus(userId: string): Promise<ConnectionStatus>;
-  initiateConnection(userId: string): Promise<string>; // returns redirect URL
+  initiateConnection(userId: string, returnTo?: string): Promise<string>; // returns redirect URL
   checkConnection(userId: string): Promise<{ connected: boolean; status: ConnectionStatus }>;
 }
 
@@ -47,10 +47,10 @@ export interface ComposioClient {
 // ============================================================
 
 const globalForComposio = globalThis as typeof globalThis & {
-  __composioInstance?: Composio;
+  __composioInstance?: Composio<any>;
 };
 
-function getComposioInstance(apiKey?: string): Composio {
+function getComposioInstance(apiKey?: string): Composio<any> {
   if (!globalForComposio.__composioInstance) {
     globalForComposio.__composioInstance = new Composio({
       apiKey: apiKey || process.env.COMPOSIO_API_KEY,
@@ -287,7 +287,7 @@ export async function createComposioClient(
         const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
 
         // Prefer authConfigId-based lookup if available (most precise)
-        let googleAccount: { status?: string; authConfig?: { id?: string }; toolkit?: { slug?: string; name?: string } } | undefined;
+        let googleAccount: { id?: string; status?: string; authConfig?: { id?: string }; toolkit?: { slug?: string; name?: string } } | undefined;
 
         if (authConfigId) {
           googleAccount = items.find(
@@ -336,7 +336,7 @@ export async function createComposioClient(
       }
     },
 
-    async initiateConnection(userId: string): Promise<string> {
+    async initiateConnection(userId: string, returnTo?: string): Promise<string> {
       const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
       if (!authConfigId) {
         throw new Error(
@@ -344,7 +344,12 @@ export async function createComposioClient(
           'Create a Composio integration at https://app.composio.dev and set this env var.'
         );
       }
-      const callbackUrl = config.callbackUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/composio/callback`;
+      const callbackUrl = new URL(
+        config.callbackUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/composio/callback`
+      );
+      if (returnTo && returnTo.startsWith('/')) {
+        callbackUrl.searchParams.set('return_to', returnTo);
+      }
 
       if (process.env.NODE_ENV === 'production' && (!process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL.includes('localhost'))) {
         console.warn('[Composio] NEXT_PUBLIC_APP_URL is not set or points to localhost. OAuth callbacks will fail in production.');
@@ -354,7 +359,7 @@ export async function createComposioClient(
         const connectionRequest = await composio.connectedAccounts.initiate(
           userId,
           authConfigId,
-          { callbackUrl: callbackUrl, allowMultiple: true }
+          { callbackUrl: callbackUrl.toString(), allowMultiple: true }
         );
         const redirectUrl = connectionRequest?.redirectUrl;
         if (!redirectUrl) {
@@ -410,10 +415,21 @@ function convertBatchRequestsToComposio(requests: any[]): any[] {
     .filter((req) => req.replaceAllText || req.insertText)
     .map((req) => {
       if (req.replaceAllText) {
+        const containsText = req.replaceAllText.containsText || req.replaceAllText.containingText;
+        const replaceText = req.replaceAllText.replaceText;
+        const targetText =
+          typeof containsText === 'string'
+            ? containsText
+            : containsText?.text || containsText?.content;
+
+        if (!targetText) {
+          return null;
+        }
+
         return {
           replace_all_text: {
-            replace_text: req.replaceAllText.replaceText.text || req.replaceAllText.replaceText,
-            target_text: req.replaceAllText.containingText?.content || req.replaceAllText.containingText,
+            replace_text: typeof replaceText === 'string' ? replaceText : replaceText?.text,
+            target_text: targetText,
           },
         };
       }

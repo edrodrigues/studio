@@ -1,13 +1,8 @@
 'use server';
 
-import { generateContractInDocs } from '@/ai/flows/generate-contract-in-docs';
 import { aiEnrichContract } from '@/ai/flows/ai-enrich-contract';
 import { aiReviewContract, type ReviewEditSuggestion } from '@/ai/flows/ai-review-contract';
-import {
-  extractPlaceholderDefinitionsFromText,
-  getDocumentPlaceholders,
-} from '@/lib/google-docs';
-import { copyFile as googleDriveCopyFile, getFileMetadata as googleDriveGetFileMetadata } from '@/lib/google-drive';
+import { extractPlaceholderDefinitionsFromText } from '@/lib/google-docs';
 import {
   auditTemplateLinks,
   getTemplateSourceFieldLabel,
@@ -16,7 +11,7 @@ import {
   type TemplateSourceDiagnostic,
   type TemplateSourceField,
 } from '@/lib/template-source';
-import { createComposioClient, type ConnectionStatus } from '@/lib/composio-client';
+import { createComposioClient, type ComposioClient, type ConnectionStatus } from '@/lib/composio-client';
 import { db } from '@/lib/firebase-server';
 
 type PlaceholderDefinition = {
@@ -63,6 +58,11 @@ type ResolvedTemplateSource = {
   fallbackUsed: boolean;
   sourceDiagnostics: TemplateSourceDiagnostics;
   warnings: string[];
+};
+
+type DeterministicGenerationResult = {
+  documentLink: string;
+  replacementsApplied: number;
 };
 
 // ============================================================
@@ -215,6 +215,7 @@ async function requireComposioConnection(userId: string): Promise<void> {
 }
 
 async function validateTemplateSource(
+  client: ComposioClient,
   userId: string,
   field: TemplateSourceField,
   sourceDiagnostics: TemplateSourceDiagnostics
@@ -229,8 +230,7 @@ async function validateTemplateSource(
     );
   }
 
-  // Use Composio via google-drive.ts adapter (which now uses Composio internally)
-  const metadata = await googleDriveGetFileMetadata(userId, source.fileId);
+  const metadata = await client.getFileMetadata(source.fileId);
   sourceDiagnostics[field] = {
     ...sourceDiagnostics[field],
     fileName: metadata.name,
@@ -258,6 +258,7 @@ async function resolveTemplateSource(
 ): Promise<ResolvedTemplateSource> {
   // Check Composio connection first
   await requireComposioConnection(userId);
+  const client = await createComposioClient(userId);
 
   const audit = auditTemplateLinks(input.googleDocLink, input.projectDocLink);
   const sourceDiagnostics = cloneSourceDiagnostics(audit);
@@ -305,7 +306,7 @@ async function resolveTemplateSource(
     }
 
     try {
-      const metadata = await validateTemplateSource(userId, field, sourceDiagnostics);
+      const metadata = await validateTemplateSource(client, userId, field, sourceDiagnostics);
       const fallbackUsed =
         field === 'projectDocLink' && (Boolean(primaryFailure) || preferredProjectFallback);
 
@@ -528,6 +529,73 @@ function mergePlaceholderDefinitions(
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 
+function buildReplacementRequests(
+  placeholderValues: Record<string, string>,
+  placeholderMatches: Record<string, string[]>
+) {
+  const requests: Array<{
+    replaceAllText: {
+      replaceText: string;
+      containsText: {
+        text: string;
+        matchCase: boolean;
+      };
+    };
+  }> = [];
+
+  for (const [placeholderKey, replacement] of Object.entries(placeholderValues)) {
+    const trimmedReplacement = replacement.trim();
+    if (!trimmedReplacement) {
+      continue;
+    }
+
+    const exactMatches = placeholderMatches[placeholderKey] || [];
+    const generatedMatches = [
+      ...exactMatches,
+      `<<${placeholderKey}>>`,
+      `{{${placeholderKey}}}`,
+      `[[${placeholderKey}]]`,
+      `<${placeholderKey}>`,
+    ];
+
+    const uniqueMatches = Array.from(
+      new Set(generatedMatches.map((match) => match.trim()).filter(Boolean))
+    );
+
+    for (const match of uniqueMatches) {
+      requests.push({
+        replaceAllText: {
+          replaceText: trimmedReplacement,
+          containsText: {
+            text: match,
+            matchCase: false,
+          },
+        },
+      });
+    }
+  }
+
+  return requests;
+}
+
+async function generateContractInDocsWithComposio(
+  client: ComposioClient,
+  documentId: string,
+  placeholderValues: Record<string, string>,
+  placeholderMatches: Record<string, string[]>
+): Promise<DeterministicGenerationResult> {
+  const requests = buildReplacementRequests(placeholderValues, placeholderMatches);
+
+  if (requests.length > 0) {
+    await client.batchUpdateDocument(documentId, requests);
+  }
+
+  return {
+    documentLink: `https://docs.google.com/document/d/${documentId}/edit`,
+    replacementsApplied: requests.length,
+  };
+}
+
 export async function inspectTemplateForGeneration(
   userId: string,
   input: TemplateSourceInput
@@ -537,7 +605,8 @@ export async function inspectTemplateForGeneration(
     await requireComposioConnection(userId);
 
     const resolved = await resolveTemplateSource(userId, input);
-    const googleDocPlaceholders = await getDocumentPlaceholders(userId, resolved.fileId);
+    const client = await createComposioClient(userId);
+    const googleDocPlaceholders = await client.getDocumentPlaceholders(resolved.fileId);
     const placeholders = mergePlaceholderDefinitions(
       googleDocPlaceholders,
       input.fallbackMarkdownContent
@@ -636,32 +705,20 @@ export async function generateContractDoc(
         console.warn('[TemplateGeneration] AI enrichment failed, falling back to deterministic', {
           error: enrichmentResult.error,
         });
-        // Fallback to deterministic
-        const fallbackResult = await generateContractInDocs({
-          accessToken: '',
-          documentId: newFileId,
-          placeholderValues: input.confirmedPlaceholders,
-          placeholderMatches: input.placeholderMatches,
-          projectId: input.projectId,
-        });
-        result = {
-          documentLink: fallbackResult.documentLink,
-          replacementsApplied: fallbackResult.replacementsApplied,
-        };
+        result = await generateContractInDocsWithComposio(
+          client,
+          newFileId,
+          input.confirmedPlaceholders,
+          input.placeholderMatches
+        );
       }
     } else {
-      // Standard deterministic path
-      const deterministicResult = await generateContractInDocs({
-        accessToken: '', // Composio manages auth — googleapis placeholder for backward compat
-        documentId: newFileId,
-        placeholderValues: input.confirmedPlaceholders,
-        placeholderMatches: input.placeholderMatches,
-        projectId: input.projectId,
-      });
-      result = {
-        documentLink: deterministicResult.documentLink,
-        replacementsApplied: deterministicResult.replacementsApplied,
-      };
+      result = await generateContractInDocsWithComposio(
+        client,
+        newFileId,
+        input.confirmedPlaceholders,
+        input.placeholderMatches
+      );
     }
 
     console.log('[TemplateGeneration] Placeholder replacement completed', {

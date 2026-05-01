@@ -1,5 +1,13 @@
 'use server';
 
+/**
+ * Legacy Google OAuth implementation.
+ *
+ * The Gerar e Exportar page uses composio-actions.ts for Docs/Drive generation.
+ * Keep this file only for older direct-access-token callers and parity with
+ * tests that still exercise the legacy path.
+ */
+
 import { generateContractInDocs } from '@/ai/flows/generate-contract-in-docs';
 import {
   extractPlaceholderDefinitionsFromText,

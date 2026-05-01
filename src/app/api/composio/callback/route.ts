@@ -23,9 +23,12 @@ export async function GET(request: NextRequest) {
   const error = searchParams.get('error');
   const errorDescription = searchParams.get('error_description');
   const userId = searchParams.get('user_id');
+  const returnTo = searchParams.get('return_to');
 
-  // Build redirect URL — prefer sessionStorage return path (handled client-side)
-  const redirectUrl = new URL('/gerar-exportar', request.url);
+  const safeReturnTo = returnTo?.startsWith('/') && !returnTo.startsWith('//')
+    ? returnTo
+    : '/gerar-exportar';
+  const redirectUrl = new URL(safeReturnTo, request.url);
 
   // Handle error cases
   if (status === 'error' || error) {

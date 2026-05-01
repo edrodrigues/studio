@@ -29,11 +29,12 @@ export async function checkComposioConnectionStatus(
  * Returns the redirect URL or an error message.
  */
 export async function initiateComposioConnection(
-  userId: string
+  userId: string,
+  returnTo?: string
 ): Promise<{ redirectUrl: string } | { error: string }> {
   try {
     const client = await createComposioClient(userId);
-    const redirectUrl = await client.initiateConnection(userId);
+    const redirectUrl = await client.initiateConnection(userId, returnTo);
     return { redirectUrl };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Falha ao iniciar conexão com Google. Tente novamente.';

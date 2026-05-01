@@ -2,14 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   extractPlaceholderDefinitionsFromText,
-  generateContractInDocs,
-  mockGoogleDriveGetFileMetadata,
 } = vi.hoisted(() => ({
   extractPlaceholderDefinitionsFromText: vi.fn(),
-  generateContractInDocs: vi.fn(),
-  // Provide a default implementation for googleDriveGetFileMetadata.
-  // Tests can override this via mockGoogleDriveGetFileMetadata.mockResolvedValue()
-  mockGoogleDriveGetFileMetadata: vi.fn<(userId: string, fileId: string) => Promise<{ id: string; name: string; mimeType: string }>>(),
 }));
 
 // Mock client returned by createComposioClient
@@ -17,6 +11,7 @@ const mockComposioClient = {
   checkConnection: vi.fn<(userId: string) => Promise<{ connected: boolean; status: string }>>(),
   getFileMetadata: vi.fn<(fileId: string) => Promise<{ id: string; name: string; mimeType: string }>>(),
   getDocumentContent: vi.fn<(documentId: string) => Promise<string>>(),
+  getDocumentPlaceholders: vi.fn<(documentId: string) => Promise<Array<{ key: string; matches: string[] }>>>(),
   copyFile: vi.fn<(fileId: string, newName: string) => Promise<string>>(),
   batchUpdateDocument: vi.fn(),
 };
@@ -26,17 +21,11 @@ vi.mock('@/lib/composio-client', () => ({
 }));
 
 vi.mock('@/lib/google-docs', () => ({
-  getDocumentPlaceholders: vi.fn().mockResolvedValue([]),
   extractPlaceholderDefinitionsFromText,
 }));
 
-vi.mock('@/lib/google-drive', () => ({
-  getFileMetadata: mockGoogleDriveGetFileMetadata,
-  copyFile: vi.fn(),
-}));
-
-vi.mock('@/ai/flows/generate-contract-in-docs', () => ({
-  generateContractInDocs,
+vi.mock('@/ai/flows/ai-enrich-contract', () => ({
+  aiEnrichContract: vi.fn(),
 }));
 
 import {
@@ -52,16 +41,19 @@ describe('composio-actions', () => {
       connected: true,
       status: 'ACTIVE',
     });
-    // Default: return valid metadata for any fileId (tests can override per-test)
-    mockGoogleDriveGetFileMetadata.mockImplementation(async (userId: string, fileId: string) => ({
+    mockComposioClient.getFileMetadata.mockImplementation(async (fileId: string) => ({
       id: fileId,
       name: 'Modelo Template',
       mimeType: 'application/vnd.google-apps.document',
     }));
+    mockComposioClient.getDocumentPlaceholders.mockResolvedValue([
+      { key: 'CLIENTE', matches: ['<<CLIENTE>>'] },
+    ]);
+    mockComposioClient.batchUpdateDocument.mockResolvedValue(undefined);
   });
 
   it('uses googleDocLink when the original template is available', async () => {
-    mockGoogleDriveGetFileMetadata.mockImplementation(async (userId: string, fileId: string) => ({
+    mockComposioClient.getFileMetadata.mockImplementation(async (fileId: string) => ({
       id: fileId,
       name: fileId === '1originalTemplateId123456' ? 'Modelo Base' : 'Modelo Projeto',
       mimeType: 'application/vnd.google-apps.document',
@@ -89,8 +81,8 @@ describe('composio-actions', () => {
   });
 
   it('falls back to projectDocLink when the original template is missing', async () => {
-    mockGoogleDriveGetFileMetadata.mockImplementation(
-      async (userId: string, fileId: string) => {
+    mockComposioClient.getFileMetadata.mockImplementation(
+      async (fileId: string) => {
         if (fileId === '1originalTemplateId123456') {
           const error = new Error('TEMPLATE_NOT_FOUND: missing');
           (error as any).errorType = 'TEMPLATE_NOT_FOUND';
@@ -130,8 +122,8 @@ describe('composio-actions', () => {
   });
 
   it('falls back to projectDocLink when the original template has permission issues', async () => {
-    mockGoogleDriveGetFileMetadata.mockImplementation(
-      async (userId: string, fileId: string) => {
+    mockComposioClient.getFileMetadata.mockImplementation(
+      async (fileId: string) => {
         if (fileId === '1originalTemplateId123456') {
           const error = new Error('PERMISSION_DENIED: forbidden');
           (error as any).errorType = 'PERMISSION_DENIED';
@@ -186,9 +178,9 @@ describe('composio-actions', () => {
     expect(mockComposioClient.getFileMetadata).not.toHaveBeenCalled();
   });
 
-  it('uses the same fallback source during generation and copies the custom template', async () => {
-    mockGoogleDriveGetFileMetadata.mockImplementation(
-      async (userId: string, fileId: string) => {
+  it('uses the same fallback source during generation and fills the copied custom template through Composio', async () => {
+    mockComposioClient.getFileMetadata.mockImplementation(
+      async (fileId: string) => {
         if (fileId === '1originalTemplateId123456') {
           const error = new Error('TEMPLATE_NOT_FOUND: missing');
           (error as any).errorType = 'TEMPLATE_NOT_FOUND';
@@ -207,11 +199,6 @@ describe('composio-actions', () => {
     mockComposioClient.copyFile.mockResolvedValue(
       '1newDocumentId123456'
     );
-    generateContractInDocs.mockResolvedValue({
-      documentLink:
-        'https://docs.google.com/document/d/1newDocumentId123456/edit',
-      replacementsApplied: 3,
-    });
 
     const inspection = await inspectTemplateForGeneration('user-123', {
       templateId: 'template-1',
@@ -251,10 +238,24 @@ describe('composio-actions', () => {
       '1projectTemplateId123456',
       expect.stringContaining('Modelo TED')
     );
+    expect(mockComposioClient.batchUpdateDocument).toHaveBeenCalledWith(
+      '1newDocumentId123456',
+      expect.arrayContaining([
+        expect.objectContaining({
+          replaceAllText: expect.objectContaining({
+            replaceText: 'Cliente Exemplo',
+            containsText: expect.objectContaining({ text: '<<CLIENTE>>' }),
+          }),
+        }),
+      ])
+    );
+    expect(result.documentLink).toBe(
+      'https://docs.google.com/document/d/1newDocumentId123456/edit'
+    );
   });
 
   it('fails when both original and custom links are inaccessible', async () => {
-    mockGoogleDriveGetFileMetadata.mockImplementation(async () => {
+    mockComposioClient.getFileMetadata.mockImplementation(async () => {
       throw new Error('PERMISSION_DENIED: forbidden');
     });
 
@@ -279,8 +280,8 @@ describe('composio-actions', () => {
   });
 
   it('falls back to projectDocLink when the original template has wrong MIME type', async () => {
-    mockGoogleDriveGetFileMetadata.mockImplementation(
-      async (userId: string, fileId: string) => {
+    mockComposioClient.getFileMetadata.mockImplementation(
+      async (fileId: string) => {
         if (fileId === '1originalTemplateId123456') {
           const error = new Error('INVALID_TEMPLATE_TYPE: wrong MIME type');
           (error as any).errorType = 'INVALID_TEMPLATE_TYPE';
@@ -320,7 +321,7 @@ describe('composio-actions', () => {
   });
 
   it('fails when both original has wrong MIME type and custom is inaccessible', async () => {
-    mockGoogleDriveGetFileMetadata.mockImplementation(
+    mockComposioClient.getFileMetadata.mockImplementation(
       async (fileId: string) => {
         if (fileId === '1originalTemplateId123456') {
           return {

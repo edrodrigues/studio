@@ -1,5 +1,3 @@
-'use server';
-
 import {
   extractPlaceholderDefinitionsFromText,
 } from '@/lib/google-docs';

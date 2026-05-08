@@ -17,6 +17,13 @@ export type { ConnectionStatus } from './composio-types';
 // TYPE DEFINITIONS
 // ============================================================
 
+export class ConnectionCheckError extends Error {
+  constructor(message: string, public readonly cause?: unknown) {
+    super(message);
+    this.name = 'ConnectionCheckError';
+  }
+}
+
 export interface ComposioClientConfig {
   apiKey?: string;
   /** Composio authConfigId for Google integration (from Composio dashboard) */
@@ -40,6 +47,7 @@ export interface ComposioClient {
   getConnectionStatus(userId: string): Promise<ConnectionStatus>;
   initiateConnection(userId: string, returnTo?: string): Promise<string>; // returns redirect URL
   checkConnection(userId: string): Promise<{ connected: boolean; status: ConnectionStatus }>;
+  clearConnectedAccountIdCache(userId: string): void;
 }
 
 // ============================================================
@@ -98,8 +106,15 @@ export async function createComposioClient(
 ): Promise<ComposioClient> {
   const composio = getComposioInstance(config.apiKey);
 
+  const connectedAccountIdCache = new Map<string, { id: string | undefined; expiresAt: number }>();
+
   // Helper to get connected account for this user
   async function getConnectedAccountId(): Promise<string | undefined> {
+    const cached = connectedAccountIdCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.id;
+    }
+
     const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
 
     // Prefer authConfigId-based lookup (most precise)
@@ -112,6 +127,7 @@ export async function createComposioClient(
         );
         if (matched?.id) {
           console.info('[Composio] getConnectedAccountId: found account via authConfigId:', matched.id);
+          connectedAccountIdCache.set(userId, { id: matched.id, expiresAt: Date.now() + 300000 });
           return matched.id;
         }
         console.warn('[Composio] getConnectedAccountId: authConfigId provided but no match found.', {
@@ -123,8 +139,11 @@ export async function createComposioClient(
           })),
         });
       } catch (error) {
-        console.error('[Composio] getConnectedAccountId error:', error);
-        return undefined;
+        console.error('[Composio] getConnectedAccountId error during authConfigId lookup:', error);
+        throw new ConnectionCheckError(
+          'Falha ao verificar conexão com Google via Composio. Tente novamente.',
+          error
+        );
       }
     }
 
@@ -140,6 +159,7 @@ export async function createComposioClient(
       );
       if (googleAccounts && googleAccounts.length > 0) {
         console.info('[Composio] getConnectedAccountId: found account via toolkit fallback:', googleAccounts[0].id);
+        connectedAccountIdCache.set(userId, { id: googleAccounts[0].id, expiresAt: Date.now() + 300000 });
         return googleAccounts[0].id;
       }
       console.warn('[Composio] getConnectedAccountId: no Google accounts found.', {
@@ -150,10 +170,14 @@ export async function createComposioClient(
           name: a.toolkit?.name,
         })),
       });
+      connectedAccountIdCache.set(userId, { id: undefined, expiresAt: Date.now() + 30000 });
       return undefined;
     } catch (error) {
-      console.error('[Composio] getConnectedAccountId error:', error);
-      return undefined;
+      console.error('[Composio] getConnectedAccountId error during fallback lookup:', error);
+      throw new ConnectionCheckError(
+        'Falha ao verificar conexão com Google via Composio. Tente novamente.',
+        error
+      );
     }
   }
 
@@ -165,12 +189,15 @@ export async function createComposioClient(
     async getDocumentContent(documentId: string): Promise<string> {
       try {
         const connectedAccountId = await getConnectedAccountId();
-        const result = await executeTool(
-          composio,
-          COMPOSIO_GOOGLE_TOOLS.DOCS_GET_DOCUMENT,
-          { document_id: documentId },
-          userId,
-          connectedAccountId
+        const result = await executeWithRetry(
+          () => executeTool(
+            composio,
+            COMPOSIO_GOOGLE_TOOLS.DOCS_GET_DOCUMENT,
+            { document_id: documentId },
+            userId,
+            connectedAccountId
+          ),
+          `getDocumentContent(${documentId})`
         );
         // GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT returns plain text directly
         const text = typeof result === 'string' ? result : (result as any)?.data ?? result;
@@ -192,20 +219,23 @@ export async function createComposioClient(
     async batchUpdateDocument(documentId: string, requests: any[]): Promise<void> {
       try {
         const connectedAccountId = await getConnectedAccountId();
-        // Send native Google Docs API requests directly to GOOGLEDOCS_UPDATE_DOCUMENT_BATCH
-        // The tool expects requests in the format: { requests: [{ replaceAllText: { containsText: {...}, replaceText: '...' } }] }
-        const nativeRequests = requests.filter((req) => req.replaceAllText);
+        // Convert native Google Docs API requests to Composio format
+        // Handles both containsText and containingText input formats
+        const composioRequests = convertBatchRequestsToComposio(requests);
         
-        if (nativeRequests.length > 0) {
-          await executeTool(
-            composio,
-            COMPOSIO_GOOGLE_TOOLS.DOCS_UPDATE_DOCUMENT,
-            { 
-              document_id: documentId, 
-              requests: nativeRequests 
-            },
-            userId,
-            connectedAccountId
+        if (composioRequests.length > 0) {
+          await executeWithRetry(
+            () => executeTool(
+              composio,
+              COMPOSIO_GOOGLE_TOOLS.DOCS_UPDATE_DOCUMENT,
+              { 
+                document_id: documentId, 
+                requests: composioRequests 
+              },
+              userId,
+              connectedAccountId
+            ),
+            `batchUpdateDocument(${documentId})`
           );
         }
       } catch (error) {
@@ -220,12 +250,15 @@ export async function createComposioClient(
     async getFileMetadata(fileId: string): Promise<ComposioFileMetadata> {
       try {
         const connectedAccountId = await getConnectedAccountId();
-        const result = await executeTool(
-          composio,
-          COMPOSIO_GOOGLE_TOOLS.DRIVE_GET_FILE,
-          { file_id: fileId },
-          userId,
-          connectedAccountId
+        const result = await executeWithRetry(
+          () => executeTool(
+            composio,
+            COMPOSIO_GOOGLE_TOOLS.DRIVE_GET_FILE,
+            { file_id: fileId },
+            userId,
+            connectedAccountId
+          ),
+          `getFileMetadata(${fileId})`
         );
         // GOOGLEDRIVE_GET_FILE_V2 returns data directly or in data field
         const data = (result as { data?: Record<string, unknown> })?.data ?? (result as Record<string, unknown>);
@@ -242,17 +275,20 @@ export async function createComposioClient(
     async copyFile(fileId: string, newName: string): Promise<string> {
       try {
         const connectedAccountId = await getConnectedAccountId();
-        const result = await executeTool(
-          composio,
-          COMPOSIO_GOOGLE_TOOLS.DRIVE_COPY_FILE,
-          { 
-            file_id: fileId, 
-            name: newName,
-            // GOOGLEDRIVE_COPY_FILE_ADVANCED may support additional options
-            copy_title: newName,
-          },
-          userId,
-          connectedAccountId
+        const result = await executeWithRetry(
+          () => executeTool(
+            composio,
+            COMPOSIO_GOOGLE_TOOLS.DRIVE_COPY_FILE,
+            { 
+              file_id: fileId, 
+              name: newName,
+              // GOOGLEDRIVE_COPY_FILE_ADVANCED may support additional options
+              copy_title: newName,
+            },
+            userId,
+            connectedAccountId
+          ),
+          `copyFile(${fileId}, ${newName})`
         );
         const data = (result as { data?: Record<string, unknown> })?.data ?? (result as Record<string, unknown>);
         return (data.id as string) || (data.fileId as string) || (data.documentId as string) || fileId;
@@ -268,22 +304,25 @@ export async function createComposioClient(
     ): Promise<ComposioShareResult> {
       try {
         const connectedAccountId = await getConnectedAccountId();
-        const result = await executeTool(
-          composio,
-          COMPOSIO_GOOGLE_TOOLS.DRIVE_CREATE_PERMISSION,
-          { 
-            file_id: fileId, 
-            email, 
-            role,
-            // GOOGLEDRIVE_CREATE_PERMISSION may expect specific parameter names
-            permission: {
-              type: 'user',
+        const result = await executeWithRetry(
+          () => executeTool(
+            composio,
+            COMPOSIO_GOOGLE_TOOLS.DRIVE_CREATE_PERMISSION,
+            { 
+              file_id: fileId, 
+              email, 
               role,
-              emailAddress: email,
-            }
-          },
-          userId,
-          connectedAccountId
+              // GOOGLEDRIVE_CREATE_PERMISSION may expect specific parameter names
+              permission: {
+                type: 'user',
+                role,
+                emailAddress: email,
+              }
+            },
+            userId,
+            connectedAccountId
+          ),
+          `shareFile(${fileId}, ${email})`
         );
         const data = (result as { data?: Record<string, unknown> })?.data ?? (result as Record<string, unknown>);
         return {
@@ -301,52 +340,21 @@ export async function createComposioClient(
 
     async getConnectionStatus(userId: string): Promise<ConnectionStatus> {
       try {
+        const accountId = await getConnectedAccountId();
+        if (!accountId) return 'INACTIVE';
+
         const accounts = await composio.connectedAccounts.list({ userIds: [userId] });
         const items = accounts?.items ?? accounts;
-        if (!items || items.length === 0) {
-          return 'INACTIVE';
-        }
-
-        const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
-
-        // Prefer authConfigId-based lookup if available (most precise)
-        let googleAccount: { id?: string; status?: string; authConfig?: { id?: string }; toolkit?: { slug?: string; name?: string } } | undefined;
-
-        if (authConfigId) {
-          googleAccount = items.find(
-            (a: { authConfig?: { id?: string }; status?: string }) =>
-              a.authConfig?.id === authConfigId
-          );
-        }
-
-        // Fallback: match by toolkit slug/name
-        if (!googleAccount) {
-          googleAccount = items.find(
-            (a: { toolkit?: { slug?: string; name?: string }; status?: string }) =>
-              a.toolkit?.slug?.toLowerCase() === 'google' ||
-              a.toolkit?.slug?.toLowerCase() === 'googleworkspace' ||
-              a.toolkit?.name?.toLowerCase() === 'google' ||
-              a.toolkit?.name?.toLowerCase() === 'google workspace'
-          );
-        }
+        const googleAccount = items?.find((a: { id?: string }) => a.id === accountId);
 
         if (!googleAccount) {
-          console.warn('[Composio] getConnectionStatus: no Google account found for userId', userId, {
-            authConfigId,
-            availableAccounts: items.map((a: { id?: string; authConfig?: { id?: string }; toolkit?: { slug?: string; name?: string }; status?: string }) => ({
-              id: a.id,
-              authConfigId: a.authConfig?.id,
-              toolkitSlug: a.toolkit?.slug,
-              toolkitName: a.toolkit?.name,
-              status: a.status,
-            })),
-          });
-          return 'INACTIVE';
+          console.warn('[Composio] getConnectionStatus: cached accountId not found in fresh list', { userId, accountId });
+          return 'FAILED';
         }
+
         const status = googleAccount.status;
         console.info('[Composio] getConnectionStatus: found Google account with status:', status, {
           accountId: googleAccount.id,
-          toolkitSlug: googleAccount.toolkit?.slug,
         });
         if (status === 'ACTIVE') return 'ACTIVE';
         if (status === 'INITIALIZING') return 'INITIATED';
@@ -404,6 +412,10 @@ export async function createComposioClient(
         connected: status === 'ACTIVE',
         status,
       };
+    },
+
+    clearConnectedAccountIdCache(userId: string): void {
+      connectedAccountIdCache.delete(userId);
     },
   };
 }
@@ -467,6 +479,46 @@ function convertBatchRequestsToComposio(requests: any[]): any[] {
       return null;
     })
     .filter(Boolean);
+}
+
+// ============================================================
+// RETRY LOGIC FOR RATE LIMITS
+// ============================================================
+
+/**
+ * Executes a function with retry logic for rate limit errors (HTTP 429).
+ * Uses exponential backoff: 100ms, 200ms, 400ms between retries.
+ * Max 3 retries total.
+ */
+async function executeWithRetry<T>(
+  fn: () => Promise<T>,
+  context: string
+): Promise<T> {
+  const maxRetries = 3;
+  const backoffMs = [100, 200, 400];
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const isRateLimit =
+        (error instanceof Error && error.message?.includes('429')) ||
+        (error as any)?.status === 429 ||
+        (error as any)?.code === 'rateLimitExceeded' ||
+        JSON.stringify(error).includes('rateLimitExceeded');
+
+      if (isRateLimit && attempt < maxRetries) {
+        const delay = backoffMs[attempt] || backoffMs[backoffMs.length - 1];
+        console.warn(`[Composio] Rate limit hit on ${context}. Retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw new Error(`[Composio] Max retries exceeded for ${context}`);
 }
 
 // ============================================================

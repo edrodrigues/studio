@@ -309,7 +309,7 @@ function buildReplacementRequests(
       requests.push({
         replaceAllText: {
           replaceText: trimmedReplacement,
-          containingText: {
+          containsText: {
             text: match,
             matchCase: false,
           },

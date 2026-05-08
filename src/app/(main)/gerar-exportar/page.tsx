@@ -196,7 +196,7 @@ function GerarExportarContent() {
   const projectIdFromUrl = searchParams.get("projectId");
   const contractTypeFilter = searchParams.get("contractType");
   const processTypeFilter = searchParams.get("processType");
-  const currentProjectId = projectIdFromUrl || "default-project";
+  const currentProjectId = projectIdFromUrl?.trim() || "default-project";
 
   const [isGenerating, startGeneration] = useTransition();
   const [activeTab, setActiveTab] = useState("gerar");
@@ -250,9 +250,11 @@ function GerarExportarContent() {
 
   useEffect(() => {
     if (!projectIdFromUrl || !firestore) return;
+    let cancelled = false;
     getDoc(doc(firestore, "projects", projectIdFromUrl)).then((docSnap) => {
-      if (docSnap.exists()) setProjectName(docSnap.data().name);
+      if (!cancelled && docSnap.exists()) setProjectName(docSnap.data().name);
     });
+    return () => { cancelled = true; };
   }, [firestore, projectIdFromUrl]);
 
   const projectDocsQuery = useMemoFirebase(() => {

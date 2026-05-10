@@ -420,7 +420,15 @@ export async function inspectTemplateForGeneration(
   try {
     const resolved = await resolveTemplateSource(userId, input);
     const client = await createComposioClient(userId);
-    const googleDocPlaceholders = await client.getDocumentPlaceholders(resolved.fileId);
+
+    // Wrap placeholder extraction with auth retry to handle 401/403 from Google Workspace
+    const googleDocPlaceholders = await executeWithRetryAndAuthRefresh(
+      () => client.getDocumentPlaceholders(resolved.fileId),
+      `getDocumentPlaceholders(${resolved.fileId})`,
+      userId,
+      requestId
+    );
+
     const placeholders = mergePlaceholderDefinitions(
       googleDocPlaceholders,
       input.fallbackMarkdownContent

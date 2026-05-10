@@ -47,9 +47,27 @@ export function getErrorType(error: unknown): TemplateErrorType {
   }
 
   const message = error instanceof Error ? error.message : String(error ?? '');
+
+  // Check for Google Workspace domain-level authorization restrictions
+  // These return generic 403 messages like "Autorização para atuação de servidores (técnicos e docentes) da UFPE no Projeto"
+  // or contain "domain", "organization", "workspace" keywords indicating policy-level blocks
+  if (
+    message.includes('403') ||
+    message.includes('domain') ||
+    message.includes('organization') ||
+    message.includes('workspace') ||
+    message.includes('Autorização') ||
+    message.includes('autorização') ||
+    message.includes('permitted') ||
+    message.includes('PERMISSION_DENIED') ||
+    message.includes('domain policy') ||
+    message.includes('admin')
+  ) {
+    return 'PERMISSION_DENIED';
+  }
+
   const matchedType = [
     'TEMPLATE_NOT_FOUND',
-    'PERMISSION_DENIED',
     'INVALID_REQUEST',
     'INVALID_TEMPLATE_TYPE',
     'AUTH_EXPIRED',
@@ -158,6 +176,7 @@ export function buildUserFriendlyError(error: unknown) {
         'Compartilhe o documento com a conta Google usada no app.',
         'Confirme se você está autenticado com a conta correta.',
         'Se existir uma versão customizada do projeto, confirme se ela também está acessível.',
+        'Se o erro mencionar "domínio" ou "organização", solicite ao administrador do Google Workspace que libere o acesso ou verifique as políticas de compartilhamento externo.',
       ];
       break;
     case 'AUTH_EXPIRED':
@@ -205,10 +224,12 @@ export function buildUserFriendlyError(error: unknown) {
       ];
       break;
     default:
-      errorMessage = 'O Google Drive/Docs retornou um erro inesperado ao preparar o template.';
+      const originalMessage = typedError.technicalDetails || typedError.message;
+      errorMessage = `O Google Drive/Docs retornou um erro inesperado ao preparar o template. ${originalMessage ? `Detalhes: ${originalMessage}` : ''}`;
       userInstructions = [
         'Tente novamente em alguns instantes.',
         'Se o erro persistir, revise os links do template e a conta Google conectada.',
+        'Compartilhe os detalhes do erro com o suporte técnico para investigação.',
       ];
       break;
   }

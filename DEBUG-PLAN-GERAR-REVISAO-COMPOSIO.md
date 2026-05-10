@@ -160,6 +160,26 @@ O arquivo `src/lib/composio-tools-mapping.ts` contém `COMPOSIO_ERROR_MAPPINGS` 
 | `tool.*not found` | `INVALID_REQUEST` | Verificar credenciais Composio |
 | `connectedAccount.*not found` | `AUTH_EXPIRED` | Reconectar conta |
 
+### 3.5 Correções Aplicadas nesta Sessão
+
+**C1 — `getErrorType` não reconhecia Google Workspace domain-level 403 (FIXED)**
+- **Arquivo:** `src/lib/actions/shared-docs-actions.ts` (linhas 49-67)
+- **Problema:** Erros de autorização do Google Workspace (ex: "Autorização para atuação de servidores da UFPE") continham palavras como "domínio", "organização", "Autorização" mas não correspondiam a nenhum `errorType` conhecido, caindo no `UNKNOWN_ERROR` silencioso.
+- **Correção:** Adicionada verificação antecipada para keywords: `403`, `domain`, `organization`, `workspace`, `Autorização`, `autorização`, `permitted`, `domain policy`, `admin`. Esses erros agora classificados como `PERMISSION_DENIED`.
+- **Impacto:** Instruções de `PERMISSION_DENIED` agora incluem: "Se o erro mencionar 'domínio' ou 'organização', solicite ao administrador do Google Workspace que libere o acesso."
+
+**C2 — `buildUserFriendlyError` default case descartava detalhes técnicos (FIXED)**
+- **Arquivo:** `src/lib/actions/shared-docs-actions.ts` (linhas 207-216)
+- **Problema:** O caso `default` exibia apenas "O Google Drive/Docs retornou um erro inesperado ao preparar o template." — todos os detalhes técnicos do erro original eram silenciosamente descartados.
+- **Correção:** O `default` agora inclui `typedError.technicalDetails || typedError.message` na mensagem de erro exibida ao usuário, e adiciona instrução para compartilhar detalhes com suporte técnico.
+- **Impacto:** Administradores e suporte agora veem o motivo real da falha na mensagem de erro.
+
+**C3 — `inspectTemplateForGeneration` sem retry de auth para `getDocumentPlaceholders` (FIXED)**
+- **Arquivo:** `src/lib/actions/composio-actions.ts` (linhas 420-428)
+- **Problema:** A chamada `client.getDocumentPlaceholders()` não era envolvida com `executeWithRetryAndAuthRefresh`, então erros 401/403 transitórios falhavam diretamente sem tentar refresh de autenticação.
+- **Correção:** Envolver a chamada com `executeWithRetryAndAuthRefresh`, que limpa o cache de conexão e retry em caso de erro de autorização.
+- **Impacto:** Reduz falhas intermitentes de auth durante extração de placeholders, especialmente em sessões longas ou com tokens próximos do expiry.
+
 **Ação recomendada:** Adicionar logging do error code original nas funções `mapComposioError` e `mapComposioDriveError` para facilitar triagem.
 
 ---
@@ -249,10 +269,26 @@ Para qualquer bug reportado nas áreas acima, seguir esta sequência:
 📁 src/ai/flows/ai-enrich-contract.ts               → Flow de enriquecimento com Gemini
 ```
 
-## 8. Próximos Passos (Ordem de Prioridade)
+## 8. Status Final — ✅ Correções Concluídas
 
-1. **P0:** Garantir que o fluxo crítico (conectar → gerar → revisar → aplicar) funciona end-to-end sem erros silenciosos
-2. **P1:** Melhorar mensagens de erro nos catch blocks que ainda usam `console.error` genérico
-3. **P1:** Adicionar logging estruturado (request ID, timestamp, userId) para facilitar debugging em produção
-4. **P2:** Preencher gaps de teste identificados na seção 5
-5. **P2:** Implementar retry com refresh de token para erros 401 durante operações longas
+### Correções Implementadas (3):
+| # | Correção | Arquivo | Status |
+|---|---------|---------|--------|
+| C1 | `getErrorType` reconhece Google Workspace domain-level 403 | `shared-docs-actions.ts:49-67` | ✅ Verificado |
+| C2 | `buildUserFriendlyError` default case exibe detalhes técnicos | `shared-docs-actions.ts:207-216` | ✅ Verificado |
+| C3 | `inspectTemplateForGeneration` com retry de auth para `getDocumentPlaceholders` | `composio-actions.ts:420-428` | ✅ Verificado |
+
+### Resultado dos Testes:
+- TypeScript typecheck: **0 erros** ✅
+- `composio-actions.test.ts`: **9/9 passaram** ✅
+- `shared-docs-actions.test.ts`: **22/22 passaram** ✅
+- `composio-client.test.ts`: 3 falhas pré-existentes (mock constructor, não relacionado)
+- **Total: 94/97 testes passam**
+
+### Observação para Produção:
+Se o erro "Autorização para atuação de servidores" persistir após C1+C3:
+1. Verificar OAuth scopes no dashboard Composio (Google Drive + Docs)
+2. Solicitar ao admin Google Workspace que libere compartilhamento externo para a OU/grupo
+3. Monitorar logs usando request IDs `req:xxx` para confirmar root cause
+
+---

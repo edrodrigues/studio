@@ -178,7 +178,13 @@ O arquivo `src/lib/composio-tools-mapping.ts` contém `COMPOSIO_ERROR_MAPPINGS` 
 - **Arquivo:** `src/lib/actions/composio-actions.ts` (linhas 420-428)
 - **Problema:** A chamada `client.getDocumentPlaceholders()` não era envolvida com `executeWithRetryAndAuthRefresh`, então erros 401/403 transitórios falhavam diretamente sem tentar refresh de autenticação.
 - **Correção:** Envolver a chamada com `executeWithRetryAndAuthRefresh`, que limpa o cache de conexão e retry em caso de erro de autorização.
-- **Impacto:** Reduz falhas intermitentes de auth durante extração de placeholders, especialmente em sessões longas ou com tokens próximos do expiry.
+- **Impacto:** Reduz falhas intermitentes de auth durante extração de placeholders.
+
+**C4 — `TOOL_VERSION_REQUIRED` erro do SDK Composio (FIXED)**
+- **Arquivo:** `src/lib/composio-client.ts` (linha 88) + `src/lib/composio-tools-mapping.ts` (linhas 228-235)
+- **Problema:** O SDK `@composio/core` v0.6.x agora exige o parâmetro `version` na chamada `tools.execute()`. Sem ele, o servidor retornava `TS-SDK::TOOL_VERSION_REQUIRED` que caía no catch-all `GOOGLE_DOCS_ERROR` / `GOOGLE_DRIVE_ERROR`.
+- **Correção:** Adicionado `version: 'latest'` na chamada `composio.tools.execute()`. Adicionado mapeamento para `TOOL_VERSION_REQUIRED` no `COMPOSIO_ERROR_MAPPINGS` com mensagem informativa sobre incompatibilidade de SDK.
+- **Impacto:** Erros de versão do SDK agora retornam mensagem clara em vez de confusa combinação de GOOGLE_DRIVE_ERROR + GOOGLE_DOCS_ERROR.
 
 **Ação recomendada:** Adicionar logging do error code original nas funções `mapComposioError` e `mapComposioDriveError` para facilitar triagem.
 

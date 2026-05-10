@@ -88,6 +88,7 @@ async function executeTool(
       connectedAccountId,
       arguments: params,
       userId,
+      version: 'latest',
     });
     debugLog(reqId, 'ComposioTool', 'Tool executed successfully', { toolSlug });
     return result;

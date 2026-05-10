@@ -145,7 +145,12 @@ export function ComposioConnection({
 
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const returnTo = window.location.pathname + window.location.search;
+      let returnTo: string;
+      try {
+        returnTo = window.location.pathname + window.location.search;
+      } catch {
+        returnTo = '/';
+      }
       const result = await initiateComposioConnection(user.uid, returnTo);
 
       if ('error' in result && result.error) {
@@ -188,37 +193,49 @@ export function ComposioConnection({
 
   // Check URL params for callback status
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const connected = params.get('composio_connected');
-    const error = params.get('composio_error');
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const connected = params.get('composio_connected');
+      const error = params.get('composio_error');
 
-    if (connected === 'true') {
-      // Clean URL params first — no page reload needed since we're already on the target page
-      toast({
-        title: 'Google conectado!',
-        description: 'Sua conta Google foi conectada com sucesso.',
-      });
-      const url = new URL(window.location.href);
-      url.searchParams.delete('composio_connected');
-      url.searchParams.delete('return_to');
-      window.history.replaceState({}, '', url.toString());
-      sessionStorage.removeItem('composio_return_to');
-      // Re-check connection status now that OAuth has completed
-      checkConnectionStatus();
-      onConnected?.();
-    } else if (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro na conexão',
-        description: error,
-      });
-      setState({ status: 'FAILED', loading: false, error });
-      onError?.(error);
-      // Clean URL
-      const url = new URL(window.location.href);
-      url.searchParams.delete('composio_error');
-      url.searchParams.delete('return_to');
-      window.history.replaceState({}, '', url.toString());
+      if (connected === 'true') {
+        // Clean URL params first — no page reload needed since we're already on the target page
+        toast({
+          title: 'Google conectado!',
+          description: 'Sua conta Google foi conectada com sucesso.',
+        });
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('composio_connected');
+          url.searchParams.delete('return_to');
+          window.history.replaceState({}, '', url.toString());
+        } catch {
+          // URL parsing failed, but connection was successful
+        }
+        sessionStorage.removeItem('composio_return_to');
+        // Re-check connection status now that OAuth has completed
+        checkConnectionStatus();
+        onConnected?.();
+      } else if (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro na conexão',
+          description: error,
+        });
+        setState({ status: 'FAILED', loading: false, error });
+        onError?.(error);
+        // Clean URL
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('composio_error');
+          url.searchParams.delete('return_to');
+          window.history.replaceState({}, '', url.toString());
+        } catch {
+          // URL parsing failed, but cleanup is best-effort
+        }
+      }
+    } catch {
+      console.error('[ComposioConnection] Error parsing URL params');
     }
   }, []);
 

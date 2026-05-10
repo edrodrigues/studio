@@ -18,6 +18,7 @@ const mockComposioClient = {
 
 vi.mock('@/lib/composio-client', () => ({
   createComposioClient: vi.fn(() => Promise.resolve(mockComposioClient)),
+  executeWithRetryAndAuthRefresh: vi.fn().mockImplementation((fn: () => Promise<any>) => fn()),
 }));
 
 vi.mock('@/lib/google-docs', () => ({
@@ -31,6 +32,10 @@ vi.mock('@/ai/flows/ai-enrich-contract', () => ({
 import {
   inspectTemplateForGeneration,
   generateContractDoc,
+  reviewContractWithAI,
+  applyReviewEdits,
+  revertReviewEdits,
+  enrichContractWithAI,
 } from './composio-actions';
 
 describe('composio-actions', () => {

@@ -35,6 +35,7 @@ import {
 import { Contract, DocumentStatus, ProjectDocument, Template } from "@/lib/types";
 import { summarizeTemplateValidation } from "@/lib/template-link-validation";
 import { cn, extractDocumentId, isValidDate, safeNewDate } from "@/lib/utils";
+import { generateRequestId } from "@/lib/utils/request-id";
 
 const ContractPreviewModal = dynamic(() => import("@/components/app/contract-preview-modal").then((mod) => mod.ContractPreviewModal), { ssr: false });
 const ComparisonModal = dynamic(() => import("@/components/app/comparison-modal").then((mod) => mod.ComparisonModal), { ssr: false });
@@ -357,8 +358,11 @@ function GerarExportarContent() {
       return;
     }
 
+    const requestId = generateRequestId();
+
     const connectionStatus = await checkComposioConnectionStatus(user.uid);
     if (!connectionStatus.connected) {
+      console.warn(`[GerarExportar] [req:${requestId}] Usuário não conectado ao Composio`, { connectionStatus });
       setComposioConnectPrompt((value) => value + 1);
       toast({
         title: "Conecte o Google Docs",
@@ -383,7 +387,7 @@ function GerarExportarContent() {
       const ready: TemplatePreparation[] = [];
 
       for (const template of selectedTemplateRecords) {
-        console.info("[GerarExportar] Validando template", {
+        console.info(`[GerarExportar] [req:${requestId}] Validando template`, {
           templateId: template.id,
           templateName: template.name,
           googleDocLink: template.googleDocLink,
@@ -401,10 +405,11 @@ function GerarExportarContent() {
             ? formatInspectionFailure(template, inspection)
             : `${template.name}: não foi possível preparar o template.`;
           errors.push(inspectionError);
-          console.warn("[GerarExportar] Falha no preflight", {
+          console.warn(`[GerarExportar] [req:${requestId}] Falha no preflight`, {
             templateId: template.id,
             templateName: template.name,
             inspectionError,
+            inspectionRequestId: inspection.requestId,
             sourceDiagnostics: "sourceDiagnostics" in inspection ? inspection.sourceDiagnostics : undefined,
           });
           continue;
@@ -442,8 +447,14 @@ function GerarExportarContent() {
       setReviewPlaceholderDefinitions(mergePlaceholderDefinitions(ready));
       setIsEntityModalOpen(true);
     } catch (error) {
-      console.error("[GerarExportar] Erro ao preparar geração:", error);
-      toast({ variant: "destructive", title: "Erro ao preparar geração", description: error instanceof Error ? error.message : "Falha ao preparar os dados da geração." });
+      console.error(`[GerarExportar] [req:${requestId}] Erro ao preparar geração:`, error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao preparar geração",
+        description: error instanceof Error
+          ? `${error.message} (ID: ${requestId})`
+          : `Falha ao preparar os dados da geração. (ID: ${requestId})`,
+      });
     } finally {
       setIsPreparingGeneration(false);
     }
@@ -452,12 +463,18 @@ function GerarExportarContent() {
   const handleConfirmGeneration = (confirmedPlaceholders: Record<string, string>) => {
     if (!user || !firestore || templatePreparations.length === 0) return;
     setIsEntityModalOpen(false);
+    const requestId = generateRequestId();
     startGeneration(async () => {
       let successCount = 0;
       const errors: string[] = [];
       const warnings: string[] = [];
       for (const templatePreparation of templatePreparations) {
         try {
+          console.info(`[GerarExportar] [req:${requestId}] Gerando documento`, {
+            templateId: templatePreparation.templateId,
+            templateName: templatePreparation.templateName,
+            resolvedSource: templatePreparation.resolvedSource,
+          });
           const result = await generateContractDoc(user.uid, {
             templateId: templatePreparation.templateId,
             templateName: templatePreparation.templateName,
@@ -473,6 +490,11 @@ function GerarExportarContent() {
           });
           if (!result.success || !result.documentId) {
             errors.push(`${templatePreparation.templateName}: ${"error" in result ? result.error : "falha desconhecida ao gerar documento."}`);
+            console.error(`[GerarExportar] [req:${requestId}] Falha na geração`, {
+              templateId: templatePreparation.templateId,
+              genRequestId: result.requestId,
+              error: "error" in result ? result.error : "unknown",
+            });
             continue;
           }
           warnings.push(...(result.warnings || []).map((warning) => `${templatePreparation.templateName}: ${warning}`));
@@ -494,8 +516,12 @@ function GerarExportarContent() {
             await updateDoc(doc(firestore, "projects", currentProjectId), { contractCount: increment(1), updatedAt: generatedAt });
           }
           successCount++;
+          console.info(`[GerarExportar] [req:${requestId}] Documento gerado com sucesso`, {
+            templateName: templatePreparation.templateName,
+            documentId: result.documentId,
+          });
         } catch (error) {
-          console.error(error);
+          console.error(`[GerarExportar] [req:${requestId}] Erro inesperado na geração`, error);
           errors.push(`${templatePreparation.templateName}: ${error instanceof Error ? error.message : "falha na comunicação com o servidor."}`);
         }
       }
@@ -717,24 +743,33 @@ function GerarExportarContent() {
                         <Button variant="outline" size="sm" className="text-purple-600 hover:text-purple-700 hover:bg-purple-50" onClick={async () => {
                           const docId = extractDocumentId(contract.googleDocLink ?? '');
                           if (!user?.uid || !docId) return;
+                          const reviewRequestId = generateRequestId();
                           setIsAIReviewing(true);
                           setAiReviewingContract(contract);
                           setAiReviewResult(null);
                           setSelectedEditIndexes(new Set());
                           setIsAIReviewOpen(true);
+                          console.info(`[GerarExportar] [req:${reviewRequestId}] Iniciando revisão com IA`, { documentId: docId });
                           try {
                             const result = await reviewContractWithAI(user.uid, {
                               documentId: docId,
                               documentName: contract.name,
                               reviewFocus: "all",
                             });
+                            if (!result.success) {
+                              console.error(`[GerarExportar] [req:${reviewRequestId}] Revisão com IA falhou`, {
+                                requestId: result.requestId,
+                                error: result.error,
+                              });
+                            }
                             setAiReviewResult(result);
                             // Pre-select all suggestions
                             if (result.success && result.suggestions.length > 0) {
                               setSelectedEditIndexes(new Set(result.suggestions.map((_, i) => i)));
                             }
                           } catch (e) {
-                            setAiReviewResult({ success: false, summary: "", overallQuality: "requires_revision", suggestions: [], reviewedAt: new Date().toISOString(), error: String(e) });
+                            console.error(`[GerarExportar] [req:${reviewRequestId}] Erro inesperado na revisão com IA:`, e);
+                            setAiReviewResult({ success: false, summary: "", overallQuality: "requires_revision", suggestions: [], reviewedAt: new Date().toISOString(), error: e instanceof Error ? `${e.message} (ID: ${reviewRequestId})` : `Erro desconhecido (ID: ${reviewRequestId})` });
                           } finally {
                             setIsAIReviewing(false);
                           }
@@ -793,23 +828,32 @@ function GerarExportarContent() {
                             <DropdownMenuItem onClick={async () => {
                               const docId = extractDocumentId(contract.googleDocLink ?? '');
                               if (!user?.uid || !docId) return;
+                              const reviewRequestId = generateRequestId();
                               setIsAIReviewing(true);
                               setAiReviewingContract(contract);
                               setAiReviewResult(null);
                               setSelectedEditIndexes(new Set());
                               setIsAIReviewOpen(true);
+                              console.info(`[GerarExportar] [req:${reviewRequestId}] Iniciando revisão com IA (dropdown)`, { documentId: docId });
                               try {
                                 const result = await reviewContractWithAI(user.uid, {
                                   documentId: docId,
                                   documentName: contract.name,
                                   reviewFocus: "all",
                                 });
+                                if (!result.success) {
+                                  console.error(`[GerarExportar] [req:${reviewRequestId}] Revisão com IA falhou`, {
+                                    requestId: result.requestId,
+                                    error: result.error,
+                                  });
+                                }
                                 setAiReviewResult(result);
                                 if (result.success && result.suggestions.length > 0) {
                                   setSelectedEditIndexes(new Set(result.suggestions.map((_, i) => i)));
                                 }
                               } catch (e) {
-                                setAiReviewResult({ success: false, summary: "", overallQuality: "requires_revision", suggestions: [], reviewedAt: new Date().toISOString(), error: String(e) });
+                                console.error(`[GerarExportar] [req:${reviewRequestId}] Erro inesperado na revisão com IA:`, e);
+                                setAiReviewResult({ success: false, summary: "", overallQuality: "requires_revision", suggestions: [], reviewedAt: new Date().toISOString(), error: e instanceof Error ? `${e.message} (ID: ${reviewRequestId})` : `Erro desconhecido (ID: ${reviewRequestId})` });
                               } finally {
                                 setIsAIReviewing(false);
                               }
@@ -979,10 +1023,15 @@ function GerarExportarContent() {
                 <Button
                   variant="outline"
                   onClick={async () => {
+                    const applyRequestId = generateRequestId();
                     const docId = extractDocumentId(aiReviewingContract?.googleDocLink ?? '');
                     if (!user?.uid || !docId || selectedEditIndexes.size === 0) return;
                     setIsApplyingEdits(true);
                     try {
+                      console.info(`[GerarExportar] [req:${applyRequestId}] Aplicando edições`, {
+                        docId,
+                        editCount: selectedEditIndexes.size,
+                      });
                       const editsToApply = Array.from(selectedEditIndexes).map((i) => aiReviewResult!.suggestions[i]);
                       const applyResult = await applyReviewEdits(user.uid, {
                         documentId: docId,
@@ -1014,10 +1063,15 @@ function GerarExportarContent() {
                         setAiReviewingContract(null);
                         toast({ title: "Edições aplicadas", description: `${applyResult.editsApplied} edição(ões) aplicada(s) com sucesso. Você pode desfazer em até 24h.` });
                       } else {
-                        toast({ title: "Erro", description: applyResult.error || "Falha ao aplicar edições.", variant: "destructive" });
+                        console.error(`[GerarExportar] [req:${applyRequestId}] Falha ao aplicar edições`, {
+                          requestId: applyResult.requestId,
+                          error: applyResult.error,
+                        });
+                        toast({ title: "Erro", description: `${applyResult.error || "Falha ao aplicar edições."} (ID: ${applyRequestId})`, variant: "destructive" });
                       }
                     } catch (e) {
-                      toast({ title: "Erro", description: String(e), variant: "destructive" });
+                      console.error(`[GerarExportar] [req:${applyRequestId}] Erro inesperado ao aplicar edições:`, e);
+                      toast({ title: "Erro", description: e instanceof Error ? `${e.message} (ID: ${applyRequestId})` : `Erro desconhecido (ID: ${applyRequestId})`, variant: "destructive" });
                     } finally {
                       setIsApplyingEdits(false);
                     }
@@ -1047,6 +1101,7 @@ function GerarExportarContent() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
+                const revertRequestId = generateRequestId();
                 if (!user?.uid || !contractWithAppliedReview || !appliedReviewEdits) return;
                 const docId = extractDocumentId(contractWithAppliedReview.googleDocLink ?? '');
                 if (!docId) return;
@@ -1069,10 +1124,15 @@ function GerarExportarContent() {
                     setContractWithAppliedReview(null);
                     toast({ title: "Revisão desfeita", description: `${revertResult.editsReverted} edição(ões) revertida(s) com sucesso.` });
                   } else {
-                    toast({ title: "Erro", description: revertResult.error || "Falha ao desfazer.", variant: "destructive" });
+                    console.error(`[GerarExportar] [req:${revertRequestId}] Falha ao reverter edições`, {
+                      requestId: revertResult.requestId,
+                      error: revertResult.error,
+                    });
+                    toast({ title: "Erro", description: `${revertResult.error || "Falha ao desfazer."} (ID: ${revertRequestId})`, variant: "destructive" });
                   }
                 } catch (e) {
-                  toast({ title: "Erro", description: String(e), variant: "destructive" });
+                  console.error(`[GerarExportar] [req:${revertRequestId}] Erro inesperado ao reverter edições:`, e);
+                  toast({ title: "Erro", description: e instanceof Error ? `${e.message} (ID: ${revertRequestId})` : `Erro desconhecido (ID: ${revertRequestId})`, variant: "destructive" });
                 } finally {
                   setIsRevertingEdits(false);
                   setIsUndoConfirmOpen(false);

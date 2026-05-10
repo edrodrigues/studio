@@ -3,6 +3,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { createComposioClient } from '@/lib/composio-client';
+import { debugLog, debugError, generateRequestId } from '@/lib/utils/request-id';
 
 // ============================================================
 // INPUT / OUTPUT SCHEMAS
@@ -47,6 +48,7 @@ const AIEnrichContractOutputSchema = z.object({
     .array(z.string())
     .describe('Placeholders that could not be filled (marked with [DADO NÃO ENCONTRADO])'),
   error: z.string().optional(),
+  requestId: z.string().optional().describe('Request ID for debugging'),
 });
 
 export type AIEnrichContractOutput = z.infer<typeof AIEnrichContractOutputSchema>;
@@ -137,7 +139,17 @@ export async function aiEnrichContract(
 async function enrichContractFlow(
   input: AIEnrichContractInput
 ): Promise<AIEnrichContractOutput> {
+  const requestId = generateRequestId();
   const { userId, documentId, placeholders, entityData, context, contractType } = input;
+
+  debugLog(requestId, 'ai-enrich-contract', 'Starting enrichment flow', {
+    userId,
+    documentId,
+    placeholderCount: placeholders.length,
+    entityKeyCount: Object.keys(entityData).length,
+    contractType,
+    contextProvided: !!context,
+  });
 
   // Step 1: Call Gemini to infer substitutions
   let substitutionsResult: {
@@ -149,6 +161,11 @@ async function enrichContractFlow(
     const placeholdersList = placeholders.map((p) => `  - ${p}`).join('\n');
     const entitiesJson = JSON.stringify(entityData, null, 2);
 
+    debugLog(requestId, 'ai-enrich-contract', 'Calling Gemini for substitution inference', {
+      placeholdersCount: placeholders.length,
+      entityKeys: Object.keys(entityData),
+    });
+
     const llmResponse = await enrichContractPrompt({
       placeholdersList,
       entitiesJson,
@@ -159,18 +176,31 @@ async function enrichContractFlow(
     const output = llmResponse.output;
 
     if (!output || !Array.isArray(output.substitutions)) {
+      debugError(requestId, 'ai-enrich-contract', 'Invalid Gemini response', new Error('INVALID_LLM_RESPONSE'), {
+        outputType: typeof output,
+        hasSubstitutions: !!output?.substitutions,
+      });
       throw new Error('Resposta inválida do modelo de IA');
     }
 
     substitutionsResult = output as typeof substitutionsResult;
+    debugLog(requestId, 'ai-enrich-contract', 'Gemini inference completed', {
+      substitutionsCount: substitutionsResult.substitutions.length,
+      reasoning: substitutionsResult.reasoning?.substring(0, 200),
+    });
   } catch (error: any) {
-    console.error('[ai-enrich-contract] Gemini inference failed:', error);
+    debugError(requestId, 'ai-enrich-contract', 'Gemini inference failed', error, {
+      userId,
+      documentId,
+      placeholders,
+    });
     return {
       success: false,
       documentLink: `https://docs.google.com/document/d/${documentId}/edit`,
       substitutions: [],
       unfilled: placeholders,
       error: `Erro na inferência de IA: ${error.message}`,
+      requestId,
     };
   }
 
@@ -216,6 +246,11 @@ async function enrichContractFlow(
     }
   }
 
+  debugLog(requestId, 'ai-enrich-contract', 'Substitution map built', {
+    filledCount: Object.entries(substitutionMap).filter(([, v]) => v.value !== '[DADO NÃO ENCONTRADO]').length,
+    unfilledCount: Object.entries(substitutionMap).filter(([, v]) => v.value === '[DADO NÃO ENCONTRADO]').length,
+  });
+
   // Step 3: Build batch update requests
   const batchRequests = buildReplacementRequests(substitutionMap);
 
@@ -240,14 +275,25 @@ async function enrichContractFlow(
       .filter(([, v]) => v.value === '[DADO NÃO ENCONTRADO]')
       .map(([k]) => k);
 
+    debugLog(requestId, 'ai-enrich-contract', 'Enrichment completed successfully', {
+      documentId,
+      filledCount: filled.length,
+      unfilledCount: unfilled.length,
+    });
+
     return {
       success: true,
       documentLink: `https://docs.google.com/document/d/${documentId}/edit`,
       substitutions: filled,
       unfilled,
+      requestId,
     };
   } catch (error: any) {
-    console.error('[ai-enrich-contract] Composio batch update failed:', error);
+    debugError(requestId, 'ai-enrich-contract', 'Composio batch update failed (fallback to dry-run)', error, {
+      userId,
+      documentId,
+      batchRequestCount: batchRequests.length,
+    });
 
     // Fallback: return what we would have applied without applying
     const filled = Object.entries(substitutionMap)
@@ -269,6 +315,7 @@ async function enrichContractFlow(
       substitutions: filled,
       unfilled,
       error: `Erro ao aplicar substituições: ${error.message}`,
+      requestId,
     };
   }
 }

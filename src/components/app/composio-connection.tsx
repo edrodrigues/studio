@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import type { ConnectionStatus } from '@/lib/composio-types';
 import { checkComposioConnectionStatus, initiateComposioConnection } from '@/lib/actions/composio-connection-actions';
+import { generateRequestId } from '@/lib/utils/request-id';
 
 interface ComposioConnectionState {
   status: ConnectionStatus;
@@ -76,6 +77,21 @@ const STATUS_INFO: Record<ConnectionStatus, ConnectionStatusInfo> = {
   },
 };
 
+// Expose connection details for debugging
+export function getConnectionDebugInfo(status: ConnectionStatus, error: string | null) {
+  return {
+    status,
+    error,
+    timestamp: new Date().toISOString(),
+    hints: {
+      FAILED: 'Verifique COMPOSIO_API_KEY e COMPOSIO_GOOGLE_AUTH_CONFIG_ID nas variáveis de ambiente',
+      EXPIRED: 'A sessão OAuth expirou. Tente reconectar.',
+      INACTIVE: 'Nenhuma conta Google está conectada. Use o botão para iniciar o fluxo OAuth.',
+      INITIATED: 'Aguarde o redirecionamento OAuth completar.',
+    },
+  };
+}
+
 export function ComposioConnection({
   onConnected,
   onError,
@@ -118,6 +134,7 @@ export function ComposioConnection({
       setState({ status: result.status, loading: false, error: null });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Erro ao verificar conexão';
+      console.error(`[ComposioConnection] Error checking connection for user ${user.uid}:`, error);
       setState({ status: 'FAILED', loading: false, error: errorMsg });
       onError?.(errorMsg);
     }
@@ -133,6 +150,7 @@ export function ComposioConnection({
 
       if ('error' in result && result.error) {
         setState({ status: 'FAILED', loading: false, error: result.error });
+        console.error(`[ComposioConnection] initiateConnection error:`, result.error);
         toast({
           variant: 'destructive',
           title: 'Erro ao conectar',
@@ -152,6 +170,7 @@ export function ComposioConnection({
       window.location.href = result.redirectUrl;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Erro ao iniciar conexão';
+      console.error(`[ComposioConnection] initiateConnection exception:`, error);
       setState({ status: 'FAILED', loading: false, error: errorMsg });
       toast({
         variant: 'destructive',
@@ -165,6 +184,7 @@ export function ComposioConnection({
   }
 
   const statusInfo = STATUS_INFO[state.status];
+  const debugInfo = getConnectionDebugInfo(state.status, state.error);
 
   // Check URL params for callback status
   useEffect(() => {

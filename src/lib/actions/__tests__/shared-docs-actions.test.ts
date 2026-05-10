@@ -13,9 +13,6 @@ vi.mock('@/lib/template-source', () => ({
     return labels[field] || field;
   }),
   isFallbackEligibleErrorType: vi.fn(() => true),
-  type TemplateSourceAudit: true,
-  type TemplateSourceDiagnostic: true,
-  type TemplateSourceField: true,
 }));
 
 import { extractPlaceholderDefinitionsFromText } from '@/lib/google-docs';
@@ -142,6 +139,7 @@ describe('shared-docs-actions', () => {
       const audit = {
         googleDocLink: { field: 'googleDocLink' as const, label: 'link original', status: 'available' as const, link: 'https://docs.google.com/document/d/abc/edit', fileId: 'abc' },
         projectDocLink: { field: 'projectDocLink' as const, label: 'link customizado', status: 'missing' as const, link: '', fileId: null },
+        health: 'ready_original' as const,
       };
       const result = cloneSourceDiagnostics(audit);
       expect(result.googleDocLink.status).toBe('available');

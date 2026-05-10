@@ -6,15 +6,17 @@ const { mockConnectedAccountsList, mockToolsExecute } = vi.hoisted(() => ({
 }));
 
 vi.mock('@composio/core', () => ({
-  Composio: vi.fn().mockImplementation(() => ({
-    connectedAccounts: {
-      list: mockConnectedAccountsList,
-      initiate: vi.fn(),
-    },
-    tools: {
-      execute: mockToolsExecute,
-    },
-  })),
+  Composio: vi.fn(function () {
+    return {
+      connectedAccounts: {
+        list: mockConnectedAccountsList,
+        initiate: vi.fn(),
+      },
+      tools: {
+        execute: mockToolsExecute,
+      },
+    };
+  }),
 }));
 
 vi.mock('@composio/google', () => ({
@@ -29,9 +31,18 @@ vi.mock('../composio-tools-mapping', () => ({
     DRIVE_COPY_FILE: 'GOOGLEDRIVE_COPY_FILE_ADVANCED',
     DRIVE_CREATE_PERMISSION: 'GOOGLEDRIVE_CREATE_PERMISSION',
   },
-  mapComposioError: vi.fn((e) => e),
-  mapComposioDriveError: vi.fn((e) => e),
+  mapComposioError: vi.fn((e: unknown) => e),
+  mapComposioDriveError: vi.fn((e: unknown) => e),
 }));
+
+// Mock executeWithRetryAndAuthRefresh as a pass-through
+vi.mock('../composio-client', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../composio-client')>();
+  return {
+    ...original,
+    executeWithRetryAndAuthRefresh: vi.fn().mockImplementation((fn: any) => fn()),
+  };
+});
 
 import { createComposioClient } from '../composio-client';
 
@@ -54,6 +65,7 @@ describe('composio-client', () => {
       });
 
       const client = await createComposioClient('user-1');
+      // Access internal method through cache check
       const result1 = await (client as any).getConnectedAccountId?.('user-1');
       const result2 = await (client as any).getConnectedAccountId?.('user-1');
 

@@ -731,7 +731,7 @@ export async function applyReviewEdits(
           replaceText: edit.suggestedText,
           containsText: {
             text: edit.originalText,
-            matchCase: false,
+            matchCase: true,
           },
         },
       }));
@@ -846,7 +846,7 @@ export async function revertReviewEdits(
           replaceText: edit.originalText,
           containsText: {
             text: edit.suggestedText,
-            matchCase: false,
+            matchCase: true,
           },
         },
       }));

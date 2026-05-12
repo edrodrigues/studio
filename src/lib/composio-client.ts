@@ -7,7 +7,7 @@ import {
   mapComposioError,
   mapComposioDriveError,
 } from './composio-tools-mapping';
-import type { TemplatePlaceholderDefinition } from './google-docs';
+import { extractPlaceholderDefinitionsFromText, type TemplatePlaceholderDefinition } from './google-docs';
 import type { ConnectionStatus } from './composio-types';
 import { debugLog, debugError, generateRequestId } from './utils/request-id';
 
@@ -58,6 +58,14 @@ export interface ComposioClient {
 const globalForComposio = globalThis as typeof globalThis & {
   __composioInstance?: Composio<any>;
 };
+
+// Module-level cache for connected account IDs, shared across all client instances
+// Key: userId, Value: { id, expiresAt }
+const connectedAccountIdCache = new Map<string, { id: string | undefined; expiresAt: number }>();
+
+function clearConnectedAccountIdCache(userId: string): void {
+  connectedAccountIdCache.delete(userId);
+}
 
 function getComposioInstance(apiKey?: string): Composio<any> {
   if (!globalForComposio.__composioInstance) {
@@ -114,8 +122,6 @@ export async function createComposioClient(
   const composio = getComposioInstance(config.apiKey);
   const requestId = generateRequestId();
 
-  const connectedAccountIdCache = new Map<string, { id: string | undefined; expiresAt: number }>();
-
   debugLog(requestId, 'ComposioClient', 'Client created', { userId, hasApiKey: !!config.apiKey, hasAuthConfigId: !!config.googleAuthConfigId });
 
   // Helper to get connected account for this user
@@ -149,9 +155,10 @@ export async function createComposioClient(
           })),
         });
       } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
         console.error('[Composio] getConnectedAccountId error during authConfigId lookup:', error);
         throw new ConnectionCheckError(
-          'Falha ao verificar conexão com Google via Composio. Tente novamente.',
+          `Falha ao verificar conexão com Google via Composio: ${errMsg}`,
           error
         );
       }
@@ -183,9 +190,10 @@ export async function createComposioClient(
       connectedAccountIdCache.set(userId, { id: undefined, expiresAt: Date.now() + 30000 });
       return undefined;
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Composio] getConnectedAccountId error during fallback lookup:', error);
       throw new ConnectionCheckError(
-        'Falha ao verificar conexão com Google via Composio. Tente novamente.',
+        `Falha ao verificar conexão com Google via Composio: ${errMsg}`,
         error
       );
     }
@@ -212,7 +220,7 @@ export async function createComposioClient(
       const status = googleAccount.status;
       debugLog(requestId, 'ComposioClient', 'getConnectionStatus', { userId, accountId, status });
       if (status === 'ACTIVE') return 'ACTIVE';
-      if (status === 'INITIALIZING') return 'INITIATED';
+      if (status === 'INITIALIZING') return 'INITIALIZING';
       if (status === 'INITIATED') return 'INITIATED';
       if (status === 'EXPIRED') return 'EXPIRED';
       if (status === 'INACTIVE') return 'INACTIVE';
@@ -264,7 +272,6 @@ export async function createComposioClient(
       // Use local implementation (same as google-docs.ts)
       debugLog(requestId, 'ComposioClient', 'getDocumentPlaceholders', { documentId, userId });
       const self = this as ComposioClient;
-      const { extractPlaceholderDefinitionsFromText } = await import('./google-docs');
       const content = await self.getDocumentContent(documentId);
       const placeholders = extractPlaceholderDefinitionsFromText(content);
       debugLog(requestId, 'ComposioClient', 'getDocumentPlaceholders result', { documentId, placeholderCount: placeholders.length });
@@ -488,7 +495,7 @@ export async function createComposioClient(
 
     clearConnectedAccountIdCache(userId: string): void {
       debugLog(requestId, 'ComposioClient', 'clearConnectedAccountIdCache', { userId });
-      connectedAccountIdCache.delete(userId);
+      clearConnectedAccountIdCache(userId);
     },
   };
 }
@@ -519,39 +526,46 @@ function extractTextFromDocument(docData: unknown): string {
 }
 
 function convertBatchRequestsToComposio(requests: any[]): any[] {
-  return requests
-    .filter((req) => req.replaceAllText || req.insertText)
-    .map((req) => {
-      if (req.replaceAllText) {
-        const containsText = req.replaceAllText.containsText || req.replaceAllText.containingText;
-        const replaceText = req.replaceAllText.replaceText;
-        const targetText =
-          typeof containsText === 'string'
-            ? containsText
-            : containsText?.text || containsText?.content;
+  const composioRequests: any[] = [];
+  let droppedCount = 0;
 
-        if (!targetText) {
-          return null;
-        }
+  for (const req of requests) {
+    if (req.replaceAllText) {
+      const containsText = req.replaceAllText.containsText || req.replaceAllText.containingText;
+      const replaceText = req.replaceAllText.replaceText;
+      const targetText =
+        typeof containsText === 'string'
+          ? containsText
+          : containsText?.text || containsText?.content;
 
-        return {
-          replace_all_text: {
-            replace_text: typeof replaceText === 'string' ? replaceText : replaceText?.text,
-            target_text: targetText,
-          },
-        };
-      }
-      if (req.insertText) {
-        return {
-          insert_text: {
-            text: req.insertText.text,
-            location: req.insertText.location,
-          },
-        };
-      }
-      return null;
-    })
-    .filter(Boolean);
+      if (!targetText) continue;
+
+      composioRequests.push({
+        replace_all_text: {
+          replace_text: typeof replaceText === 'string' ? replaceText : replaceText?.text,
+          target_text: targetText,
+        },
+      });
+    } else if (req.insertText) {
+      composioRequests.push({
+        insert_text: {
+          text: req.insertText.text,
+          location: req.insertText.location,
+        },
+      });
+    } else {
+      // Pass through unknown request types — Composio may support them,
+      // and if not, it's better to let it fail explicitly than drop silently
+      composioRequests.push(req);
+      droppedCount++;
+    }
+  }
+
+  if (droppedCount > 0) {
+    console.warn(`[Composio] convertBatchRequestsToComposio: ${droppedCount} request(s) have no explicit mapping and will be passed through as-is.`);
+  }
+
+  return composioRequests;
 }
 
 // ============================================================

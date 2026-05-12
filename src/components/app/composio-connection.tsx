@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, useRef, ReactNode } from 'react';
 import { useUser } from '@/firebase/provider';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -57,6 +57,12 @@ const STATUS_INFO: Record<ConnectionStatus, ConnectionStatusInfo> = {
     variant: 'warning',
     icon: '🔄',
   },
+  INITIALIZING: {
+    label: 'Processando conexão',
+    description: 'Sua conexão Google está sendo ativada. Isso leva alguns segundos.',
+    variant: 'warning',
+    icon: '⏳',
+  },
   EXPIRED: {
     label: 'Conexão expirada',
     description: 'Sua conexão com Google expirou. Conecte-se novamente.',
@@ -112,15 +118,22 @@ export function ComposioConnection({
   const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     if (!user) {
       setState({ status: 'INACTIVE', loading: false, error: null });
       return;
     }
-    checkConnectionStatus();
+    checkConnectionStatus().then(() => {
+      if (cancelled) return;
+    });
+    return () => { cancelled = true; };
   }, [user]);
 
+  const lastOpenSignal = useRef(openSignal ?? 0);
+
   useEffect(() => {
-    if (openSignal > 0) {
+    if (openSignal !== undefined && openSignal > lastOpenSignal.current) {
+      lastOpenSignal.current = openSignal;
       setDialogOpen(true);
     }
   }, [openSignal]);

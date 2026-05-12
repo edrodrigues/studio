@@ -38,6 +38,14 @@ const nextConfig: NextConfig = {
       }
     ],
   },
+  async rewrites() {
+    return [
+      {
+        source: '/__/auth/handler',
+        destination: '/auth-redirect-handler',
+      },
+    ];
+  },
   async headers() {
     return [
       {

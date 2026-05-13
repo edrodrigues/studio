@@ -19,7 +19,27 @@ export default function AuthenticationPage() {
     }
   }, [user, loading, router]);
 
-  if (loading || user) return null;
+  if (loading) {
+    return (
+      <main id="main" className="page-shell flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 animate-pulse rounded-full bg-primary/20" />
+          <p className="text-muted-foreground">Carregando…</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (user) {
+    return (
+      <main id="main" className="page-shell flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+          <p className="text-muted-foreground">Redirecionando…</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main id="main" className="page-shell flex min-h-screen items-center">

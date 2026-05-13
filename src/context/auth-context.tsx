@@ -4,8 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import {
     User,
     GoogleAuthProvider,
-    signInWithRedirect,
-    getRedirectResult,
+    signInWithPopup,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     signOut as firebaseSignOut,
@@ -40,14 +39,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setActionLoading(true);
         try {
             const provider = new GoogleAuthProvider();
-            // Use redirect instead of popup to avoid COOP/COEP issues with cross-origin windows
-            await signInWithRedirect(auth, provider);
+            const result = await signInWithPopup(auth, provider);
 
-            toast({
-                title: "Login realizado com sucesso",
-                description: "Bem-vindo de volta!",
-            });
-            router.push("/");
+            if (result.user) {
+                toast({
+                    title: "Login realizado com sucesso",
+                    description: "Bem-vindo de volta!",
+                });
+                router.push("/projects");
+            }
         } catch (error: any) {
             console.error("Google Signin Error", error);
             let msg = "Não foi possível entrar com Google.";
@@ -59,8 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 'auth/popup-blocked': "Pop-up bloqueado. Permitir pop-ups para este site.",
                 'auth/cancelled-popup-request': "Login cancelado.",
                 'auth/timeout': "Tempo de conexão esgotado. Tente novamente.",
-                'auth/redirect-cancelled-by-user': "Login cancelado. Você saiu do fluxo de autenticação.",
-                'auth/redirect-operation-pending': "Operação de redirecionamento pendente.",
             };
 
             msg = errorMessages[error.code] || msg;
@@ -169,30 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    // Handle redirect result after signInWithRedirect
-    useEffect(() => {
-        async function handleRedirectResult() {
-            if (!auth) return;
-            try {
-                const result = await getRedirectResult(auth);
-                if (result) {
-                    toast({
-                        title: "Login realizado com sucesso",
-                        description: "Bem-vindo de volta!",
-                    });
-                    router.push("/");
-                }
-            } catch (error: any) {
-                console.error("Redirect result error", error);
-                toast({
-                    variant: "destructive",
-                    title: "Erro no login",
-                    description: "Não foi possível completar o login. Tente novamente.",
-                });
-            }
-        }
-        handleRedirectResult();
-    }, [auth]);
+
 
     // Combine the loading states
     const loading = isUserLoading || actionLoading;

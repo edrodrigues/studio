@@ -2,35 +2,33 @@
 
 import { aiEnrichContract } from '@/ai/flows/ai-enrich-contract';
 import { aiReviewContract, type ReviewEditSuggestion } from '@/ai/flows/ai-review-contract';
-import { extractPlaceholderDefinitionsFromText } from '@/lib/google-docs';
 import {
   auditTemplateLinks,
-  getTemplateSourceFieldLabel,
   isFallbackEligibleErrorType,
   type TemplateSourceAudit,
   type TemplateSourceDiagnostic,
   type TemplateSourceField,
 } from '@/lib/template-source';
+import { extractGoogleDocId } from '@/lib/utils';
 import { createComposioClient, type ComposioClient, type ConnectionStatus } from '@/lib/composio-client';
 import { db } from '@/lib/firebase-server';
-
-type PlaceholderDefinition = {
-  key: string;
-  matches: string[];
-};
-
-type TemplateErrorType =
-  | 'TEMPLATE_NOT_FOUND'
-  | 'PERMISSION_DENIED'
-  | 'INVALID_REQUEST'
-  | 'INVALID_TEMPLATE_TYPE'
-  | 'AUTH_EXPIRED'
-  | 'GOOGLE_DRIVE_ERROR'
-  | 'GOOGLE_DOCS_ERROR'
-  | 'RATE_LIMITED'
-  | 'UNKNOWN_ERROR';
-
-type TemplateSourceDiagnostics = Record<TemplateSourceField, TemplateSourceDiagnostic>;
+import {
+  getErrorType,
+  cloneSourceDiagnostics,
+  createTemplateActionError,
+  buildValidationError,
+  updateSourceFailure,
+  getSourceAttemptOrder,
+  buildUserFriendlyError,
+  mergePlaceholderDefinitions,
+  buildReplacementRequests,
+  type PlaceholderDefinition,
+  type TemplateErrorType,
+  type TemplateSourceDiagnostics,
+  type TemplateActionError,
+} from './shared-docs-actions';
+import { debugLog, debugError, generateRequestId } from '@/lib/utils/request-id';
+import { executeWithRetryAndAuthRefresh } from '@/lib/composio-client';
 
 type TemplateSourceInput = {
   templateId?: string;
@@ -42,13 +40,6 @@ type TemplateSourceInput = {
 
 type ResolveTemplateSourceOptions = {
   preferredSource?: TemplateSourceField;
-};
-
-type TemplateActionError = Error & {
-  errorType?: TemplateErrorType;
-  failedSource?: TemplateSourceField;
-  sourceDiagnostics?: TemplateSourceDiagnostics;
-  technicalDetails?: string;
 };
 
 type ResolvedTemplateSource = {
@@ -88,6 +79,9 @@ export async function enrichContractWithAI(
   unfilled: string[];
   error?: string;
 }> {
+  const requestId = generateRequestId();
+  debugLog(requestId, 'enrichContractWithAI', 'Starting enrichment', { userId, documentId: input.documentId, templateId: input.templateId });
+
   try {
     await requireComposioConnection(userId);
 
@@ -96,9 +90,20 @@ export async function enrichContractWithAI(
       ...input,
     });
 
+    debugLog(requestId, 'enrichContractWithAI', 'Enrichment completed', {
+      success: result.success,
+      substitutionsCount: result.substitutions?.length,
+      unfilledCount: result.unfilled?.length,
+      error: result.error,
+    });
+
     return result;
   } catch (error) {
-    console.error('Error in enrichContractWithAI Server Action:', error);
+    debugError(requestId, 'enrichContractWithAI', 'Enrichment failed with unhandled error', error, {
+      userId,
+      documentId: input.documentId,
+      templateId: input.templateId,
+    });
     return {
       success: false,
       documentLink: `https://docs.google.com/document/d/${input.documentId}/edit`,
@@ -109,83 +114,8 @@ export async function enrichContractWithAI(
   }
 }
 
-function getErrorType(error: unknown): TemplateErrorType {
-  if (error && typeof error === 'object' && 'errorType' in error && typeof error.errorType === 'string') {
-    return error.errorType as TemplateErrorType;
-  }
-
-  const message = error instanceof Error ? error.message : String(error ?? '');
-  const matchedType = [
-    'TEMPLATE_NOT_FOUND',
-    'PERMISSION_DENIED',
-    'INVALID_REQUEST',
-    'INVALID_TEMPLATE_TYPE',
-    'AUTH_EXPIRED',
-    'GOOGLE_DRIVE_ERROR',
-    'GOOGLE_DOCS_ERROR',
-    'RATE_LIMITED',
-  ].find((candidate) => message.includes(candidate));
-
-  return (matchedType as TemplateErrorType | undefined) || 'UNKNOWN_ERROR';
-}
-
-function cloneSourceDiagnostics(audit: TemplateSourceAudit): TemplateSourceDiagnostics {
-  return {
-    googleDocLink: { ...audit.googleDocLink },
-    projectDocLink: { ...audit.projectDocLink },
-  };
-}
-
-function createTemplateActionError(
-  errorType: TemplateErrorType,
-  technicalDetails: string,
-  extras: Omit<Partial<TemplateActionError>, 'message'> = {}
-): TemplateActionError {
-  const error = new Error(technicalDetails) as TemplateActionError;
-  error.errorType = errorType;
-  error.technicalDetails = technicalDetails;
-  Object.assign(error, extras);
-  return error;
-}
-
-function buildValidationError(
-  field: TemplateSourceField,
-  diagnostics: TemplateSourceDiagnostics,
-  technicalDetails: string
-) {
-  return createTemplateActionError('INVALID_REQUEST', technicalDetails, {
-    failedSource: field,
-    sourceDiagnostics: diagnostics,
-  });
-}
-
-function updateSourceFailure(
-  sourceDiagnostics: TemplateSourceDiagnostics,
-  field: TemplateSourceField,
-  error: unknown
-) {
-  const errorType = getErrorType(error);
-  sourceDiagnostics[field] = {
-    ...sourceDiagnostics[field],
-    status: 'unavailable',
-    errorType,
-    message: error instanceof Error ? error.message : String(error ?? ''),
-  };
-}
-
-function getSourceAttemptOrder(
-  sourceDiagnostics: TemplateSourceDiagnostics,
-  preferredSource?: TemplateSourceField
-): TemplateSourceField[] {
-  const defaultOrder: TemplateSourceField[] = ['googleDocLink', 'projectDocLink'];
-
-  if (!preferredSource || sourceDiagnostics[preferredSource].status !== 'available') {
-    return defaultOrder;
-  }
-
-  const alternateSource = preferredSource === 'googleDocLink' ? 'projectDocLink' : 'googleDocLink';
-  return [preferredSource, alternateSource];
-}
+// Helper functions (getErrorType, cloneSourceDiagnostics, createTemplateActionError,
+// buildValidationError, updateSourceFailure, getSourceAttemptOrder) are imported from shared-docs-actions.ts
 
 /**
  * Checks Composio connection status before operations
@@ -203,22 +133,26 @@ async function checkComposioConnection(userId: string): Promise<{ connected: boo
 /**
  * Throws AUTH_EXPIRED if user is not connected to Composio
  */
-async function requireComposioConnection(userId: string): Promise<void> {
+async function requireComposioConnection(userId: string, requestId?: string): Promise<void> {
+  const reqId = requestId || generateRequestId();
   const { connected, status } = await checkComposioConnection(userId);
   if (!connected) {
+    debugError(reqId, 'requireComposioConnection', 'Connection not active', new Error('AUTH_EXPIRED'), { userId, status });
     const error = createTemplateActionError(
       'AUTH_EXPIRED',
       'Sua conta Google não está conectada ao sistema de geração. Conecte sua conta Google nas configurações.'
     );
     throw error;
   }
+  debugLog(reqId, 'requireComposioConnection', 'Connection verified', { userId, status });
 }
 
 async function validateTemplateSource(
   client: ComposioClient,
   userId: string,
   field: TemplateSourceField,
-  sourceDiagnostics: TemplateSourceDiagnostics
+  sourceDiagnostics: TemplateSourceDiagnostics,
+  requestId: string
 ) {
   const source = sourceDiagnostics[field];
 
@@ -237,7 +171,20 @@ async function validateTemplateSource(
     mimeType: metadata.mimeType,
   };
 
+  debugLog(requestId, 'validateTemplateSource', 'Metadata retrieved', {
+    field,
+    fileId: source.fileId,
+    fileName: metadata.name,
+    mimeType: metadata.mimeType,
+  });
+
   if (metadata.mimeType !== 'application/vnd.google-apps.document') {
+    debugError(requestId, 'validateTemplateSource', 'Invalid template type', new Error('INVALID_TEMPLATE_TYPE'), {
+      field,
+      fileId: source.fileId,
+      fileName: metadata.name,
+      mimeType: metadata.mimeType,
+    });
     throw createTemplateActionError(
       'INVALID_TEMPLATE_TYPE',
       `O ${source.label} aponta para "${metadata.name}", que tem tipo "${metadata.mimeType}" em vez de um Google Docs editável.`,
@@ -256,14 +203,27 @@ async function resolveTemplateSource(
   input: TemplateSourceInput,
   options: ResolveTemplateSourceOptions = {}
 ): Promise<ResolvedTemplateSource> {
+  const requestId = generateRequestId();
+  debugLog(requestId, 'resolveTemplateSource', 'Starting source resolution', {
+    userId,
+    templateId: input.templateId,
+    templateName: input.templateName,
+    googleDocLink: input.googleDocLink ? extractGoogleDocId(input.googleDocLink) : null,
+    projectDocLink: input.projectDocLink ? extractGoogleDocId(input.projectDocLink) : null,
+    preferredSource: options.preferredSource,
+  });
+
   // Check Composio connection first
-  await requireComposioConnection(userId);
+  await requireComposioConnection(userId, requestId);
   const client = await createComposioClient(userId);
 
   const audit = auditTemplateLinks(input.googleDocLink, input.projectDocLink);
   const sourceDiagnostics = cloneSourceDiagnostics(audit);
 
   if (sourceDiagnostics.googleDocLink.status === 'invalid_format') {
+    debugError(requestId, 'resolveTemplateSource', 'Invalid Google Doc link format', new Error('INVALID_REQUEST'), {
+      googleDocLink: input.googleDocLink,
+    });
     throw buildValidationError(
       'googleDocLink',
       sourceDiagnostics,
@@ -274,9 +234,12 @@ async function resolveTemplateSource(
   if (sourceDiagnostics.projectDocLink.status === 'invalid_format') {
     sourceDiagnostics.projectDocLink.message =
       'O link customizado do projeto está inválido e não pode ser usado como fallback.';
+    debugLog(requestId, 'resolveTemplateSource', 'Project doc link has invalid format, will not be used as fallback');
   }
 
   const attemptOrder = getSourceAttemptOrder(sourceDiagnostics, options.preferredSource);
+  debugLog(requestId, 'resolveTemplateSource', 'Source attempt order', { attemptOrder });
+
   const warnings: string[] = [];
   let primaryFailure: TemplateActionError | null = null;
   const preferredProjectFallback =
@@ -288,6 +251,7 @@ async function resolveTemplateSource(
     const isOriginal = field === 'googleDocLink';
 
     if (source.status === 'missing') {
+      debugLog(requestId, 'resolveTemplateSource', `Source ${field} is missing`, { isOriginal });
       if (isOriginal) {
         continue;
       }
@@ -295,6 +259,7 @@ async function resolveTemplateSource(
     }
 
     if (source.status !== 'available') {
+      debugLog(requestId, 'resolveTemplateSource', `Source ${field} is unavailable`, { status: source.status, message: source.message });
       if (isOriginal) {
         throw buildValidationError(
           field,
@@ -306,7 +271,7 @@ async function resolveTemplateSource(
     }
 
     try {
-      const metadata = await validateTemplateSource(client, userId, field, sourceDiagnostics);
+      const metadata = await validateTemplateSource(client, userId, field, sourceDiagnostics, requestId);
       const fallbackUsed =
         field === 'projectDocLink' && (Boolean(primaryFailure) || preferredProjectFallback);
 
@@ -320,14 +285,12 @@ async function resolveTemplateSource(
         );
       }
 
-      console.info('[TemplateSource] Resolved template source', {
-        templateId: input.templateId,
-        templateName: input.templateName,
+      debugLog(requestId, 'resolveTemplateSource', 'Source resolved successfully', {
+        field,
         resolvedSource: field,
         fallbackUsed,
-        failedSource: primaryFailure?.failedSource,
-        googleDocId: sourceDiagnostics.googleDocLink.fileId,
-        projectDocId: sourceDiagnostics.projectDocLink.fileId,
+        documentId: metadata.id,
+        documentName: metadata.name,
       });
 
       return {
@@ -346,16 +309,16 @@ async function resolveTemplateSource(
 
       updateSourceFailure(sourceDiagnostics, field, typedError);
 
-      console.warn('[TemplateSource] Template source failed', {
-        templateId: input.templateId,
-        templateName: input.templateName,
-        failedSource: field,
+      debugError(requestId, 'resolveTemplateSource', `Source ${field} validation failed`, error, {
         errorType: getErrorType(typedError),
         googleDocId: sourceDiagnostics.googleDocLink.fileId,
         projectDocId: sourceDiagnostics.projectDocLink.fileId,
       });
 
       if (field === 'googleDocLink' && isFallbackEligibleErrorType(getErrorType(typedError))) {
+        debugLog(requestId, 'resolveTemplateSource', 'Original source failed but fallback eligible, continuing', {
+          errorType: getErrorType(typedError),
+        });
         primaryFailure = {
           ...typedError,
           failedSource: 'googleDocLink',
@@ -376,6 +339,10 @@ async function resolveTemplateSource(
   }
 
   if (primaryFailure && sourceDiagnostics.projectDocLink.status === 'missing') {
+    debugError(requestId, 'resolveTemplateSource', 'Both sources failed - primary failed and custom is missing', primaryFailure, {
+      googleDocStatus: sourceDiagnostics.googleDocLink.status,
+      projectDocStatus: sourceDiagnostics.projectDocLink.status,
+    });
     throw createTemplateActionError(
       getErrorType(primaryFailure),
       primaryFailure.technicalDetails || primaryFailure.message,
@@ -385,6 +352,11 @@ async function resolveTemplateSource(
       }
     );
   }
+
+  debugError(requestId, 'resolveTemplateSource', 'No usable template source found', new Error('INVALID_REQUEST'), {
+    googleDocStatus: sourceDiagnostics.googleDocLink.status,
+    projectDocStatus: sourceDiagnostics.projectDocLink.status,
+  });
 
   throw createTemplateActionError(
     'INVALID_REQUEST',
@@ -397,198 +369,33 @@ async function resolveTemplateSource(
   );
 }
 
-function buildUserFriendlyError(error: unknown) {
-  const typedError =
-    error instanceof Error
-      ? (error as TemplateActionError)
-      : createTemplateActionError('UNKNOWN_ERROR', String(error ?? 'Unknown error'));
-
-  const errorType = getErrorType(typedError);
-  const sourceDiagnostics = typedError.sourceDiagnostics;
-  const failedSource = typedError.failedSource;
-  const failedLabel = failedSource ? getTemplateSourceFieldLabel(failedSource) : 'template';
-  const failedDiagnostic = failedSource ? sourceDiagnostics?.[failedSource] : undefined;
-
-  let errorMessage = 'Não foi possível usar o template informado.';
-  let userInstructions: string[] = [];
-
-  const bothUnavailable =
-    sourceDiagnostics &&
-    sourceDiagnostics.googleDocLink.status === 'unavailable' &&
-    sourceDiagnostics.projectDocLink.status === 'unavailable';
-
-  switch (errorType) {
-    case 'TEMPLATE_NOT_FOUND':
-      errorMessage = bothUnavailable
-        ? 'Nenhuma fonte de template acessível foi encontrada no Google Drive.'
-        : `O ${failedLabel} não foi encontrado no Google Drive.`;
-      userInstructions = [
-        'Verifique se o documento ainda existe e não foi deletado.',
-        'Confirme se o link salvo no modelo aponta para o documento correto.',
-        'Se o link original falhou, preencha ou revise a versão customizada do projeto.',
-      ];
-      break;
-    case 'PERMISSION_DENIED':
-      errorMessage = bothUnavailable
-        ? 'Nenhuma fonte de template está compartilhada com a conta Google conectada.'
-        : `A conta conectada não tem permissão para acessar o ${failedLabel}.`;
-      userInstructions = [
-        'Compartilhe o documento com a conta Google usada no app.',
-        'Confirme se você está autenticado com a conta correta.',
-        'Se existir uma versão customizada do projeto, confirme se ela também está acessível.',
-      ];
-      break;
-    case 'AUTH_EXPIRED':
-      errorMessage = 'Sua sessão com o Google expirou.';
-      userInstructions = [
-        'Faça login novamente com sua conta Google.',
-        'Depois refaça a validação do template.',
-      ];
-      break;
-    case 'INVALID_TEMPLATE_TYPE':
-      errorMessage = bothUnavailable
-        ? 'Nenhuma fonte de template é um Google Docs editável.'
-        : failedDiagnostic?.fileName && failedDiagnostic?.mimeType
-          ? `O ${failedLabel} aponta para "${failedDiagnostic.fileName}", que é "${failedDiagnostic.mimeType}", e não um Google Docs editável.`
-          : `O ${failedLabel} não aponta para um Google Docs editável.`;
-      userInstructions = [
-        'Use um documento do Google Docs, não PDF, Planilha ou outro tipo de arquivo.',
-        'Abra o documento no navegador e copie o link em docs.google.com/document/...',
-        'Converta o arquivo atual para Google Docs nativo antes de atualizar o link salvo.',
-      ];
-      break;
-    case 'INVALID_REQUEST':
-      errorMessage = sourceDiagnostics
-        ? 'Nenhum link de template utilizável está configurado.'
-        : 'O link do template está inválido.';
-      userInstructions = [
-        'Revise o link original do modelo e a versão customizada do projeto.',
-        'Use URLs completas de Google Docs ou IDs válidos do documento.',
-        'Corrija primeiro links inválidos; o fallback só é usado quando o original existe mas está inacessível.',
-      ];
-      break;
-    case 'GOOGLE_DOCS_ERROR':
-      errorMessage = 'Erro ao ler o conteúdo do documento no Google Docs.';
-      userInstructions = [
-        'Verifique se o documento está acessível e não está corrompido.',
-        'Tente novamente em alguns instantes.',
-        'Se o erro persistir, revise os links do template e a conta Google conectada.',
-      ];
-      break;
-    case 'RATE_LIMITED':
-      errorMessage = 'Limite de requisições ao Google atingido.';
-      userInstructions = [
-        'Aguarde alguns segundos e tente novamente.',
-        'Se o erro persistir, tente novamente em alguns minutos.',
-      ];
-      break;
-    default:
-      errorMessage = 'O Google Drive/Docs retornou um erro inesperado ao preparar o template.';
-      userInstructions = [
-        'Tente novamente em alguns instantes.',
-        'Se o erro persistir, revise os links do template e a conta Google conectada.',
-      ];
-      break;
-  }
-
-  return {
-    error: errorMessage,
-    errorType,
-    failedSource,
-    userInstructions,
-    sourceDiagnostics,
-    technicalDetails: typedError.technicalDetails || typedError.message,
-  };
-}
-
-function mergePlaceholderDefinitions(
-  googleDocPlaceholders: PlaceholderDefinition[],
-  fallbackMarkdownContent?: string
-) {
-  const fallbackPlaceholders = fallbackMarkdownContent
-    ? extractPlaceholderDefinitionsFromText(fallbackMarkdownContent)
-    : [];
-
-  const placeholderMap = new Map<string, Set<string>>();
-
-  for (const definition of [...googleDocPlaceholders, ...fallbackPlaceholders]) {
-    if (!placeholderMap.has(definition.key)) {
-      placeholderMap.set(definition.key, new Set<string>());
-    }
-
-    for (const match of definition.matches) {
-      placeholderMap.get(definition.key)?.add(match);
-    }
-  }
-
-  return Array.from(placeholderMap.entries())
-    .map(([key, matches]) => ({
-      key,
-      matches: Array.from(matches).sort(),
-    }))
-    .sort((a, b) => a.key.localeCompare(b.key));
-}
-
-function buildReplacementRequests(
-  placeholderValues: Record<string, string>,
-  placeholderMatches: Record<string, string[]>
-) {
-  const requests: Array<{
-    replaceAllText: {
-      replaceText: string;
-      containsText: {
-        text: string;
-        matchCase: boolean;
-      };
-    };
-  }> = [];
-
-  for (const [placeholderKey, replacement] of Object.entries(placeholderValues)) {
-    const trimmedReplacement = replacement.trim();
-    if (!trimmedReplacement) {
-      continue;
-    }
-
-    const exactMatches = placeholderMatches[placeholderKey] || [];
-    const generatedMatches = [
-      ...exactMatches,
-      `<<${placeholderKey}>>`,
-      `{{${placeholderKey}}}`,
-      `[[${placeholderKey}]]`,
-      `<${placeholderKey}>`,
-    ];
-
-    const uniqueMatches = Array.from(
-      new Set(generatedMatches.map((match) => match.trim()).filter(Boolean))
-    );
-
-    for (const match of uniqueMatches) {
-      requests.push({
-        replaceAllText: {
-          replaceText: trimmedReplacement,
-          containsText: {
-            text: match,
-            matchCase: false,
-          },
-        },
-      });
-    }
-  }
-
-  return requests;
-}
+// buildUserFriendlyError, mergePlaceholderDefinitions, and buildReplacementRequests
+// are imported from shared-docs-actions.ts
 
 async function generateContractInDocsWithComposio(
   client: ComposioClient,
   documentId: string,
   placeholderValues: Record<string, string>,
-  placeholderMatches: Record<string, string[]>
+  placeholderMatches: Record<string, string[]>,
+  requestId?: string
 ): Promise<DeterministicGenerationResult> {
+  const reqId = requestId || generateRequestId();
   const requests = buildReplacementRequests(placeholderValues, placeholderMatches);
+
+  debugLog(reqId, 'generateContractInDocsWithComposio', 'Building batch update requests', {
+    documentId,
+    requestCount: requests.length,
+    placeholderCount: placeholderValues.length,
+  });
 
   if (requests.length > 0) {
     await client.batchUpdateDocument(documentId, requests);
   }
+
+  debugLog(reqId, 'generateContractInDocsWithComposio', 'Batch update complete', {
+    documentId,
+    replacementsApplied: requests.length,
+  });
 
   return {
     documentLink: `https://docs.google.com/document/d/${documentId}/edit`,
@@ -600,17 +407,39 @@ export async function inspectTemplateForGeneration(
   userId: string,
   input: TemplateSourceInput
 ) {
-  try {
-    // Check Composio connection
-    await requireComposioConnection(userId);
+  const requestId = generateRequestId();
+  debugLog(requestId, 'inspectTemplateForGeneration', 'Starting inspection', {
+    userId,
+    templateId: input.templateId,
+    templateName: input.templateName,
+    googleDocLink: input.googleDocLink ? extractGoogleDocId(input.googleDocLink) : null,
+    projectDocLink: input.projectDocLink ? extractGoogleDocId(input.projectDocLink) : null,
+    hasFallbackMarkdown: !!input.fallbackMarkdownContent,
+  });
 
+  try {
     const resolved = await resolveTemplateSource(userId, input);
     const client = await createComposioClient(userId);
-    const googleDocPlaceholders = await client.getDocumentPlaceholders(resolved.fileId);
+
+    // Wrap placeholder extraction with auth retry to handle 401/403 from Google Workspace
+    const googleDocPlaceholders = await executeWithRetryAndAuthRefresh(
+      () => client.getDocumentPlaceholders(resolved.fileId),
+      `getDocumentPlaceholders(${resolved.fileId})`,
+      userId,
+      requestId
+    );
+
     const placeholders = mergePlaceholderDefinitions(
       googleDocPlaceholders,
       input.fallbackMarkdownContent
     );
+
+    debugLog(requestId, 'inspectTemplateForGeneration', 'Inspection successful', {
+      fileId: resolved.fileId,
+      resolvedSource: resolved.resolvedSource,
+      placeholderCount: placeholders.length,
+      warningCount: resolved.warnings.length,
+    });
 
     return {
       success: true,
@@ -621,12 +450,17 @@ export async function inspectTemplateForGeneration(
       fallbackUsed: resolved.fallbackUsed,
       sourceDiagnostics: resolved.sourceDiagnostics,
       warnings: resolved.warnings,
+      requestId,
     };
   } catch (error) {
-    console.error('Error inspecting Google Doc template:', error);
+    debugError(requestId, 'inspectTemplateForGeneration', 'Inspection failed', error, {
+      userId,
+      templateId: input.templateId,
+    });
     return {
       success: false,
       ...buildUserFriendlyError(error),
+      requestId,
     };
   }
 }
@@ -643,22 +477,31 @@ export async function generateContractDoc(
     entityData?: Record<string, unknown>;
   }
 ) {
+  const requestId = generateRequestId();
+  debugLog(requestId, 'generateContractDoc', 'Starting document generation', {
+    userId,
+    templateId: input.templateId,
+    templateName: input.templateName,
+    preferredSource: input.preferredSource,
+    placeholderCount: Object.keys(input.confirmedPlaceholders).length,
+    enrichWithAI: input.enrichWithAI,
+  });
+
   try {
-    // Check Composio connection
-    await requireComposioConnection(userId);
+    const resolved = await executeWithRetryAndAuthRefresh(
+      () => resolveTemplateSource(userId, input, {
+        preferredSource: input.preferredSource,
+      }),
+      `resolveTemplateSource(${input.templateId})`,
+      userId,
+      requestId
+    );
 
-    const resolved = await resolveTemplateSource(userId, input, {
-      preferredSource: input.preferredSource,
-    });
-
-    console.log('[TemplateGeneration] Starting Google Doc generation', {
-      templateId: input.templateId,
-      templateName: input.templateName,
+    debugLog(requestId, 'generateContractDoc', 'Source resolved', {
       resolvedSource: resolved.resolvedSource,
       fallbackUsed: resolved.fallbackUsed,
       googleDocId: resolved.sourceDiagnostics.googleDocLink.fileId,
       projectDocId: resolved.sourceDiagnostics.projectDocLink.fileId,
-      enrichWithAI: input.enrichWithAI,
     });
 
     const dateStr = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
@@ -668,11 +511,10 @@ export async function generateContractDoc(
     const client = await createComposioClient(userId);
     const newFileId = await client.copyFile(resolved.fileId, newFileName);
 
-    console.log('[TemplateGeneration] Successfully copied template', {
-      templateId: input.templateId,
-      templateName: input.templateName,
-      resolvedSource: resolved.resolvedSource,
+    debugLog(requestId, 'generateContractDoc', 'File copied successfully', {
+      originalFileId: resolved.fileId,
       newFileId,
+      newFileName,
     });
 
     let aiEnriched = false;
@@ -680,7 +522,11 @@ export async function generateContractDoc(
 
     // AI ENRICHMENT PATH: use Gemini to infer placeholder values from entity data
     if (input.enrichWithAI && input.entityData) {
-      console.log('[TemplateGeneration] AI enrichment enabled — calling aiEnrichContract');
+      debugLog(requestId, 'generateContractDoc', 'AI enrichment enabled, calling aiEnrichContract', {
+        placeholders: Object.keys(input.placeholderMatches),
+        entityKeyCount: Object.keys(input.entityData).length,
+      });
+
       const enrichmentResult = await aiEnrichContract({
         userId,
         documentId: newFileId,
@@ -697,19 +543,25 @@ export async function generateContractDoc(
           documentLink: enrichmentResult.documentLink,
           replacementsApplied: enrichmentResult.substitutions.length,
         };
-        console.log('[TemplateGeneration] AI enrichment succeeded', {
+        debugLog(requestId, 'generateContractDoc', 'AI enrichment succeeded', {
           substitutionsApplied: enrichmentResult.substitutions.length,
           unfilled: enrichmentResult.unfilled,
+          substitutions: enrichmentResult.substitutions,
         });
       } else {
-        console.warn('[TemplateGeneration] AI enrichment failed, falling back to deterministic', {
+        console.warn(`[TemplateGeneration] AI enrichment failed (req:${requestId}), falling back to deterministic`, {
           error: enrichmentResult.error,
         });
+        debugError(requestId, 'generateContractDoc', 'AI enrichment failed, falling back', new Error(enrichmentResult.error || 'Unknown error'), {
+          error: enrichmentResult.error,
+        });
+
         result = await generateContractInDocsWithComposio(
           client,
           newFileId,
           input.confirmedPlaceholders,
-          input.placeholderMatches
+          input.placeholderMatches,
+          requestId
         );
       }
     } else {
@@ -717,11 +569,12 @@ export async function generateContractDoc(
         client,
         newFileId,
         input.confirmedPlaceholders,
-        input.placeholderMatches
+        input.placeholderMatches,
+        requestId
       );
     }
 
-    console.log('[TemplateGeneration] Placeholder replacement completed', {
+    debugLog(requestId, 'generateContractDoc', 'Placeholder replacement completed', {
       templateId: input.templateId,
       templateName: input.templateName,
       resolvedSource: resolved.resolvedSource,
@@ -740,12 +593,17 @@ export async function generateContractDoc(
       sourceDiagnostics: resolved.sourceDiagnostics,
       warnings: resolved.warnings,
       aiEnriched,
+      requestId,
     };
   } catch (error) {
-    console.error('Error in generateContractDoc Server Action:', error);
+    debugError(requestId, 'generateContractDoc', 'Unhandled generation error', error, {
+      userId,
+      templateId: input.templateId,
+    });
     return {
       success: false,
       ...buildUserFriendlyError(error),
+      requestId,
     };
   }
 }
@@ -764,7 +622,7 @@ export type AIReviewInput = {
 
 /**
  * Reviews a generated contract using AI (Gemini) and returns structured edit suggestions.
- * Does NOT auto-apply — returns suggestions only for user review.
+ * Does NOT auto-apply — returns suggestions only.
  */
 export async function reviewContractWithAI(
   userId: string,
@@ -777,9 +635,19 @@ export async function reviewContractWithAI(
   suggestions: ReviewEditSuggestion[];
   reviewedAt: string;
   error?: string;
+  requestId: string;
 }> {
+  const requestId = generateRequestId();
+  debugLog(requestId, 'reviewContractWithAI', 'Starting AI review', {
+    userId,
+    documentId: input.documentId,
+    documentName: input.documentName,
+    reviewFocus: input.reviewFocus,
+    contractType: input.contractType,
+  });
+
   try {
-    await requireComposioConnection(userId);
+    await requireComposioConnection(userId, requestId);
 
     const result = await aiReviewContract({
       userId,
@@ -790,9 +658,22 @@ export async function reviewContractWithAI(
       contractType: input.contractType,
     });
 
-    return result;
+    debugLog(requestId, 'reviewContractWithAI', 'AI review completed', {
+      success: result.success,
+      suggestionCount: result.suggestions?.length,
+      overallQuality: result.overallQuality,
+      error: result.error,
+    });
+
+    return {
+      ...result,
+      requestId,
+    };
   } catch (error) {
-    console.error('Error in reviewContractWithAI Server Action:', error);
+    debugError(requestId, 'reviewContractWithAI', 'Unhandled review error', error, {
+      userId,
+      documentId: input.documentId,
+    });
     return {
       success: false,
       documentId: input.documentId,
@@ -801,6 +682,7 @@ export async function reviewContractWithAI(
       suggestions: [],
       reviewedAt: new Date().toISOString(),
       error: error instanceof Error ? error.message : String(error),
+      requestId,
     };
   }
 }
@@ -819,15 +701,25 @@ export type ApplyReviewEditsInput = {
 export async function applyReviewEdits(
   userId: string,
   input: ApplyReviewEditsInput
-): Promise<{ success: boolean; editsApplied: number; documentLink: string; error?: string }> {
+): Promise<{ success: boolean; editsApplied: number; documentLink: string; error?: string; requestId: string }> {
+  const requestId = generateRequestId();
+  debugLog(requestId, 'applyReviewEdits', 'Starting edit application', {
+    userId,
+    documentId: input.documentId,
+    contractId: input.contractId,
+    editCount: input.edits.length,
+  });
+
   try {
-    await requireComposioConnection(userId);
+    await requireComposioConnection(userId, requestId);
 
     if (!input.edits || input.edits.length === 0) {
+      debugLog(requestId, 'applyReviewEdits', 'No edits to apply', { documentId: input.documentId });
       return {
         success: true,
         editsApplied: 0,
         documentLink: `https://docs.google.com/document/d/${input.documentId}/edit`,
+        requestId,
       };
     }
 
@@ -839,23 +731,25 @@ export async function applyReviewEdits(
           replaceText: edit.suggestedText,
           containsText: {
             text: edit.originalText,
-            matchCase: false,
+            matchCase: true,
           },
         },
       }));
 
     if (requests.length === 0) {
+      debugLog(requestId, 'applyReviewEdits', 'No valid requests after filtering', { documentId: input.documentId });
       return {
         success: true,
         editsApplied: 0,
         documentLink: `https://docs.google.com/document/d/${input.documentId}/edit`,
+        requestId,
       };
     }
 
     const client = await createComposioClient(userId);
     await client.batchUpdateDocument(input.documentId, requests);
 
-    console.log('[applyReviewEdits] Applied edits via Composio', {
+    debugLog(requestId, 'applyReviewEdits', 'Edits applied via Composio', {
       documentId: input.documentId,
       editsApplied: requests.length,
     });
@@ -876,9 +770,13 @@ export async function applyReviewEdits(
             })),
           },
         });
+        debugLog(requestId, 'applyReviewEdits', 'Edits stored in Firestore for undo', { contractId: input.contractId });
       } catch (firestoreError) {
         // Non-fatal: log but don't fail the operation
         console.warn('[applyReviewEdits] Failed to store edits in Firestore:', firestoreError);
+        debugError(requestId, 'applyReviewEdits', 'Failed to store edits in Firestore (non-fatal)', firestoreError, {
+          contractId: input.contractId,
+        });
       }
     }
 
@@ -886,14 +784,20 @@ export async function applyReviewEdits(
       success: true,
       editsApplied: requests.length,
       documentLink: `https://docs.google.com/document/d/${input.documentId}/edit`,
+      requestId,
     };
   } catch (error) {
-    console.error('Error in applyReviewEdits Server Action:', error);
+    debugError(requestId, 'applyReviewEdits', 'Failed to apply edits', error, {
+      userId,
+      documentId: input.documentId,
+      editCount: input.edits.length,
+    });
     return {
       success: false,
       editsApplied: 0,
       documentLink: `https://docs.google.com/document/d/${input.documentId}/edit`,
       error: error instanceof Error ? error.message : String(error),
+      requestId,
     };
   }
 }
@@ -912,15 +816,25 @@ export type RevertReviewEditsInput = {
 export async function revertReviewEdits(
   userId: string,
   input: RevertReviewEditsInput
-): Promise<{ success: boolean; editsReverted: number; documentLink: string; error?: string }> {
+): Promise<{ success: boolean; editsReverted: number; documentLink: string; error?: string; requestId: string }> {
+  const requestId = generateRequestId();
+  debugLog(requestId, 'revertReviewEdits', 'Starting edit revert', {
+    userId,
+    documentId: input.documentId,
+    contractId: input.contractId,
+    editCount: input.edits.length,
+  });
+
   try {
-    await requireComposioConnection(userId);
+    await requireComposioConnection(userId, requestId);
 
     if (!input.edits || input.edits.length === 0) {
+      debugLog(requestId, 'revertReviewEdits', 'No edits to revert', { documentId: input.documentId });
       return {
         success: true,
         editsReverted: 0,
         documentLink: `https://docs.google.com/document/d/${input.documentId}/edit`,
+        requestId,
       };
     }
 
@@ -932,23 +846,25 @@ export async function revertReviewEdits(
           replaceText: edit.originalText,
           containsText: {
             text: edit.suggestedText,
-            matchCase: false,
+            matchCase: true,
           },
         },
       }));
 
     if (requests.length === 0) {
+      debugLog(requestId, 'revertReviewEdits', 'No valid requests after filtering', { documentId: input.documentId });
       return {
         success: true,
         editsReverted: 0,
         documentLink: `https://docs.google.com/document/d/${input.documentId}/edit`,
+        requestId,
       };
     }
 
     const client = await createComposioClient(userId);
     await client.batchUpdateDocument(input.documentId, requests);
 
-    console.log('[revertReviewEdits] Reverted edits via Composio', {
+    debugLog(requestId, 'revertReviewEdits', 'Edits reverted via Composio', {
       documentId: input.documentId,
       editsReverted: requests.length,
     });
@@ -959,9 +875,13 @@ export async function revertReviewEdits(
         await db.collection('projectContracts').doc(input.contractId).update({
           lastReviewEdits: null,
         });
+        debugLog(requestId, 'revertReviewEdits', 'Cleared edits from Firestore', { contractId: input.contractId });
       } catch (firestoreError) {
         // Non-fatal: log but don't fail the operation
         console.warn('[revertReviewEdits] Failed to clear edits from Firestore:', firestoreError);
+        debugError(requestId, 'revertReviewEdits', 'Failed to clear edits from Firestore (non-fatal)', firestoreError, {
+          contractId: input.contractId,
+        });
       }
     }
 
@@ -969,14 +889,20 @@ export async function revertReviewEdits(
       success: true,
       editsReverted: requests.length,
       documentLink: `https://docs.google.com/document/d/${input.documentId}/edit`,
+      requestId,
     };
   } catch (error) {
-    console.error('Error in revertReviewEdits Server Action:', error);
+    debugError(requestId, 'revertReviewEdits', 'Failed to revert edits', error, {
+      userId,
+      documentId: input.documentId,
+      editCount: input.edits.length,
+    });
     return {
       success: false,
       editsReverted: 0,
       documentLink: `https://docs.google.com/document/d/${input.documentId}/edit`,
       error: error instanceof Error ? error.message : String(error),
+      requestId,
     };
   }
 }

@@ -10,36 +10,30 @@
 
 import { generateContractInDocs } from '@/ai/flows/generate-contract-in-docs';
 import {
-  extractPlaceholderDefinitionsFromText,
   getDocumentPlaceholders,
 } from '@/lib/google-docs';
 import { copyFile, getFileMetadata } from '@/lib/google-drive';
 import {
   auditTemplateLinks,
-  getTemplateSourceFieldLabel,
   isFallbackEligibleErrorType,
   type TemplateSourceAudit,
   type TemplateSourceDiagnostic,
   type TemplateSourceField,
 } from '@/lib/template-source';
-
-type PlaceholderDefinition = {
-  key: string;
-  matches: string[];
-};
-
-type TemplateErrorType =
-  | 'TEMPLATE_NOT_FOUND'
-  | 'PERMISSION_DENIED'
-  | 'INVALID_REQUEST'
-  | 'INVALID_TEMPLATE_TYPE'
-  | 'AUTH_EXPIRED'
-  | 'GOOGLE_DRIVE_ERROR'
-  | 'GOOGLE_DOCS_ERROR'
-  | 'RATE_LIMITED'
-  | 'UNKNOWN_ERROR';
-
-type TemplateSourceDiagnostics = Record<TemplateSourceField, TemplateSourceDiagnostic>;
+import {
+  getErrorType,
+  cloneSourceDiagnostics,
+  createTemplateActionError,
+  buildValidationError,
+  updateSourceFailure,
+  getSourceAttemptOrder,
+  buildUserFriendlyError,
+  mergePlaceholderDefinitions,
+  type PlaceholderDefinition,
+  type TemplateErrorType,
+  type TemplateSourceDiagnostics,
+  type TemplateActionError,
+} from './shared-docs-actions';
 
 type TemplateSourceInput = {
   templateId?: string;
@@ -53,13 +47,6 @@ type ResolveTemplateSourceOptions = {
   preferredSource?: TemplateSourceField;
 };
 
-type TemplateActionError = Error & {
-  errorType?: TemplateErrorType;
-  failedSource?: TemplateSourceField;
-  sourceDiagnostics?: TemplateSourceDiagnostics;
-  technicalDetails?: string;
-};
-
 type ResolvedTemplateSource = {
   fileId: string;
   templateName: string;
@@ -69,83 +56,7 @@ type ResolvedTemplateSource = {
   warnings: string[];
 };
 
-function getErrorType(error: unknown): TemplateErrorType {
-  if (error && typeof error === 'object' && 'errorType' in error && typeof error.errorType === 'string') {
-    return error.errorType as TemplateErrorType;
-  }
-
-  const message = error instanceof Error ? error.message : String(error ?? '');
-  const matchedType = [
-    'TEMPLATE_NOT_FOUND',
-    'PERMISSION_DENIED',
-    'INVALID_REQUEST',
-    'INVALID_TEMPLATE_TYPE',
-    'AUTH_EXPIRED',
-    'GOOGLE_DRIVE_ERROR',
-    'GOOGLE_DOCS_ERROR',
-    'RATE_LIMITED',
-  ].find((candidate) => message.includes(candidate));
-
-  return (matchedType as TemplateErrorType | undefined) || 'UNKNOWN_ERROR';
-}
-
-function cloneSourceDiagnostics(audit: TemplateSourceAudit): TemplateSourceDiagnostics {
-  return {
-    googleDocLink: { ...audit.googleDocLink },
-    projectDocLink: { ...audit.projectDocLink },
-  };
-}
-
-function createTemplateActionError(
-  errorType: TemplateErrorType,
-  technicalDetails: string,
-  extras: Omit<Partial<TemplateActionError>, 'message'> = {}
-): TemplateActionError {
-  const error = new Error(technicalDetails) as TemplateActionError;
-  error.errorType = errorType;
-  error.technicalDetails = technicalDetails;
-  Object.assign(error, extras);
-  return error;
-}
-
-function buildValidationError(
-  field: TemplateSourceField,
-  diagnostics: TemplateSourceDiagnostics,
-  technicalDetails: string
-) {
-  return createTemplateActionError('INVALID_REQUEST', technicalDetails, {
-    failedSource: field,
-    sourceDiagnostics: diagnostics,
-  });
-}
-
-function updateSourceFailure(
-  sourceDiagnostics: TemplateSourceDiagnostics,
-  field: TemplateSourceField,
-  error: unknown
-) {
-  const errorType = getErrorType(error);
-  sourceDiagnostics[field] = {
-    ...sourceDiagnostics[field],
-    status: 'unavailable',
-    errorType,
-    message: error instanceof Error ? error.message : String(error ?? ''),
-  };
-}
-
-function getSourceAttemptOrder(
-  sourceDiagnostics: TemplateSourceDiagnostics,
-  preferredSource?: TemplateSourceField
-): TemplateSourceField[] {
-  const defaultOrder: TemplateSourceField[] = ['googleDocLink', 'projectDocLink'];
-
-  if (!preferredSource || sourceDiagnostics[preferredSource].status !== 'available') {
-    return defaultOrder;
-  }
-
-  const alternateSource = preferredSource === 'googleDocLink' ? 'projectDocLink' : 'googleDocLink';
-  return [preferredSource, alternateSource];
-}
+// Helper functions are imported from shared-docs-actions.ts
 
 async function validateTemplateSource(
   accessToken: string,
@@ -325,137 +236,7 @@ async function resolveTemplateSource(
   );
 }
 
-function buildUserFriendlyError(error: unknown) {
-  const typedError =
-    error instanceof Error
-      ? (error as TemplateActionError)
-      : createTemplateActionError('UNKNOWN_ERROR', String(error ?? 'Unknown error'));
-
-  const errorType = getErrorType(typedError);
-  const sourceDiagnostics = typedError.sourceDiagnostics;
-  const failedSource = typedError.failedSource;
-  const failedLabel = failedSource ? getTemplateSourceFieldLabel(failedSource) : 'template';
-  const failedDiagnostic = failedSource ? sourceDiagnostics?.[failedSource] : undefined;
-
-  let errorMessage = 'Não foi possível usar o template informado.';
-  let userInstructions: string[] = [];
-
-  const bothUnavailable =
-    sourceDiagnostics &&
-    sourceDiagnostics.googleDocLink.status === 'unavailable' &&
-    sourceDiagnostics.projectDocLink.status === 'unavailable';
-
-  switch (errorType) {
-    case 'TEMPLATE_NOT_FOUND':
-      errorMessage = bothUnavailable
-        ? 'Nenhuma fonte de template acessível foi encontrada no Google Drive.'
-        : `O ${failedLabel} não foi encontrado no Google Drive.`;
-      userInstructions = [
-        'Verifique se o documento ainda existe e não foi deletado.',
-        'Confirme se o link salvo no modelo aponta para o documento correto.',
-        'Se o link original falhou, preencha ou revise a versão customizada do projeto.',
-      ];
-      break;
-    case 'PERMISSION_DENIED':
-      errorMessage = bothUnavailable
-        ? 'Nenhuma fonte de template está compartilhada com a conta Google conectada.'
-        : `A conta conectada não tem permissão para acessar o ${failedLabel}.`;
-      userInstructions = [
-        'Compartilhe o documento com a conta Google usada no app.',
-        'Confirme se você está autenticado com a conta correta.',
-        'Se existir uma versão customizada do projeto, confirme se ela também está acessível.',
-      ];
-      break;
-    case 'AUTH_EXPIRED':
-      errorMessage = 'Sua sessão com o Google expirou.';
-      userInstructions = [
-        'Faça login novamente com sua conta Google.',
-        'Depois refaça a validação do template.',
-      ];
-      break;
-    case 'INVALID_TEMPLATE_TYPE':
-      errorMessage = bothUnavailable
-        ? 'Nenhuma fonte de template é um Google Docs editável.'
-        : failedDiagnostic?.fileName && failedDiagnostic?.mimeType
-          ? `O ${failedLabel} aponta para "${failedDiagnostic.fileName}", que é "${failedDiagnostic.mimeType}", e não um Google Docs editável.`
-          : `O ${failedLabel} não aponta para um Google Docs editável.`;
-      userInstructions = [
-        'Use um documento do Google Docs, não PDF, Planilha ou outro tipo de arquivo.',
-        'Abra o documento no navegador e copie o link em docs.google.com/document/...',
-        'Converta o arquivo atual para Google Docs nativo antes de atualizar o link salvo.',
-      ];
-      break;
-    case 'INVALID_REQUEST':
-      errorMessage = sourceDiagnostics
-        ? 'Nenhum link de template utilizável está configurado.'
-        : 'O link do template está inválido.';
-      userInstructions = [
-        'Revise o link original do modelo e a versão customizada do projeto.',
-        'Use URLs completas de Google Docs ou IDs válidos do documento.',
-        'Corrija primeiro links inválidos; o fallback só é usado quando o original existe mas está inacessível.',
-      ];
-      break;
-    case 'GOOGLE_DOCS_ERROR':
-      errorMessage = 'Erro ao ler o conteúdo do documento no Google Docs.';
-      userInstructions = [
-        'Verifique se o documento está acessível e não está corrompido.',
-        'Tente novamente em alguns instantes.',
-        'Se o erro persistir, revise os links do template e a conta Google conectada.',
-      ];
-      break;
-    case 'RATE_LIMITED':
-      errorMessage = 'Limite de requisições ao Google atingido.';
-      userInstructions = [
-        'Aguarde alguns segundos e tente novamente.',
-        'Se o erro persistir, tente novamente em alguns minutos.',
-      ];
-      break;
-    default:
-      errorMessage = 'O Google Drive/Docs retornou um erro inesperado ao preparar o template.';
-      userInstructions = [
-        'Tente novamente em alguns instantes.',
-        'Se o erro persistir, revise os links do template e a conta Google conectada.',
-      ];
-      break;
-  }
-
-  return {
-    error: errorMessage,
-    errorType,
-    failedSource,
-    userInstructions,
-    sourceDiagnostics,
-    technicalDetails: typedError.technicalDetails || typedError.message,
-  };
-}
-
-function mergePlaceholderDefinitions(
-  googleDocPlaceholders: PlaceholderDefinition[],
-  fallbackMarkdownContent?: string
-) {
-  const fallbackPlaceholders = fallbackMarkdownContent
-    ? extractPlaceholderDefinitionsFromText(fallbackMarkdownContent)
-    : [];
-
-  const placeholderMap = new Map<string, Set<string>>();
-
-  for (const definition of [...googleDocPlaceholders, ...fallbackPlaceholders]) {
-    if (!placeholderMap.has(definition.key)) {
-      placeholderMap.set(definition.key, new Set<string>());
-    }
-
-    for (const match of definition.matches) {
-      placeholderMap.get(definition.key)?.add(match);
-    }
-  }
-
-  return Array.from(placeholderMap.entries())
-    .map(([key, matches]) => ({
-      key,
-      matches: Array.from(matches).sort(),
-    }))
-    .sort((a, b) => a.key.localeCompare(b.key));
-}
+// buildUserFriendlyError and mergePlaceholderDefinitions are imported from shared-docs-actions.ts
 
 export async function inspectTemplateForGeneration(
   accessToken: string,

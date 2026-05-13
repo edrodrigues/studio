@@ -12,6 +12,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { createComposioClient } from '@/lib/composio-client';
+import { debugLog, debugError, generateRequestId } from '@/lib/utils/request-id';
 
 // ============================================================
 // INPUT / OUTPUT SCHEMAS
@@ -66,15 +67,16 @@ const AIReviewContractOutputSchema = z.object({
   documentId: z.string(),
   summary: z
     .string()
-    .describe('Brief summary of the review findings'),
+    .describe('Brief summary of review findings (2-3 sentences)'),
   overallQuality: z
     .enum(['good', 'needs_work', 'requires_revision'])
-    .describe('Overall document quality assessment'),
+    .describe('Overall quality'),
   suggestions: z
     .array(ReviewEditSuggestionSchema)
     .describe('List of edit suggestions with before/after text'),
   reviewedAt: z.string().describe('ISO timestamp of when the review was performed'),
   error: z.string().optional(),
+  requestId: z.string().optional().describe('Request ID for debugging'),
 });
 
 export type AIReviewContractOutput = z.infer<typeof AIReviewContractOutputSchema>;
@@ -188,14 +190,32 @@ export async function aiReviewContract(
 async function reviewContractFlow(
   input: AIReviewContractInput
 ): Promise<AIReviewContractOutput> {
+  const requestId = generateRequestId();
   const { userId, documentId, documentName, context, reviewFocus, contractType } = input;
+
+  debugLog(requestId, 'ai-review-contract', 'Starting review flow', {
+    userId,
+    documentId,
+    documentName,
+    reviewFocus,
+    contractType,
+    contextProvided: !!context,
+  });
 
   // Step 1: Fetch document content via Composio
   let documentContent: string;
   try {
     const client = await createComposioClient(userId);
     documentContent = await client.getDocumentContent(documentId);
+    debugLog(requestId, 'ai-review-contract', 'Document content fetched', {
+      documentId,
+      contentLength: documentContent.length,
+    });
   } catch (error: any) {
+    debugError(requestId, 'ai-review-contract', 'Failed to fetch document content', error, {
+      userId,
+      documentId,
+    });
     return {
       success: false,
       documentId,
@@ -204,10 +224,14 @@ async function reviewContractFlow(
       suggestions: [],
       reviewedAt: new Date().toISOString(),
       error: `Erro ao acessar documento: ${error.message}`,
+      requestId,
     };
   }
 
   if (!documentContent || documentContent.trim().length === 0) {
+    debugError(requestId, 'ai-review-contract', 'Document is empty', new Error('EMPTY_DOCUMENT'), {
+      documentId,
+    });
     return {
       success: true,
       documentId,
@@ -215,6 +239,7 @@ async function reviewContractFlow(
       overallQuality: 'requires_revision',
       suggestions: [],
       reviewedAt: new Date().toISOString(),
+      requestId,
     };
   }
 
@@ -227,6 +252,13 @@ async function reviewContractFlow(
       consistency: 'Foco em consistência interna do documento',
     };
 
+    debugLog(requestId, 'ai-review-contract', 'Calling Gemini for review', {
+      documentId,
+      reviewFocus: reviewFocusMap[reviewFocus] || reviewFocusMap.all,
+      contractType,
+      contentLength: documentContent.length,
+    });
+
     const llmResponse = await reviewContractPrompt({
       documentContent: documentContent.slice(0, 30000), // limit to first 30k chars
       documentName: documentName || 'Documento sem nome',
@@ -238,8 +270,19 @@ async function reviewContractFlow(
     const output = llmResponse.output;
 
     if (!output || typeof output.summary !== 'string') {
+      debugError(requestId, 'ai-review-contract', 'Invalid Gemini response', new Error('INVALID_LLM_RESPONSE'), {
+        outputType: typeof output,
+        hasSummary: !!output?.summary,
+      });
       throw new Error('Resposta inválida do modelo de IA');
     }
+
+    debugLog(requestId, 'ai-review-contract', 'Gemini review completed', {
+      documentId,
+      summary: output.summary.substring(0, 200),
+      overallQuality: output.overallQuality,
+      suggestionCount: (output.suggestions || []).length,
+    });
 
     return {
       success: true,
@@ -255,9 +298,14 @@ async function reviewContractFlow(
         confidence: s.confidence,
       })),
       reviewedAt: new Date().toISOString(),
+      requestId,
     };
   } catch (error: any) {
-    console.error('[ai-review-contract] Gemini review failed:', error);
+    debugError(requestId, 'ai-review-contract', 'Gemini review failed', error, {
+      documentId,
+      reviewFocus,
+      contractType,
+    });
     return {
       success: false,
       documentId,
@@ -266,6 +314,7 @@ async function reviewContractFlow(
       suggestions: [],
       reviewedAt: new Date().toISOString(),
       error: `Erro na revisão de IA: ${error.message}`,
+      requestId,
     };
   }
 }

@@ -321,7 +321,13 @@ export default function ModelosPage() {
                 title: "Conecte sua conta Google",
                 description: "Precisamos validar os links dos templates antes de salvar.",
                 action: (
-                    <Button variant="outline" size="sm" onClick={() => signInWithGoogle()}>
+                    <Button variant="outline" size="sm" onClick={async () => {
+                        try {
+                            await signInWithGoogle();
+                        } catch (error) {
+                            console.error("Sign in error:", error);
+                        }
+                    }}>
                         Conectar
                     </Button>
                 ),

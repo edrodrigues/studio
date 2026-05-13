@@ -1,0 +1,294 @@
+{
+  "generated_at": "2026-05-02T12:00:00Z",
+  "modules": [
+    {
+      "name": "auth",
+      "path": "src/context/auth-context.tsx",
+      "files": [
+        "src/context/auth-context.tsx",
+        "src/components/auth/auth-forms.tsx",
+        "src/components/auth/protected-route.tsx",
+        "src/app/auth/page.tsx",
+        "src/app/auth/layout.tsx",
+        "src/firebase/config.ts",
+        "src/firebase/provider.tsx",
+        "src/firebase/client-provider.tsx",
+        "src/firebase/index.ts",
+        "src/firebase/non-blocking-login.tsx",
+        "src/firebase/non-blocking-updates.tsx",
+        "src/firebase/error-emitter.ts",
+        "src/firebase/errors.ts"
+      ],
+      "description": "Autenticação via Firebase Auth com email/senha e Google OAuth, proteção de rotas, gerenciamento de sessão e sistema de erros tipado",
+      "entities": ["User", "AuthContextType", "FirebaseServicesAndUser", "UserHookResult"],
+      "functions": ["signInWithGoogle", "signInWithEmail", "signUpWithEmail", "logout", "useFirebase", "useUser", "initializeFirebase", "initiateAnonymousSignIn", "initiateEmailSignIn", "initiateEmailSignUp"],
+      "external_deps": ["firebase/auth", "firebase/app", "firebase/firestore", "firebase/storage"],
+      "state_machines": [],
+      "algorithms": [
+        "Mapeamento de Firebase error codes para mensagens amigáveis (3 tabelas)",
+        "Pub/Sub event emitter tipado para erros (errorEmitter)",
+        "Simulação de request.auth para debugging LLM de Firestore rules",
+        "Non-blocking Firestore operations com error handling"
+      ],
+      "confidence": "confirmed"
+    },
+    {
+      "name": "projects",
+      "path": "src/hooks/use-projects.ts",
+      "files": [
+        "src/hooks/use-projects.ts",
+        "src/app/(main)/projects/page.tsx",
+        "src/app/(main)/projects/[projectId]/page.tsx",
+        "src/app/(main)/projects/new/",
+        "src/lib/types.ts"
+      ],
+      "description": "Gestão completa de projetos com CRUD, membros, convites, permissões baseadas em roles (owner/editor/viewer), presença em tempo real e audit log",
+      "entities": ["Project", "ProjectMember", "ProjectInvite", "UserPresence", "ProjectRole", "ProjectStatus"],
+      "functions": ["useProject", "useUserProjects", "useProjectMembers", "useProjectRole", "usePermission", "useInvites", "usePresence", "acceptInvite", "declineInvite", "inviteMember", "updateMemberRole", "removeMember"],
+      "external_deps": ["firebase/firestore"],
+      "state_machines": [],
+      "algorithms": [
+        "Auto-migração de memberships random-ID para deterministic ID",
+        "Fetch de projetos em chunks de 10 (Firestore 'in' query limit)",
+        "Hierarquia de permissões: viewer(1) < editor(2) < owner(3)",
+        "Presença com heartbeat a cada 60s, timeout 5min",
+        "Paginação cursor-based para activity log"
+      ],
+      "confidence": "confirmed"
+    },
+    {
+      "name": "documents",
+      "path": "src/app/(main)/projects/[projectId]/documents/page.tsx",
+      "files": [
+        "src/app/(main)/projects/[projectId]/documents/page.tsx",
+        "src/app/(main)/projects/[projectId]/components/ProjectDocumentsUploader.tsx",
+        "src/lib/storage.ts",
+        "src/lib/actions/storage-actions.ts",
+        "src/lib/r2.ts"
+      ],
+      "description": "Upload, versionamento e processamento de documentos iniciais para extração de entidades. Suporte a Firebase Storage e Cloudflare R2",
+      "entities": ["ProjectDocument", "DocumentStatus"],
+      "functions": ["useProjectDocuments", "addDocument", "updateDocument", "deleteDocument", "handleDownload"],
+      "external_deps": ["firebase/firestore", "@aws-sdk/client-s3", "@aws-sdk/s3-request-presigner"],
+      "state_machines": ["uploaded → processing → indexed", "processing → error"],
+      "algorithms": [
+        "Versionamento por documentType (apenas última versão no contexto ALEX)",
+        "Presigned URL generation para R2",
+        "formatFileSize() para display humano"
+      ],
+      "confidence": "confirmed"
+    },
+    {
+      "name": "placeholders",
+      "path": "src/app/(main)/projects/[projectId]/placeholders/page.tsx",
+      "files": [
+        "src/app/(main)/projects/[projectId]/placeholders/page.tsx",
+        "src/lib/placeholder-detector.ts",
+        "src/lib/entity-extraction.ts",
+        "src/lib/placeholder-images.ts"
+      ],
+      "description": "Revisão e confirmação de variáveis extraídas por IA com classificação de confiança (alta/média/baixa), edição individual e batch",
+      "entities": ["ProjectPlaceholder", "PlaceholderStatus", "PlaceholderEditEvent", "BatchPlaceholderUpdate"],
+      "functions": ["useProjectPlaceholders", "updatePlaceholder", "updatePlaceholdersBatch", "confirmPlaceholder"],
+      "external_deps": ["firebase/firestore"],
+      "state_machines": ["extracted → reviewed → confirmed"],
+      "algorithms": [
+        "Classificação de confiança: >=0.8 alta, >=0.5 média, <0.5 baixa",
+        "Batch update com versioning para conflict resolution",
+        "Filtros múltiplos + busca por key/value + ordenação por confiança"
+      ],
+      "confidence": "confirmed"
+    },
+    {
+      "name": "contracts",
+      "path": "src/app/(main)/projects/[projectId]/contracts/new/",
+      "files": [
+        "src/app/(main)/projects/[projectId]/contracts/new/",
+        "src/components/app/contract-editor.tsx",
+        "src/components/app/contract-preview-modal.tsx",
+        "src/lib/export.ts",
+        "src/lib/document-converter.ts"
+      ],
+      "description": "Geração de contratos a partir de templates + placeholders, edição rich-text (Tiptap), revisão IA e exportação (DOCX/PDF/XLSX)",
+      "entities": ["ProjectContract", "Contract", "GoogleDocsSyncConfig", "SyncEvent"],
+      "functions": ["useProjectContracts", "addContract", "updateContract", "deleteContract"],
+      "external_deps": ["firebase/firestore", "docx", "xlsx", "@tiptap/react"],
+      "state_machines": [],
+      "algorithms": [
+        "Substituição de placeholders em template Markdown",
+        "Sync bidirecional Firestore ↔ Google Docs",
+        "Resolução de conflitos: manual, firestore-wins, docs-wins",
+        "lastReviewEdits para undo de review IA"
+      ],
+      "confidence": "confirmed"
+    },
+    {
+      "name": "modelos",
+      "path": "src/app/(main)/modelos/page.tsx",
+      "files": [
+        "src/app/(main)/modelos/page.tsx",
+        "src/lib/template-sync.ts",
+        "src/lib/template-source.ts",
+        "src/lib/template-link-validation.ts",
+        "src/lib/official-templates-parser.ts"
+      ],
+      "description": "Templates globais de contrato com sync de fontes oficiais, validação de links e versionamento",
+      "entities": ["Template", "OfficialTemplate", "OfficialTemplateSync", "TemplateLinkValidationState", "TemplateNotification"],
+      "functions": ["syncTemplates", "validateTemplateLinks", "parseOfficialTemplates"],
+      "external_deps": ["firebase/firestore", "cheerio"],
+      "state_machines": [],
+      "algorithms": [
+        "Hash de conteúdo para detecção de mudanças em templates",
+        "Parse de páginas FAQ para extrair templates oficiais",
+        "Validação de links Google Docs (acessibilidade, tipo de arquivo)"
+      ],
+      "confidence": "confirmed"
+    },
+    {
+      "name": "ai-genkit",
+      "path": "src/ai/",
+      "files": [
+        "src/ai/genkit.ts",
+        "src/ai/dev.ts",
+        "src/ai/flows/ai-enrich-contract.ts",
+        "src/ai/flows/ai-review-contract.ts",
+        "src/ai/flows/analyze-document-consistency.ts",
+        "src/ai/flows/extract-entities-from-documents.ts",
+        "src/ai/flows/extract-template-from-document.ts",
+        "src/ai/flows/generate-contract-in-docs.ts",
+        "src/ai/flows/get-assistance-from-gemini.ts",
+        "src/ai/flows/get-document-feedback.ts",
+        "src/ai/flows/get-playbook-assistance.ts",
+        "src/ai/flows/match-entities-to-placeholders.ts",
+        "src/lib/composio-client.ts",
+        "src/lib/composio-gemini.ts",
+        "src/lib/composio-actions.ts",
+        "src/lib/composio-tools-mapping.ts"
+      ],
+      "description": "12 flows Genkit com Gemini API para extração de entidades, geração de contratos, revisão contra playbook, e chat de assistência. Integração Composio para ferramentas Google",
+      "entities": [],
+      "functions": ["aiEnrichContract", "aiReviewContract", "analyzeDocumentConsistency", "extractEntitiesFromDocuments", "extractTemplateFromDocument", "generateContractInDocs", "getAssistanceFromGemini", "getDocumentFeedback", "getPlaybookAssistance", "matchEntitiesToPlaceholders"],
+      "external_deps": ["genkit", "@genkit-ai/google-genai", "@google/genai", "@composio/core", "@composio/google"],
+      "state_machines": [],
+      "algorithms": [
+        "Extração de entidades de documentos via Gemini",
+        "Match de entidades para placeholders com confidence scoring",
+        "Review de contrato contra regras de playbook institucional",
+        "Geração de contratos com substituição de variáveis"
+      ],
+      "confidence": "confirmed"
+    },
+    {
+      "name": "alex-chatbot",
+      "path": "src/components/app/playbook-chat-widget.tsx",
+      "files": [
+        "src/components/app/playbook-chat-widget.tsx",
+        "src/components/app/ai-feedback.tsx",
+        "src/lib/faq-content-parser.ts",
+        "src/lib/faq-sync.ts",
+        "src/lib/google-ai-stores.ts"
+      ],
+      "description": "Chatbot ALEX com base de conhecimento FAQ, assistente de playbook e Google AI File Search para contexto de documentos",
+      "entities": ["FaqContent", "FaqSection", "FaqContentSync"],
+      "functions": ["getAssistanceFromGemini", "getPlaybookAssistance", "parseFaqContent", "syncFaqContent"],
+      "external_deps": ["cheerio", "@google-cloud/vertexai"],
+      "state_machines": [],
+      "algorithms": [
+        "Scrap de páginas FAQ com cheerio",
+        "Hash de conteúdo para detecção de mudanças",
+        "File Search store management para contexto de IA"
+      ],
+      "confidence": "confirmed"
+    },
+    {
+      "name": "sync",
+      "path": "src/lib/google-docs.ts",
+      "files": [
+        "src/lib/google-docs.ts",
+        "src/lib/google-drive.ts",
+        "src/lib/actions/google-docs-actions.ts",
+        "src/lib/r2.ts",
+        "src/lib/actions/storage-actions.ts",
+        "src/lib/offline-sync.ts",
+        "src/lib/cache.ts"
+      ],
+      "description": "Sincronização bidirecional Firestore ↔ Google Docs, storage Cloudflare R2, cache offline e migração de storage",
+      "entities": ["GoogleDocsSyncConfig", "SyncEvent", "PendingAction", "ConflictResolution"],
+      "functions": ["createGoogleDoc", "updateGoogleDoc", "getGoogleDocContent", "uploadToR2", "getDownloadUrl", "migrateToR2"],
+      "external_deps": ["googleapis", "@aws-sdk/client-s3", "@aws-sdk/s3-request-presigner", "idb"],
+      "state_machines": [],
+      "algorithms": [
+        "Sync bidirecional com detecção de conflitos",
+        "Presigned URL generation para R2 (S3-compatible)",
+        "IndexedDB para cache offline (Firebase persistence)",
+        "Migração Firebase Storage → R2"
+      ],
+      "confidence": "confirmed"
+    },
+    {
+      "name": "activity",
+      "path": "src/hooks/use-projects.ts (useActivity)",
+      "files": [
+        "src/hooks/use-projects.ts",
+        "src/app/(main)/projects/[projectId]/activity/page.tsx",
+        "src/app/(main)/admin/feedback/"
+      ],
+      "description": "Log de auditoria imutável com 13 tipos de ação, paginação cursor-based e agrupamento temporal",
+      "entities": ["Activity", "ActivityAction", "ActivityTargetType"],
+      "functions": ["useActivity", "logActivity", "loadMore"],
+      "external_deps": ["firebase/firestore"],
+      "state_machines": [],
+      "algorithms": [
+        "Paginação cursor-based com startAfter",
+        "Agrupamento temporal: hoje, ontem, esta-semana, este-mes, anteriores",
+        "Filtro por tipo de ação (13 tipos)"
+      ],
+      "confidence": "confirmed"
+    },
+    {
+      "name": "admin",
+      "path": "src/app/api/",
+      "files": [
+        "src/app/api/admin/test-faq-sync/route.ts",
+        "src/app/api/admin/test-sync/route.ts",
+        "src/app/api/cron/sync-templates/route.ts",
+        "src/app/api/cron/sync-faq-content/route.ts",
+        "src/app/api/feedback/route.ts",
+        "src/app/api/composio/callback/route.ts"
+      ],
+      "description": "API Routes para administração, cron jobs (sync de templates diário, sync de FAQ semanal) e OAuth callback Composio",
+      "entities": [],
+      "functions": ["GET /api/cron/sync-templates", "GET /api/cron/sync-faq-content", "POST /api/feedback", "GET /api/composio/callback"],
+      "external_deps": ["firebase-admin", "firebase/firestore"],
+      "state_machines": [],
+      "algorithms": [
+        "CRON sync-templates: compara officialVersionHash, atualiza templates mudados",
+        "CRON sync-faq-content: scrap de páginas FAQ, detecta mudanças via hash",
+        "OAuth callback Composio: troca código por token, armazena credenciais"
+      ],
+      "confidence": "confirmed"
+    },
+    {
+      "name": "export",
+      "path": "src/lib/export.ts",
+      "files": [
+        "src/lib/export.ts",
+        "src/lib/document-converter.ts",
+        "src/lib/actions/google-docs-actions.ts",
+        "src/lib/mime-type-utils.ts"
+      ],
+      "description": "Exportação de contratos para DOCX (via biblioteca docx), PDF (via Google Docs export) e XLSX (via biblioteca xlsx)",
+      "entities": ["UploadedFile"],
+      "functions": ["exportToDocx", "exportToPdf", "exportToXlsx", "convertDocument"],
+      "external_deps": ["docx", "xlsx", "file-saver", "googleapis"],
+      "state_machines": [],
+      "algorithms": [
+        "Markdown → DOCX via biblioteca docx",
+        "Markdown → PDF via Google Docs export API",
+        "Dados de contrato → XLSX via biblioteca xlsx",
+        "Detecção de MIME type para validação"
+      ],
+      "confidence": "confirmed"
+    }
+  ]
+}

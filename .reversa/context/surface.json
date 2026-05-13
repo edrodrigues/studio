@@ -1,0 +1,93 @@
+{
+  "generated_at": "2026-05-02T12:00:00Z",
+  "project_root": "C:\\Users\\edrodrigues\\OneDrive\\Apps\\Assistente de Contratos - VLAB\\studio",
+  "project_name": "V-Lab Assistant",
+  "languages": [
+    { "name": "TypeScript (React)", "extensions": [".tsx"], "file_count": 95 },
+    { "name": "TypeScript", "extensions": [".ts"], "file_count": 77 },
+    { "name": "Markdown", "extensions": [".md"], "file_count": 1 },
+    { "name": "JSON", "extensions": [".json"], "file_count": 1 },
+    { "name": "CSS", "extensions": [".css"], "file_count": 1 },
+    { "name": "SVG", "extensions": [".svg"], "file_count": 1 }
+  ],
+  "primary_language": "TypeScript",
+  "frameworks": [
+    { "name": "Next.js", "version": "16.1.6", "source": "package.json" },
+    { "name": "React", "version": "18.3.1", "source": "package.json" },
+    { "name": "Google Genkit", "version": "1.20.0", "source": "package.json" },
+    { "name": "Firebase", "version": "11.9.1", "source": "package.json" },
+    { "name": "Tailwind CSS", "version": "3.4.1", "source": "package.json" },
+    { "name": "Shadcn UI", "version": "latest", "source": "components.json" },
+    { "name": "Tiptap", "version": "3.15.3", "source": "package.json" },
+    { "name": "Vitest", "version": "4.0.18", "source": "package.json" },
+    { "name": "Playwright", "version": "1.58.2", "source": "package.json" }
+  ],
+  "package_manager": "npm",
+  "entry_points": [
+    { "path": "src/app/layout.tsx", "type": "app_layout" },
+    { "path": "src/app/page.tsx", "type": "landing_page" },
+    { "path": "src/app/(main)/layout.tsx", "type": "protected_layout" },
+    { "path": "src/app/(main)/page.tsx", "type": "dashboard" },
+    { "path": "src/app/auth/page.tsx", "type": "auth_page" },
+    { "path": "src/ai/dev.ts", "type": "genkit_dev_entry" }
+  ],
+  "config_files": [
+    "next.config.ts",
+    "tsconfig.json",
+    "tailwind.config.ts",
+    "components.json",
+    "firebase.json",
+    "firestore.rules",
+    "firestore.indexes.json",
+    "storage.rules",
+    "postcss.config.mjs",
+    "apphosting.yaml",
+    "vercel.json",
+    "wrangler.toml",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ],
+  "ci_cd": [],
+  "docker": {
+    "dockerfile": null,
+    "compose": null
+  },
+  "database_hints": [
+    { "path": "firestore.rules", "type": "firestore_security_rules" },
+    { "path": "firestore.indexes.json", "type": "firestore_indexes" },
+    { "path": "src/firebase/firestore/use-collection.tsx", "type": "firestore_hook" },
+    { "path": "src/firebase/firestore/use-doc.tsx", "type": "firestore_hook" }
+  ],
+  "test_framework": "Vitest",
+  "test_file_count": 12,
+  "test_files": [
+    "src/lib/actions/composio-actions.test.ts",
+    "src/lib/composio-gemini.test.ts",
+    "src/lib/diff-utils.test.ts",
+    "src/ai/flows/ai-review-contract.test.ts",
+    "src/ai/flows/ai-enrich-contract.test.ts",
+    "src/lib/template-link-validation.test.ts",
+    "src/lib/template-link-validation.server.test.ts",
+    "src/lib/actions/google-docs-actions.test.ts",
+    "src/lib/template-source.test.ts",
+    "src/lib/utils.google-docs.test.ts",
+    "src/lib/utils.test.ts",
+    "e2e/home.spec.ts"
+  ],
+  "modules": [
+    "auth",
+    "projects",
+    "documents",
+    "placeholders",
+    "contracts",
+    "modelos",
+    "ai-genkit",
+    "alex-chatbot",
+    "sync",
+    "activity",
+    "admin",
+    "export"
+  ],
+  "total_files": 263,
+  "total_directories": 95
+}

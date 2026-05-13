@@ -1,0 +1,165 @@
+{
+  "version": "1.2.14",
+  "project": "V-Lab Assistant",
+  "user_name": "Ed",
+  "chat_language": "pt-br",
+  "doc_language": "Português",
+  "answer_mode": "chat",
+  "doc_level": "completo",
+  "output_folder": "_reversa_sdd",
+  "phase": "revisao",
+  "completed": ["reconhecimento", "escavacao", "interpretacao", "geracao", "revisao"],
+  "pending": [],
+  "checkpoints": {
+    "scout": {
+      "completed_at": "2026-05-02T12:00:00Z",
+      "files": [
+        "_reversa_sdd/inventory.md",
+        "_reversa_sdd/dependencies.md",
+        ".reversa/context/surface.json"
+      ]
+    },
+    "archaeologist": {
+      "completed_at": "2026-05-02T14:00:00Z",
+      "files": [
+        "_reversa_sdd/code-analysis.md",
+        "_reversa_sdd/data-dictionary.md",
+        "_reversa_sdd/flowcharts/auth.md",
+        "_reversa_sdd/flowcharts/projects.md",
+        "_reversa_sdd/flowcharts/documents.md",
+        "_reversa_sdd/flowcharts/contracts-ai.md",
+        "_reversa_sdd/modules.json"
+      ],
+      "modules_analyzed": 12,
+      "confidence": "confirmed"
+    },
+    "detective": {
+      "completed_at": "2026-05-03T08:30:00Z",
+      "files": [
+        "_reversa_sdd/domain.md",
+        "_reversa_sdd/state-machines.md",
+        "_reversa_sdd/permissions.md",
+        "_reversa_sdd/adrs/001-multi-project-collaboration.md",
+        "_reversa_sdd/adrs/002-ai-engine-genkit.md",
+        "_reversa_sdd/adrs/003-composio-google-workspace.md",
+        "_reversa_sdd/adrs/004-r2-storage.md",
+        "_reversa_sdd/adrs/005-template-sync.md",
+        "_reversa_sdd/adrs/006-faq-sync-alex.md",
+        "_reversa_sdd/adrs/007-non-blocking-firestore-writes.md"
+      ],
+      "business_rules": 18,
+      "state_machines": 8,
+      "adrs": 7,
+      "confidence": "confirmed"
+    },
+    "architect": {
+      "completed_at": "2026-05-03T08:45:00Z",
+      "files": [
+        "_reversa_sdd/c4-context.md",
+        "_reversa_sdd/c4-containers.md",
+        "_reversa_sdd/c4-components.md",
+        "_reversa_sdd/erd-complete.md",
+        "_reversa_sdd/architecture.md",
+        "_reversa_sdd/traceability/spec-impact-matrix.md"
+      ],
+      "c4_diagrams": 3,
+      "erd_entities": 19,
+      "tech_debts": 12,
+      "confidence": "confirmed"
+    },
+    "writer": {
+      "started_at": "2026-05-03T09:00:00Z",
+      "completed_at": "2026-05-03T10:30:00Z",
+      "files": [
+        "_reversa_sdd/sdd/auth.md",
+        "_reversa_sdd/sdd/projects.md",
+        "_reversa_sdd/sdd/documents.md",
+        "_reversa_sdd/sdd/placeholders.md",
+        "_reversa_sdd/sdd/contracts.md",
+        "_reversa_sdd/sdd/modelos.md",
+        "_reversa_sdd/sdd/ai-genkit.md",
+        "_reversa_sdd/sdd/alex-chatbot.md",
+        "_reversa_sdd/sdd/sync.md",
+        "_reversa_sdd/sdd/activity.md",
+        "_reversa_sdd/sdd/admin.md",
+        "_reversa_sdd/sdd/export.md",
+        "_reversa_sdd/openapi/vlab-api.yaml",
+        "_reversa_sdd/user-stories/01-onboarding-auth.md",
+        "_reversa_sdd/user-stories/02-project-management.md",
+        "_reversa_sdd/user-stories/03-document-upload-extraction.md",
+        "_reversa_sdd/user-stories/04-placeholder-review.md",
+        "_reversa_sdd/user-stories/05-contract-generation.md",
+        "_reversa_sdd/user-stories/06-export-collaboration.md",
+        "_reversa_sdd/traceability/code-spec-matrix.md"
+      ],
+      "sdd_specs": 12,
+      "openapi_specs": 1,
+      "user_stories": 6,
+      "code_spec_matrix": 1,
+      "total_artifacts": 20,
+      "business_rules": 175,
+      "acceptance_criteria": 47,
+      "confidence": "confirmed"
+    },
+    "reviewer": {
+      "started_at": "2026-05-03T11:00:00Z",
+      "completed_at": "2026-05-03T12:00:00Z",
+      "files": [
+        "_reversa_sdd/reviewer/questions.md",
+        "_reversa_sdd/reviewer/confidence-report.md",
+        "_reversa_sdd/reviewer/gaps.md",
+        "_reversa_sdd/reviewer/p0-answers.md"
+      ],
+      "specs_reviewed": 12,
+      "business_rules_validated": 175,
+      "questions_generated": 10,
+      "gaps_identified": 10,
+      "reclassified_rules": 4,
+      "corrections_applied": 1,
+      "corrected_files": [
+        "_reversa_sdd/sdd/modelos.md"
+      ],
+      "confidence": "reviewed"
+    }
+  },
+  "engines": [
+    "gemini-cli",
+    "opencode"
+  ],
+  "agents": [
+    "reversa",
+    "reversa-scout",
+    "reversa-archaeologist",
+    "reversa-detective",
+    "reversa-architect",
+    "reversa-writer",
+    "reversa-reviewer",
+    "reversa-visor",
+    "reversa-data-master",
+    "reversa-design-system",
+    "reversa-agents-help",
+    "reversa-reconstructor"
+  ],
+  "created_files": [
+    ".agents\\skills\\reversa",
+    ".agents\\skills\\reversa-scout",
+    ".agents\\skills\\reversa-archaeologist",
+    ".agents\\skills\\reversa-detective",
+    ".agents\\skills\\reversa-architect",
+    ".agents\\skills\\reversa-writer",
+    ".agents\\skills\\reversa-reviewer",
+    ".agents\\skills\\reversa-visor",
+    ".agents\\skills\\reversa-data-master",
+    ".agents\\skills\\reversa-design-system",
+    ".agents\\skills\\reversa-agents-help",
+    ".agents\\skills\\reversa-reconstructor",
+    "GEMINI.md",
+    "AGENTS.md",
+    ".reversa\\state.json",
+    ".reversa\\config.toml",
+    ".reversa\\config.user.toml",
+    ".reversa\\plan.md",
+    ".reversa\\version",
+    ".reversa\\_config\\manifest.yaml"
+  ]
+}

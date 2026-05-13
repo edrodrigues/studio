@@ -22,6 +22,20 @@
       "headers": {
         "CONTEXT7_API_KEY": "ctx7sk-3b24219a-cc8c-4cb2-ba96-c44a33773f19"
       }
+    },
+    "composio-googledocs": {
+      "type": "sse",
+      "url": "https://backend.composio.dev/v3/mcp/d137b98d-5a00-4985-a8a5-a3b6fc59434f?user_id=NL4B6HngxXRsg4Qz1DvGaRpybQy1",
+      "headers": {
+        "x-api-key": "ak_QHfMQ7FuNvUZ3u0tGDBX"
+      }
+    },
+    "composio-googledrive": {
+      "type": "sse",
+      "url": "https://backend.composio.dev/v3/mcp/449c3dcb-ad5a-4054-97d7-7d6cfc147e0f?user_id=NL4B6HngxXRsg4Qz1DvGaRpybQy1",
+      "headers": {
+        "x-api-key": "ak_QHfMQ7FuNvUZ3u0tGDBX"
+      }
     }
   }
 }

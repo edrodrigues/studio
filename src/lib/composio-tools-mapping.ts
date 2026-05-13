@@ -224,6 +224,12 @@ export const COMPOSIO_ERROR_MAPPINGS: ComposioErrorMapping[] = [
     portugueseMessage:
       'INVALID_REQUEST: Parâmetros inválidos para a ferramenta Composio. Verifique se os dados enviados estão corretos.',
   },
+  {
+    composioErrorPattern: /TOOL_VERSION_REQUIRED|TS-SDK::TOOL_VERSION_REQUIRED/i,
+    errorType: 'INVALID_REQUEST',
+    portugueseMessage:
+      'INVALID_REQUEST: A versão da ferramenta Composio não foi especificada. Isso pode indicar uma incompatibilidade de versão do SDK. Verifique se:\n1. O SDK @composio/core está atualizado\n2. A configuração da ferramenta no dashboard Composio está correta\n3. O ambiente (production/staging) está correto',
+  },
 ];
 
 /**

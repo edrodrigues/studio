@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, useRef, ReactNode } from 'react';
 import { useUser } from '@/firebase/provider';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import type { ConnectionStatus } from '@/lib/composio-types';
 import { checkComposioConnectionStatus, initiateComposioConnection } from '@/lib/actions/composio-connection-actions';
+import { generateRequestId } from '@/lib/utils/request-id';
 
 interface ComposioConnectionState {
   status: ConnectionStatus;
@@ -56,6 +57,12 @@ const STATUS_INFO: Record<ConnectionStatus, ConnectionStatusInfo> = {
     variant: 'warning',
     icon: '🔄',
   },
+  INITIALIZING: {
+    label: 'Processando conexão',
+    description: 'Sua conexão Google está sendo ativada. Isso leva alguns segundos.',
+    variant: 'warning',
+    icon: '⏳',
+  },
   EXPIRED: {
     label: 'Conexão expirada',
     description: 'Sua conexão com Google expirou. Conecte-se novamente.',
@@ -75,6 +82,21 @@ const STATUS_INFO: Record<ConnectionStatus, ConnectionStatusInfo> = {
     icon: '🔗',
   },
 };
+
+// Expose connection details for debugging
+export function getConnectionDebugInfo(status: ConnectionStatus, error: string | null) {
+  return {
+    status,
+    error,
+    timestamp: new Date().toISOString(),
+    hints: {
+      FAILED: 'Verifique COMPOSIO_API_KEY e COMPOSIO_GOOGLE_AUTH_CONFIG_ID nas variáveis de ambiente',
+      EXPIRED: 'A sessão OAuth expirou. Tente reconectar.',
+      INACTIVE: 'Nenhuma conta Google está conectada. Use o botão para iniciar o fluxo OAuth.',
+      INITIATED: 'Aguarde o redirecionamento OAuth completar.',
+    },
+  };
+}
 
 export function ComposioConnection({
   onConnected,
@@ -96,15 +118,22 @@ export function ComposioConnection({
   const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     if (!user) {
       setState({ status: 'INACTIVE', loading: false, error: null });
       return;
     }
-    checkConnectionStatus();
+    checkConnectionStatus().then(() => {
+      if (cancelled) return;
+    });
+    return () => { cancelled = true; };
   }, [user]);
 
+  const lastOpenSignal = useRef(openSignal ?? 0);
+
   useEffect(() => {
-    if (openSignal > 0) {
+    if (openSignal !== undefined && openSignal > lastOpenSignal.current) {
+      lastOpenSignal.current = openSignal;
       setDialogOpen(true);
     }
   }, [openSignal]);
@@ -118,6 +147,7 @@ export function ComposioConnection({
       setState({ status: result.status, loading: false, error: null });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Erro ao verificar conexão';
+      console.error(`[ComposioConnection] Error checking connection for user ${user.uid}:`, error);
       setState({ status: 'FAILED', loading: false, error: errorMsg });
       onError?.(errorMsg);
     }
@@ -128,11 +158,17 @@ export function ComposioConnection({
 
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const returnTo = window.location.pathname + window.location.search;
+      let returnTo: string;
+      try {
+        returnTo = window.location.pathname + window.location.search;
+      } catch {
+        returnTo = '/';
+      }
       const result = await initiateComposioConnection(user.uid, returnTo);
 
       if ('error' in result && result.error) {
         setState({ status: 'FAILED', loading: false, error: result.error });
+        console.error(`[ComposioConnection] initiateConnection error:`, result.error);
         toast({
           variant: 'destructive',
           title: 'Erro ao conectar',
@@ -152,6 +188,7 @@ export function ComposioConnection({
       window.location.href = result.redirectUrl;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Erro ao iniciar conexão';
+      console.error(`[ComposioConnection] initiateConnection exception:`, error);
       setState({ status: 'FAILED', loading: false, error: errorMsg });
       toast({
         variant: 'destructive',
@@ -165,40 +202,53 @@ export function ComposioConnection({
   }
 
   const statusInfo = STATUS_INFO[state.status];
+  const debugInfo = getConnectionDebugInfo(state.status, state.error);
 
   // Check URL params for callback status
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const connected = params.get('composio_connected');
-    const error = params.get('composio_error');
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const connected = params.get('composio_connected');
+      const error = params.get('composio_error');
 
-    if (connected === 'true') {
-      // Clean URL params first — no page reload needed since we're already on the target page
-      toast({
-        title: 'Google conectado!',
-        description: 'Sua conta Google foi conectada com sucesso.',
-      });
-      const url = new URL(window.location.href);
-      url.searchParams.delete('composio_connected');
-      url.searchParams.delete('return_to');
-      window.history.replaceState({}, '', url.toString());
-      sessionStorage.removeItem('composio_return_to');
-      // Re-check connection status now that OAuth has completed
-      checkConnectionStatus();
-      onConnected?.();
-    } else if (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro na conexão',
-        description: error,
-      });
-      setState({ status: 'FAILED', loading: false, error });
-      onError?.(error);
-      // Clean URL
-      const url = new URL(window.location.href);
-      url.searchParams.delete('composio_error');
-      url.searchParams.delete('return_to');
-      window.history.replaceState({}, '', url.toString());
+      if (connected === 'true') {
+        // Clean URL params first — no page reload needed since we're already on the target page
+        toast({
+          title: 'Google conectado!',
+          description: 'Sua conta Google foi conectada com sucesso.',
+        });
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('composio_connected');
+          url.searchParams.delete('return_to');
+          window.history.replaceState({}, '', url.toString());
+        } catch {
+          // URL parsing failed, but connection was successful
+        }
+        sessionStorage.removeItem('composio_return_to');
+        // Re-check connection status now that OAuth has completed
+        checkConnectionStatus();
+        onConnected?.();
+      } else if (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro na conexão',
+          description: error,
+        });
+        setState({ status: 'FAILED', loading: false, error });
+        onError?.(error);
+        // Clean URL
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('composio_error');
+          url.searchParams.delete('return_to');
+          window.history.replaceState({}, '', url.toString());
+        } catch {
+          // URL parsing failed, but cleanup is best-effort
+        }
+      }
+    } catch {
+      console.error('[ComposioConnection] Error parsing URL params');
     }
   }, []);
 

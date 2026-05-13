@@ -1,0 +1,357 @@
+openapi: '3.0.3'
+info:
+  title: V-Lab Assistant API
+  description: |
+    API do Assistente de Contratos V-LAB — plataforma de gestão, análise e geração inteligente de contratos jurídicos.
+
+    **Nota:** A maior parte das operações do V-Lab é realizada via Firebase Firestore client-side (real-time). Esta API documenta apenas os endpoints REST server-side.
+
+    ## Autenticação
+    A maioria dos endpoints requer autenticação Firebase (JWT token no header `Authorization: Bearer <token>`).
+  version: '1.0.0'
+  contact:
+    name: V-LAB Team
+    url: https://github.com/edrodrigues/Product-Design-AI
+
+servers:
+  - url: https://vlab-assistant.vercel.app
+    description: Produção
+  - url: http://localhost:3000
+    description: Desenvolvimento
+
+tags:
+  - name: Feedback
+    description: Gestão de feedback dos usuários
+  - name: Sync
+    description: Sincronização de templates e FAQ
+  - name: Admin
+    description: Endpoints administrativos de teste
+  - name: Composio
+    description: Integração com Composio (Google Workspace)
+  - name: Storage
+    description: Upload e download via Cloudflare R2 (presigned URLs)
+  - name: Google Docs
+    description: Operações com Google Docs API
+
+paths:
+  /api/feedback:
+    post:
+      tags:
+        - Feedback
+      summary: Submeter feedback
+      description: Registra um novo feedback do usuário autenticado.
+      operationId: submitFeedback
+      security:
+        - FirebaseAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackInput'
+            example:
+              type: feature
+              message: Seria útil ter export em batch de múltiplos contratos
+              rating: 4
+              page: /gerar-exportar
+      responses:
+        '200':
+          description: Feedback registrado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackResponse'
+              example:
+                success: true
+                feedbackId: fb_abc123
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags:
+        - Feedback
+      summary: Listar feedbacks (admin)
+      description: Lista todos os feedbacks submetidos. Requer privilégios de admin.
+      operationId: listFeedback
+      security:
+        - FirebaseAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [bug, feature, improvement, other]
+          description: Filtrar por tipo de feedback
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, reviewed, resolved]
+          description: Filtrar por status
+      responses:
+        '200':
+          description: Lista de feedbacks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  feedbacks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Feedback'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/cron/sync-templates:
+    get:
+      tags:
+        - Sync
+      summary: Sincronizar templates com Google Docs
+      description: |
+        Itera sobre todos os templates do tipo `google_doc`, verifica metadados no Google Docs e atualiza `lastSyncedAt` no Firestore.
+        **Protegido por CRON_SECRET header.**
+      operationId: syncTemplates
+      security:
+        - CronSecret: []
+      responses:
+        '200':
+          description: Resultado da sincronização
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResult'
+              example:
+                synced: 15
+                failed: 2
+                errors:
+                  - 'Template tpl_456: Google Doc not found'
+                  - 'Template tpl_789: Permission denied'
+        '401':
+          description: CRON_SECRET inválido ou ausente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'Invalid or missing CRON_SECRET'
+
+  /api/cron/sync-faq-content:
+    get:
+      tags:
+        - Sync
+      summary: Sincronizar conteúdo FAQ
+      description: |
+        Parseia e indexa conteúdo FAQ para a base de conhecimento do Google AI File Search (usado pelo ALEX chatbot).
+        **Protegido por CRON_SECRET header.**
+      operationId: syncFaqContent
+      security:
+        - CronSecret: []
+      responses:
+        '200':
+          description: Resultado da sincronização FAQ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResult'
+              example:
+                synced: 42
+                failed: 0
+                errors: []
+        '401':
+          description: CRON_SECRET inválido ou ausente
+
+  /api/admin/test-sync:
+    get:
+      tags:
+        - Admin
+      summary: Testar sync de templates
+      description: Executa manualmente o sync de templates para validação.
+      operationId: testSync
+      security:
+        - CronSecret: []
+      responses:
+        '200':
+          description: Resultado do teste de sync
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResult'
+        '401':
+          description: Não autorizado
+
+  /api/admin/test-faq-sync:
+    get:
+      tags:
+        - Admin
+      summary: Testar sync de FAQ
+      description: Executa manualmente o sync de FAQ para validação.
+      operationId: testFaqSync
+      security:
+        - CronSecret: []
+      responses:
+        '200':
+          description: Resultado do teste de sync FAQ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResult'
+        '401':
+          description: Não autorizado
+
+  /api/composio/callback:
+    get:
+      tags:
+        - Composio
+      summary: Callback OAuth Composio
+      description: Endpoint de callback para conexão OAuth com Composio (Google Workspace integration).
+      operationId: composioCallback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Código de autorização OAuth
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Estado da conexão (userId)
+      responses:
+        '302':
+          description: Redirect para página de sucesso/erro
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL de redirect após callback
+        '400':
+          description: Parâmetros inválidos
+
+components:
+  securitySchemes:
+    FirebaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Firebase ID Token do usuário autenticado
+    CronSecret:
+      type: apiKey
+      in: header
+      name: x-cron-secret
+      description: Valor da variável de ambiente CRON_SECRET
+
+  schemas:
+    FeedbackInput:
+      type: object
+      required:
+        - type
+        - message
+      properties:
+        type:
+          type: string
+          enum: [bug, feature, improvement, other]
+          description: Tipo do feedback
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Mensagem do feedback
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Rating opcional (1-5)
+        page:
+          type: string
+          description: Página onde o feedback foi dado
+
+    Feedback:
+      type: object
+      properties:
+        id:
+          type: string
+          example: fb_abc123
+        userId:
+          type: string
+          example: usr_xyz789
+        userEmail:
+          type: string
+          format: email
+          example: user@example.com
+        type:
+          type: string
+          enum: [bug, feature, improvement, other]
+        message:
+          type: string
+          example: Seria útil ter export em batch
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 4
+        page:
+          type: string
+          example: /gerar-exportar
+        status:
+          type: string
+          enum: [pending, reviewed, resolved]
+          default: pending
+        createdAt:
+          type: string
+          format: date-time
+        response:
+          type: string
+          nullable: true
+          description: Resposta do admin
+
+    FeedbackResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        feedbackId:
+          type: string
+
+    SyncResult:
+      type: object
+      properties:
+        synced:
+          type: integer
+          description: Número de itens sincronizados com sucesso
+        failed:
+          type: integer
+          description: Número de itens que falharam
+        errors:
+          type: array
+          items:
+            type: string
+          description: Lista de mensagens de erro
+
+  responses:
+    Unauthorized:
+      description: Não autorizado — token ausente ou inválido
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: 'Unauthorized'
+    InternalServerError:
+      description: Erro interno do servidor
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: 'Internal server error'

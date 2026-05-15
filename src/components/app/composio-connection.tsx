@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/dialog';
 import type { ConnectionStatus } from '@/lib/composio-types';
 import { checkComposioConnectionStatus, initiateComposioConnection } from '@/lib/actions/composio-connection-actions';
-import { generateRequestId } from '@/lib/utils/request-id';
 
 interface ComposioConnectionState {
   status: ConnectionStatus;
@@ -117,16 +116,16 @@ export function ComposioConnection({
   });
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  const cancelledRef = useRef(false);
+
   useEffect(() => {
-    let cancelled = false;
+    cancelledRef.current = false;
     if (!user) {
       setState({ status: 'INACTIVE', loading: false, error: null });
       return;
     }
-    checkConnectionStatus().then(() => {
-      if (cancelled) return;
-    });
-    return () => { cancelled = true; };
+    checkConnectionStatus();
+    return () => { cancelledRef.current = true; };
   }, [user]);
 
   const lastOpenSignal = useRef(openSignal ?? 0);
@@ -144,8 +143,10 @@ export function ComposioConnection({
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const result = await checkComposioConnectionStatus(user.uid);
+      if (cancelledRef.current) return;
       setState({ status: result.status, loading: false, error: null });
     } catch (error) {
+      if (cancelledRef.current) return;
       const errorMsg = error instanceof Error ? error.message : 'Erro ao verificar conexão';
       console.error(`[ComposioConnection] Error checking connection for user ${user.uid}:`, error);
       setState({ status: 'FAILED', loading: false, error: errorMsg });
@@ -184,7 +185,8 @@ export function ComposioConnection({
 
       // Store current path to return to after OAuth
       sessionStorage.setItem('composio_return_to', returnTo);
-      // Redirect to Composio OAuth
+      // Redirect to Composio OAuth — navigation will unmount the component,
+      // so no need to reset loading state here.
       window.location.href = result.redirectUrl;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Erro ao iniciar conexão';
@@ -196,8 +198,6 @@ export function ComposioConnection({
         description: errorMsg,
       });
       onError?.(errorMsg);
-    } finally {
-      setState((prev) => ({ ...prev, loading: false }));
     }
   }
 

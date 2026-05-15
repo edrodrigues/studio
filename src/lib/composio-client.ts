@@ -227,6 +227,7 @@ export async function createComposioClient(
       return 'FAILED';
     } catch (error) {
       debugError(requestId, 'ComposioClient', 'getConnectionStatus error', error, { userId });
+      console.error('[Composio] getConnectionStatus error:', error, { userId });
       return 'FAILED';
     }
   }

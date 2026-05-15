@@ -242,7 +242,11 @@ export default function ProjectsDashboardPage() {
 
   const sortedProjects = useMemo(() => {
     if (!projects) return null;
-    return [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    return [...projects].sort((a, b) => {
+      const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return dateB - dateA;
+    });
   }, [projects]);
 
   const handleArchive = (projectId: string) => {

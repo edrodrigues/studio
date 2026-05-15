@@ -18,6 +18,7 @@ import { getValidMimeType } from './mime-type-utils';
 import { prepareContractData as prepareContractDataUtil } from './entity-extraction';
 import { validateTemplateLinksForPersistence } from './template-link-validation.server';
 import { z } from 'zod';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const fileSchema = z.string().refine(s => s.startsWith('data:'), {
   message: 'File must be a data URI',
@@ -831,8 +832,8 @@ export async function handleUpdateTemplateLink(input: {
     if (projectDocLink) {
       updateData.projectDocLink = projectDocLink;
     } else {
-      // Se não houver link, remove o campo
-      updateData.projectDocLink = undefined;
+      // Se não houver link, remove o campo do Firestore
+      (updateData as Record<string, unknown>).projectDocLink = FieldValue.delete();
     }
 
     if (projectId) {

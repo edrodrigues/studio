@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { FileText, Clock, CircleDollarSign, Loader2 } from 'lucide-react';
 
-import { cn, fileToDataURI } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { type UploadedFile } from '@/lib/types';
 import { FileUploader } from '@/components/app/file-uploader';
@@ -14,16 +14,19 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
+import { useAuthContext } from '@/context/auth-context';
+import { useFirebase } from '@/firebase/provider';
 
 const FeedbackModal = dynamic(() => import('@/components/app/feedback-modal').then(mod => mod.FeedbackModal), { ssr: false });
 const ConsistencyAnalysisModal = dynamic(() => import('@/components/app/consistency-analysis-modal').then(mod => mod.ConsistencyAnalysisModal), { ssr: false });
-const EntitiesPreviewModal = dynamic(() => import('@/components/app/entities-preview-modal').then(mod => mod.EntitiesPreviewModal), { ssr: false });
 import useLocalStorage from '@/hooks/use-local-storage';
 import { ClearEntitiesButton } from '@/components/app/clear-entities-button';
 
 
 export default function DocumentosIniciaisPage() {
   const router = useRouter();
+  const { user } = useAuthContext();
+  const { firestore } = useFirebase();
   const [files, setFiles] = useState<{ [key: string]: File | null }>({
     planOfWork: null,
     termOfExecution: null,
@@ -35,8 +38,6 @@ export default function DocumentosIniciaisPage() {
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackFiles, setFeedbackFiles] = useState<UploadedFile[]>([]);
   const [isConsistencyModalOpen, setIsConsistencyModalOpen] = useState(false);
-  const [isEntitiesModalOpen, setIsEntitiesModalOpen] = useState(false);
-  const [extractedEntities, setExtractedEntities] = useState<string>('');
   const [, setStoredEntities] = useLocalStorage<any>('extractedEntities', null);
 
   const { toast } = useToast();
@@ -61,43 +62,18 @@ export default function DocumentosIniciaisPage() {
 
   const handleSubmit = async () => {
     if (!hasAtLeastOneFile) return;
+    if (!user) {
+      toast({ variant: 'destructive', title: 'Erro', description: 'Usuário não autenticado.' });
+      return;
+    }
 
     startTransition(async () => {
       try {
-        // In a real application, we would first upload the files to storage (Firebase/R2)
-        // and get their document IDs. For this implementation step, we'll simulate or
-        // use a placeholder to trigger the sync logic.
-        
-        const projectId = "default-project"; // Should be dynamic
-        const userId = "current-user"; // Should be dynamic
-
         toast({
-          title: 'Iniciando sincronização...',
-          description: 'Seus documentos estão sendo preparados para o File Search.',
+          title: 'Funcionalidade indisponível',
+          description: 'O upload de documentos iniciais será implementado em breve. Use a página Documentos do projeto para enviar arquivos.',
         });
-
-        const result = await handleSyncToFileSearch({
-          projectId,
-          userId,
-          documentIds: ["placeholder-id"] // This would be the actual IDs after storage upload
-        });
-
-        if (result.success) {
-          toast({
-            title: 'Sincronização Concluída!',
-            description: 'Os documentos agora estão disponíveis como contexto para o ALEX.',
-          });
-          
-          // Advance to "Gerar Documentos" with contract type context
-          const queryParams = new URLSearchParams();
-          if (contractType) queryParams.set('contractType', contractType);
-          if (processType) queryParams.set('processType', processType);
-          if (projectId) queryParams.set('projectId', projectId);
-
-          router.push(`/gerar-exportar?${queryParams.toString()}`);
-        } else {
-          throw new Error(result.error || 'Falha na sincronização.');
-        }
+        return;
       } catch (error) {
         console.error(error);
         toast({
@@ -250,11 +226,6 @@ export default function DocumentosIniciaisPage() {
         files={Object.entries(files)
           .filter(([, file]) => file !== null)
           .map(([key, file]) => ({ id: key, file: file! }))}
-      />
-      <EntitiesPreviewModal
-        isOpen={isEntitiesModalOpen}
-        onOpenChange={setIsEntitiesModalOpen}
-        jsonContent={extractedEntities}
       />
     </>
   );

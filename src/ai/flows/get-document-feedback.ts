@@ -45,7 +45,7 @@ export async function getDocumentFeedback(
 const getDocumentFeedbackPrompt = ai.definePrompt({
   name: 'getDocumentFeedbackPrompt',
   input: { schema: GetDocumentFeedbackInputSchema },
-  output: { schema: GetDocumentFeedbackOutputSchema },
+  output: { format: 'json', schema: GetDocumentFeedbackOutputSchema },
   config: {
     maxOutputTokens: 8192,
     temperature: 0.5,

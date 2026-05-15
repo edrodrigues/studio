@@ -58,7 +58,13 @@ const extractTemplateFlow = ai.defineFlow(
     outputSchema: ExtractTemplateFromDocumentOutputSchema,
   },
   async input => {
+    if (!input.documentContent?.trim()) {
+      throw new Error('O conteúdo do documento é obrigatório.');
+    }
     const {output} = await extractTemplatePrompt(input);
-    return output!;
+    if (!output) {
+      throw new Error('Nenhum template foi gerado pela IA.');
+    }
+    return output;
   }
 );

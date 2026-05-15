@@ -138,7 +138,7 @@ Revise o contrato abaixo e identifique sugestões de melhoria.
 ## DIRETRIZES DE REVISÃO
 
 1. **LEGAL CORRECTNESS**: Verifique se cláusulas legais estão corretas e completas
-   - Cláusulas obrigatória: objeto, prazo, valor, partes, signatures
+    - Cláusulas obrigatórias: objeto, prazo, valor, partes, signatures
    - Conformidade com lei 14.133/21 (Nova Lei de Licitações) se aplicável
 
 2. **COMPLETENESS**: Verifique se todos os campos/palavras-chave estão preenchidos
@@ -150,7 +150,7 @@ Revise o contrato abaixo e identifique sugestões de melhoria.
    - Datas de início/fim vs prazo
    - Partes listadas vs assinaturas
 
-4. **CLARITY**: Verifique se a linguagem é clara e滴水不漏
+4. **CLARITY**: Verifique se a linguagem é clara e precisa
 
 5. **FORMAT**: Verifique formatação e estrutura
 
@@ -160,7 +160,7 @@ Revise o contrato abaixo e identifique sugestões de melhoria.
 - **suggestion**: Melhoria recomendada para clareza ou conformidade
 - **optional**: Polish ou formatação
 
-- Seja conservatism — só sugira mudanças se realmente necessárias
+- Seja conservador — só sugira mudanças se realmente necessárias
 - Preserve o estilo legal original
 - Sugira texto concreto, não vague orientações
 
@@ -259,10 +259,13 @@ async function reviewContractFlow(
       contentLength: documentContent.length,
     });
 
+    const truncatedContent = documentContent.slice(0, 30000);
+    const wasTruncated = documentContent.length > 30000;
+
     const llmResponse = await reviewContractPrompt({
-      documentContent: documentContent.slice(0, 30000), // limit to first 30k chars
+      documentContent: truncatedContent,
       documentName: documentName || 'Documento sem nome',
-      context: context || 'Não fornecido',
+      context: `${context || 'Não fornecido'}${wasTruncated ? '\n\n⚠️ ATENÇÃO: Este contrato foi truncado após 30.000 caracteres devido ao limite do modelo. A revisão pode não cobrir todas as cláusulas.' : ''}`,
       reviewFocus: reviewFocusMap[reviewFocus] || reviewFocusMap.all,
       contractType: contractType || 'Não especificado',
     });

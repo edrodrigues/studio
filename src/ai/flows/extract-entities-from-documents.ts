@@ -132,7 +132,7 @@ const extractEntitiesFlow = ai.defineFlow(
 
     if (output.extractedJson.schema?.properties) {
       Object.entries(output.extractedJson.schema.properties).forEach(([key, value]) => {
-        const cleanKey = key.replace(/[<>{} ]/g, ' ').trim().replace(/\s+/g, ' ');
+        const cleanKey = key.replace(/[<>{} ]/g, ' ').trim().replace(/\s+/g, ' ').toUpperCase();
         if (cleanKey) {
           sanitizedProperties[cleanKey] = value;
         }

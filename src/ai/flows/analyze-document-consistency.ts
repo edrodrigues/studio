@@ -55,7 +55,7 @@ export async function analyzeDocumentConsistency(
 const analyzeDocumentConsistencyPrompt = ai.definePrompt({
     name: 'analyzeDocumentConsistencyPrompt',
     input: { schema: AnalyzeDocumentConsistencyInputSchema },
-    output: { schema: AnalyzeDocumentConsistencyOutputSchema },
+    output: { format: 'json', schema: AnalyzeDocumentConsistencyOutputSchema },
     config: {
         maxOutputTokens: 8192,
         temperature: 0.5,

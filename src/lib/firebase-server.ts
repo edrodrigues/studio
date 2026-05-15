@@ -2,7 +2,7 @@ import '@/env-setup';
 import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { join } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 
 function getFirebaseAdminApp(): App {
     const existingApp = getApps().find(app => app.name === '[DEFAULT]');
@@ -29,10 +29,11 @@ function getFirebaseAdminApp(): App {
         ? join(process.cwd(), process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH)
         : join(process.cwd(), './google-service-account.json');
     
-    // Check if service account file exists before requiring it
+    // Check if service account file exists before reading it
     if (serviceAccountPath && existsSync(serviceAccountPath)) {
         try {
-            const serviceAccount = require(serviceAccountPath);
+            const fileContent = readFileSync(serviceAccountPath, 'utf-8');
+            const serviceAccount = JSON.parse(fileContent);
             return initializeApp({
                 credential: cert(serviceAccount),
                 projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || serviceAccount.project_id,

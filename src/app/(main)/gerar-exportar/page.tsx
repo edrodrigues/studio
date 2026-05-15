@@ -197,7 +197,15 @@ function GerarExportarContent() {
   const projectIdFromUrl = searchParams.get("projectId");
   const contractTypeFilter = searchParams.get("contractType");
   const processTypeFilter = searchParams.get("processType");
-  const currentProjectId = projectIdFromUrl?.trim() || "default-project";
+  const currentProjectId = projectIdFromUrl?.trim() || null;
+
+  if (!currentProjectId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <p className="text-lg text-muted-foreground">Selecione um projeto para gerar contratos.</p>
+      </div>
+    );
+  }
 
   const [isGenerating, startGeneration] = useTransition();
   const [activeTab, setActiveTab] = useState("gerar");
@@ -512,7 +520,7 @@ function GerarExportarContent() {
             entityCount: Object.keys(confirmedPlaceholders).length, generationMethod: result.aiEnriched ? "ai-enriched" : "google-docs", templateName: templatePreparation.templateName, extractionDate: generatedAt,
             templateSource: result.resolvedSource, fallbackUsed: result.fallbackUsed,
           });
-          if (currentProjectId && currentProjectId !== "default-project") {
+          if (currentProjectId) {
             await updateDoc(doc(firestore, "projects", currentProjectId), { contractCount: increment(1), updatedAt: generatedAt });
           }
           successCount++;
@@ -545,7 +553,7 @@ function GerarExportarContent() {
       const contractData = contractDoc.exists() ? contractDoc.data() as Contract : null;
       await deleteDoc(contractRef);
       if (contractData?.projectContractId) await deleteDoc(doc(firestore, "projectContracts", contractData.projectContractId));
-      if (contractData?.projectId && contractData.projectId !== "default-project") {
+      if (contractData?.projectId) {
         await updateDoc(doc(firestore, "projects", contractData.projectId), { contractCount: increment(-1), updatedAt: new Date().toISOString() });
       }
       toast({ title: "Documento excluído." });
@@ -555,11 +563,28 @@ function GerarExportarContent() {
     }
   };
 
-  const handleExportSelected = () => {
-    sortedContracts.filter((contract) => selectedContracts.includes(contract.id)).forEach((contract) => {
-      if (contract.markdownContent) exportToDocx(contract.markdownContent, contract.name.replace(/\s/g, "_"));
-    });
-    toast({ title: "Exportação iniciada!" });
+  const handleExportSelected = async () => {
+    const selected = sortedContracts.filter((contract) => selectedContracts.includes(contract.id));
+    let exportedCount = 0;
+    let errorCount = 0;
+
+    for (const contract of selected) {
+      if (!contract.markdownContent) continue;
+      try {
+        await exportToDocx(contract.markdownContent, contract.name.replace(/\s/g, "_"));
+        exportedCount++;
+      } catch (error) {
+        console.error(`Erro ao exportar "${contract.name}":`, error);
+        errorCount++;
+      }
+    }
+
+    if (exportedCount > 0) {
+      toast({ title: "Exportação concluída!", description: `${exportedCount} documento(s) exportado(s).` });
+    }
+    if (errorCount > 0) {
+      toast({ variant: "destructive", title: "Erro na exportação", description: `${errorCount} documento(s) falharam ao exportar.` });
+    }
   };
 
   return (

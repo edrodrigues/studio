@@ -11,7 +11,6 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { googleAI } from '@genkit-ai/google-genai';
 
 const GetAssistanceFromGeminiInputSchema = z.object({
   query: z.string().describe('The question to ask Gemini about the contract.'),
@@ -34,7 +33,7 @@ export async function getAssistanceFromGemini(input: GetAssistanceFromGeminiInpu
 const getAssistanceFromGeminiPrompt = ai.definePrompt({
   name: 'getAssistanceFromGeminiPrompt',
   input: { schema: GetAssistanceFromGeminiInputSchema },
-  output: { schema: GetAssistanceFromGeminiOutputSchema },
+  output: { format: 'json', schema: GetAssistanceFromGeminiOutputSchema },
   model: 'googleai/gemini-3-flash-preview',
   prompt: `Você é um assistente de contratos especializado em contratos administrativos de cooperação entre o V-Lab e a UFPE.
 

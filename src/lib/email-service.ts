@@ -7,6 +7,19 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import type { Firestore } from 'firebase/firestore';
 
 // ============================================================================
+// HELPERS
+// ============================================================================
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// ============================================================================
 // EMAIL QUEUE
 // ============================================================================
 
@@ -105,14 +118,14 @@ Assistente de Contratos V-Lab`,
           
           <p>Olá!</p>
           
-          <p><strong>${invitedByName}</strong> convidou você para colaborar no projeto <strong>"${projectName}"</strong> no Assistente de Contratos V-Lab.</p>
+          <p><strong>${escapeHtml(invitedByName)}</strong> convidou você para colaborar no projeto <strong>"${escapeHtml(projectName)}"</strong> no Assistente de Contratos V-Lab.</p>
           
           <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <p style="margin: 0;"><strong>Sua permissão:</strong> ${roleText}</p>
+            <p style="margin: 0;"><strong>Sua permissão:</strong> ${escapeHtml(roleText)}</p>
           </div>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${inviteLink}" 
+            <a href="${escapeHtml(inviteLink)}" 
                style="background: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
               Aceitar Convite
             </a>
@@ -120,7 +133,7 @@ Assistente de Contratos V-Lab`,
           
           <p style="color: #666; font-size: 14px;">
             Ou copie e cole este link no seu navegador:<br>
-            <a href="${inviteLink}" style="color: #007bff;">${inviteLink}</a>
+            <a href="${escapeHtml(inviteLink)}" style="color: #007bff;">${escapeHtml(inviteLink)}</a>
           </p>
           
           <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
@@ -189,14 +202,14 @@ Assistente de Contratos V-Lab`,
           
           <p>Olá!</p>
           
-          <p><strong>${changedByName}</strong> atualizou sua permissão no projeto <strong>"${projectName}"</strong>.</p>
+          <p><strong>${escapeHtml(changedByName)}</strong> atualizou sua permissão no projeto <strong>"${escapeHtml(projectName)}"</strong>.</p>
           
           <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <p style="margin: 0;"><strong>Sua nova permissão:</strong> ${roleText}</p>
+            <p style="margin: 0;"><strong>Sua nova permissão:</strong> ${escapeHtml(roleText)}</p>
           </div>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${projectLink}" 
+            <a href="${escapeHtml(projectLink)}" 
                style="background: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
               Acessar Projeto
             </a>
@@ -247,10 +260,10 @@ Assistente de Contratos V-Lab`,
           
           <p>Olá!</p>
           
-          <p><strong>${actorName}</strong> ${activityDescription} no projeto <strong>"${projectName}"</strong>.</p>
+          <p><strong>${escapeHtml(actorName)}</strong> ${escapeHtml(activityDescription)} no projeto <strong>"${escapeHtml(projectName)}"</strong>.</p>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${projectLink}" 
+            <a href="${escapeHtml(projectLink)}" 
                style="background: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
               Ver Atividade
             </a>

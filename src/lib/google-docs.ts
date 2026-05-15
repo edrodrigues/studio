@@ -48,14 +48,24 @@ function mapGoogleDocsError(error: any, documentId: string): Error {
 function isLikelyHtmlTag(token: string): boolean {
     const normalizedToken = token.replace(/[<>{}\[\]]/g, '').trim().toUpperCase();
     const blockedTokens = new Set([
-        'P', 'BR', 'STRONG', 'EM', 'U', 'UL', 'OL', 'LI', 'DIV', 'SPAN',
+        'BR', 'STRONG', 'EM', 'U', 'UL', 'OL', 'LI', 'DIV', 'SPAN',
         'TABLE', 'TR', 'TD', 'TH', 'THEAD', 'TBODY',
         'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HR',
-        'A', 'IMG', 'IFRAME', 'SCRIPT', 'STYLE', 'LINK', 'META', 'HEAD', 'BODY', 'HTML'
+        'IMG', 'IFRAME', 'SCRIPT', 'STYLE', 'LINK', 'META', 'HEAD', 'BODY', 'HTML'
     ]);
 
     const firstWord = normalizedToken.split(/\s+/)[0];
-    return !normalizedToken || normalizedToken.startsWith('/') || blockedTokens.has(firstWord);
+
+    if (!firstWord || firstWord.startsWith('/')) return true;
+
+    if (blockedTokens.has(firstWord)) return true;
+
+    if (firstWord.length <= 2) {
+        const shortHtmlTags = new Set(['A', 'P', 'B', 'I', 'Q', 'S', 'SUP', 'SUB', 'PRE', 'CODE', 'KBD', 'VAR', 'SAMP', 'ABBR', 'CITE', 'DFN', 'TIME', 'DATA', 'WBR', 'RUBY', 'RT', 'RP', 'BDI', 'BDO']);
+        if (shortHtmlTags.has(firstWord)) return true;
+    }
+
+    return false;
 }
 
 export function extractPlaceholderDefinitionsFromText(content: string): TemplatePlaceholderDefinition[] {

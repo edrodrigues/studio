@@ -128,6 +128,6 @@ export async function shareFile(
         });
     } catch (error: any) {
         console.error('Error sharing Google Drive file:', error);
-        throw error;
+        throw mapGoogleDriveError(error, fileId);
     }
 }

@@ -194,7 +194,7 @@ export default function ModelosPage() {
         if (selectedTemplateId && templates && !editingTemplate?.isNew) {
             const templateToEdit = templates.find(t => t.id === selectedTemplateId);
             if (templateToEdit) {
-                setEditingTemplate(JSON.parse(JSON.stringify(templateToEdit))); // Deep copy
+                setEditingTemplate(structuredClone(templateToEdit));
             }
         }
     }, [selectedTemplateId, templates, editingTemplate?.isNew]);
@@ -202,7 +202,7 @@ export default function ModelosPage() {
 
     const startEditing = useCallback((template: Template) => {
         setSelectedTemplateId(template.id);
-        setEditingTemplate(JSON.parse(JSON.stringify(template)));
+        setEditingTemplate(structuredClone(template));
     }, []);
 
     const handleNewTemplate = useCallback(() => {

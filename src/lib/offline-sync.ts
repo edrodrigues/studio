@@ -44,6 +44,7 @@ interface ConflictData {
 
 const DB_NAME = 'assistente-contratos-offline';
 const DB_VERSION = 1;
+const MAX_RETRY_COUNT = 5;
 
 let dbPromise: ReturnType<typeof openDB> | null = null;
 
@@ -271,11 +272,23 @@ export class SyncEngine {
     let failed = 0;
 
     try {
+      if (!navigator.onLine) {
+        console.log('Sync skipped: device is offline');
+        return { success: 0, failed: 0 };
+      }
+
       const actions = await getPendingActions();
       
       for (const action of actions) {
         if (this.abortController.signal.aborted) {
           break;
+        }
+
+        if (action.retryCount >= MAX_RETRY_COUNT) {
+          console.warn(`Action ${action.id} exceeded max retry count (${MAX_RETRY_COUNT}), removing`);
+          await removePendingAction(action.id);
+          failed++;
+          continue;
         }
 
         try {

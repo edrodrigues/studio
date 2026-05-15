@@ -1,7 +1,7 @@
-import { getFileMetadata } from "./google-drive";
 import { type TemplateLinkValidationEntry, type TemplateLinkValidationState } from "./types";
 import { GOOGLE_DOCS_MIME_TYPE } from "./template-link-validation";
 import { auditTemplateLinks, getTemplateSourceFieldLabel, type TemplateSourceField } from "./template-source";
+import { createComposioClient } from "./composio-client";
 
 export interface ValidateTemplateLinksInput {
   googleDocLink?: string;
@@ -83,7 +83,8 @@ async function validateSingleTemplateLink(
   }
 
   try {
-    const metadata = await getFileMetadata(userId, audit.fileId);
+    const client = await createComposioClient(userId);
+    const metadata = await client.getFileMetadata(audit.fileId);
 
     if (metadata.mimeType !== GOOGLE_DOCS_MIME_TYPE) {
       return {

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getFileMetadata } = vi.hoisted(() => ({
-  getFileMetadata: vi.fn(),
+const { mockCreateComposioClient, mockGetFileMetadata } = vi.hoisted(() => ({
+  mockCreateComposioClient: vi.fn(),
+  mockGetFileMetadata: vi.fn(),
 }));
 
-vi.mock("./google-drive", () => ({
-  getFileMetadata,
+vi.mock("./composio-client", () => ({
+  createComposioClient: mockCreateComposioClient,
 }));
 
 import { validateTemplateLinksForPersistence } from "./template-link-validation.server";
@@ -13,10 +14,13 @@ import { validateTemplateLinksForPersistence } from "./template-link-validation.
 describe("validateTemplateLinksForPersistence", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCreateComposioClient.mockResolvedValue({
+      getFileMetadata: mockGetFileMetadata,
+    });
   });
 
   it("accepts a native Google Docs original link", async () => {
-    getFileMetadata.mockResolvedValue({
+    mockGetFileMetadata.mockResolvedValue({
       id: "1nativeDocId123456",
       name: "Modelo Base",
       mimeType: "application/vnd.google-apps.document",
@@ -38,7 +42,7 @@ describe("validateTemplateLinksForPersistence", () => {
   });
 
   it("blocks save when a populated link points to a DOCX file", async () => {
-    getFileMetadata.mockResolvedValue({
+    mockGetFileMetadata.mockResolvedValue({
       id: "1wordDocId123456",
       name: "Declaracao.docx",
       mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -59,7 +63,7 @@ describe("validateTemplateLinksForPersistence", () => {
   });
 
   it("allows save with warning when one link is inaccessible but another is valid", async () => {
-    getFileMetadata.mockImplementation(async (_token: string, fileId: string) => {
+    mockGetFileMetadata.mockImplementation(async (fileId: string) => {
       if (fileId === "1originalId123456") {
         throw new Error("PERMISSION_DENIED: forbidden");
       }
@@ -88,7 +92,7 @@ describe("validateTemplateLinksForPersistence", () => {
   });
 
   it("blocks save when no accessible native Google Docs remain", async () => {
-    getFileMetadata.mockRejectedValue(new Error("PERMISSION_DENIED: forbidden"));
+    mockGetFileMetadata.mockRejectedValue(new Error("PERMISSION_DENIED: forbidden"));
 
     const result = await validateTemplateLinksForPersistence("token", {
       googleDocLink: "https://docs.google.com/document/d/1originalId123456/edit",

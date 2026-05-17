@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // MOCK DEPENDENCIES — must be defined with vi.hoisted before vi.mock
 // ============================================================
 
-const { mockGoogleGenAI, mockChatsCreate, mockSendMessage, mockSessionTools, mockExecuteToolCall, mockComposioCreate, mockGenerateContent } = vi.hoisted(() => {
+const { mockGoogleGenAI, mockChatsCreate, mockSendMessage, mockSessionTools, mockExecuteToolCall, mockComposioConstructor, mockComposioCreate, mockGenerateContent } = vi.hoisted(() => {
   const mockSendMessage = vi.fn();
   const mockChatsCreate = vi.fn(() => ({
     sendMessage: mockSendMessage,
@@ -12,14 +12,15 @@ const { mockGoogleGenAI, mockChatsCreate, mockSendMessage, mockSessionTools, moc
   const mockSessionTools = vi.fn();
   const mockExecuteToolCall = vi.fn();
   const mockSession = { tools: mockSessionTools };
-  const mockComposioInstance = {
-    provider: {
-      executeToolCall: mockExecuteToolCall,
-    },
-    create: vi.fn().mockResolvedValue(mockSession),
-  };
-  const mockComposioCreate = vi.fn().mockImplementation(function() {
-    return mockComposioInstance;
+  const mockComposioCreate = vi.fn().mockResolvedValue(mockSession);
+  // Composio constructor returns instance with create() and provider
+  const mockComposioConstructor = vi.fn().mockImplementation(function() {
+    return {
+      create: mockComposioCreate,
+      provider: {
+        executeToolCall: mockExecuteToolCall,
+      },
+    };
   });
   const mockGenerateContent = vi.fn().mockResolvedValue({ text: 'Default response' });
   const mockGoogleGenAI = vi.fn().mockImplementation(function() {
@@ -35,6 +36,7 @@ const { mockGoogleGenAI, mockChatsCreate, mockSendMessage, mockSessionTools, moc
     mockSendMessage,
     mockSessionTools,
     mockExecuteToolCall,
+    mockComposioConstructor,
     mockComposioCreate,
     mockGenerateContent,
   };
@@ -45,7 +47,7 @@ vi.mock('@google/genai', () => ({
 }));
 
 vi.mock('@composio/core', () => ({
-  Composio: mockComposioCreate,
+  Composio: mockComposioConstructor,
 }));
 
 vi.mock('@composio/google', () => ({
@@ -55,7 +57,7 @@ vi.mock('@composio/google', () => ({
 // Import after mocks are set up
 import { inferWithGemini, runComposioAgent } from './composio-gemini';
 
-describe('composio-gemini', () => {
+describe('composio-gemini (v3 session-based)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
@@ -105,6 +107,22 @@ describe('composio-gemini', () => {
   });
 
   describe('runComposioAgent', () => {
+    it('creates a new Composio instance per request (v3 pattern)', async () => {
+      mockSendMessage.mockResolvedValue({
+        text: 'Response',
+        functionCalls: undefined,
+      });
+
+      await runComposioAgent(
+        { userId: 'user-123' },
+        'Simple question'
+      );
+
+      // v3: new Composio() called per request, not singleton
+      expect(mockComposioConstructor).toHaveBeenCalledTimes(1);
+      expect(mockComposioCreate).toHaveBeenCalledWith('user-123');
+    });
+
     it('runs an agentic loop with Composio tools', async () => {
       // First response: Gemini requests tool calls
       mockSendMessage
@@ -130,6 +148,8 @@ describe('composio-gemini', () => {
         },
       ]);
 
+      mockExecuteToolCall.mockResolvedValue(JSON.stringify({ content: 'Document content' }));
+
       const result = await runComposioAgent(
         {
           userId: 'user-123',
@@ -140,8 +160,12 @@ describe('composio-gemini', () => {
       );
 
       expect(result.response).toBe('Agent response text');
-      expect(result.iterations).toBe(1); // 1 tool execution iteration
+      expect(result.iterations).toBe(1);
       expect(result.toolsUsed).toContain('GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT');
+      expect(mockExecuteToolCall).toHaveBeenCalledWith('user-123', {
+        name: 'GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT',
+        args: { document_id: 'doc123' },
+      });
     });
 
     it('uses default system prompt when none provided', async () => {
@@ -175,7 +199,6 @@ describe('composio-gemini', () => {
     });
 
     it('respects maxIterations limit', async () => {
-      // Always return function calls (infinite loop simulation)
       mockSendMessage.mockResolvedValue({
         functionCalls: [
           {
@@ -186,13 +209,15 @@ describe('composio-gemini', () => {
         ],
       });
 
+      mockExecuteToolCall.mockResolvedValue('{}');
+
       const result = await runComposioAgent(
         { userId: 'user-123', maxIterations: 3 },
         'Complex task'
       );
 
       expect(result.iterations).toBeLessThanOrEqual(3);
-      expect(result.response).toBe(''); // No text response due to max iterations
+      expect(result.response).toBe('');
     });
   });
 });

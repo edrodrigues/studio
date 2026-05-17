@@ -3,8 +3,10 @@
 /**
  * Composio + Google GenAI Integration Service
  *
- * Uses the CORRECT Composio pattern (per docs):
- * - composio.create(user_id) → session.tools()
+ * Uses the CORRECT Composio v3 pattern (per docs):
+ * - composio.create(user_id) → session per request
+ * - session.tools() → tools in Gemini function calling format
+ * - composio.provider.executeToolCall() → execute tool calls in agentic loop
  * - Native @google/genai client (not Genkit)
  * - Agentic loop: Gemini → tool calls → execute → re-prompt → text
  *
@@ -14,12 +16,6 @@
 import { Composio } from '@composio/core';
 import { GoogleProvider } from '@composio/google';
 import { GoogleGenAI, type Part } from '@google/genai';
-
-// Initialize Composio with Google provider
-const composio = new Composio({
-  apiKey: process.env.COMPOSIO_API_KEY,
-  provider: new GoogleProvider(),
-});
 
 // Initialize Google GenAI client
 const ai = new GoogleGenAI({
@@ -38,7 +34,7 @@ export async function inferWithGemini<T = Record<string, unknown>>(
   prompt: string,
   outputSchema?: object
 ): Promise<T> {
-  const model = 'gemini-2.0-flash'; // Stable, widely supported model
+  const model = 'gemini-2.0-flash';
 
   if (outputSchema) {
     const response = await ai.models.generateContent({
@@ -61,7 +57,7 @@ export async function inferWithGemini<T = Record<string, unknown>>(
 }
 
 // ============================================================
-// AGENTIC LOOP (correct Composio pattern)
+// AGENTIC LOOP (v3 Composio pattern)
 // ============================================================
 
 export interface AgentLoopConfig {
@@ -78,11 +74,11 @@ export interface AgentLoopResult {
 
 /**
  * Runs an agentic loop where Gemini decides which Composio tools to call.
- * Uses the correct Composio pattern from docs:
- * 1. composio.create(userId) → get session
- * 2. session.tools() → get tools in Gemini format
- * 3. Pass tools to Gemini chat
- * 4. Loop: Gemini → tool calls → execute → re-prompt → text
+ * Uses the correct v3 Composio pattern from docs:
+ * 1. new Composio({ provider }) → create base instance per request
+ * 2. composio.create(userId) → session for this user
+ * 3. session.tools() → get tools in Gemini format
+ * 4. Loop: Gemini → tool calls → composio.provider.executeToolCall() → re-prompt → text
  */
 export async function runComposioAgent(
   config: AgentLoopConfig,
@@ -97,13 +93,19 @@ export async function runComposioAgent(
   let iterations = 0;
 
   try {
-    // Step 1: Create Composio session for this user
+    // Step 1: Create Composio base instance with Google provider (per request)
+    const composio = new Composio({
+      apiKey: process.env.COMPOSIO_API_KEY,
+      provider: new GoogleProvider(),
+    });
+
+    // Step 2: Create session for this user (v3 pattern)
     const session = await composio.create(userId);
 
-    // Step 2: Get tools in Gemini function calling format
+    // Step 3: Get tools in Gemini function calling format
     const tools = await session.tools();
 
-    // Step 3: Create chat with tools
+    // Step 4: Create chat with tools
     const chat = ai.chats.create({
       model: 'gemini-2.0-flash',
       config: {
@@ -112,12 +114,12 @@ export async function runComposioAgent(
       },
     });
 
-    // Step 4: Initial message
+    // Step 5: Initial message
     let response = await chat.sendMessage({
       message: userMessage,
     });
 
-    // Step 5: Agentic loop - execute tool calls until text response
+    // Step 6: Agentic loop — execute tool calls until text response
     while (response.functionCalls && response.functionCalls.length > 0 && iterations < maxIterations) {
       iterations++;
 
@@ -129,7 +131,7 @@ export async function runComposioAgent(
 
         console.info('[Composio Agent] Executing tool:', toolName, fc.args);
 
-        // Execute the tool call via Composio provider
+        // Execute the tool call via Composio provider (documented pattern for agentic loops)
         const result = await composio.provider.executeToolCall(userId, {
           name: toolName,
           args: (fc.args || {}) as Record<string, unknown>,
@@ -155,7 +157,7 @@ export async function runComposioAgent(
     return {
       response: response.text || '',
       iterations,
-      toolsUsed: [...new Set(toolsUsed)], // Deduplicate
+      toolsUsed: [...new Set(toolsUsed)],
     };
   } catch (error) {
     console.error('[Composio Agent] Error:', error);

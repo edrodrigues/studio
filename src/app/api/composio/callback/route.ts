@@ -6,7 +6,7 @@
  * Success: /api/composio/callback?status=success&connectedAccountId=xxx&appName=xxx
  * Error:   /api/composio/callback?status=error&error=xxx&error_description=xxx
  *
- * The callbackUrl we pass to composio.connectedAccounts.initiate() is the
+ * The callbackUrl we pass to session.authorize("google") is the
  * final destination AFTER Composio processes the OAuth callback internally.
  * This route simply stores the result and redirects the user back to the app.
  */
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   // Handle success
   if (status === 'success' || connectedAccountId) {
     console.info('[ComposioCallback] OAuth success', { connectedAccountId });
-    // Connection status is verified on-demand via composio.connectedAccounts.list()
+    // Connection status is verified on-demand via session.toolkits()
     redirectUrl.searchParams.set('composio_connected', 'true');
     return NextResponse.redirect(redirectUrl.toString());
   }

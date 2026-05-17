@@ -27,7 +27,7 @@ export class ConnectionCheckError extends Error {
 
 export interface ComposioClientConfig {
   apiKey?: string;
-  /** Composio authConfigId for Google integration (from Composio dashboard) */
+  /** Optional: custom auth config ID for white-label OAuth (Composio managed auth is used by default) */
   googleAuthConfigId?: string;
   /** Callback URL for OAuth flow */
   callbackUrl?: string;
@@ -52,48 +52,95 @@ export interface ComposioClient {
 }
 
 // ============================================================
-// COMPOSIO CLIENT IMPLEMENTATION
+// SESSION MANAGEMENT (Composio v3 pattern)
 // ============================================================
 
+// Composio base instance — singleton apenas para o cliente raiz
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const globalForComposio = globalThis as typeof globalThis & {
-  __composioInstance?: Composio<any>;
+  __composioBase?: Composio<any>;
 };
 
-// Module-level cache for connected account IDs, shared across all client instances
-// Key: userId, Value: { id, expiresAt }
-const connectedAccountIdCache = new Map<string, { id: string | undefined; expiresAt: number }>();
-
-function clearConnectedAccountIdCache(userId: string): void {
-  connectedAccountIdCache.delete(userId);
-}
-
-function getComposioInstance(apiKey?: string): Composio<any> {
-  if (!globalForComposio.__composioInstance) {
-    globalForComposio.__composioInstance = new Composio({
-      apiKey: apiKey || process.env.COMPOSIO_API_KEY,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getComposioBase(): Composio<any> {
+  if (!globalForComposio.__composioBase) {
+    globalForComposio.__composioBase = new Composio({
+      apiKey: process.env.COMPOSIO_API_KEY,
       provider: new GoogleProvider(),
     });
   }
-  return globalForComposio.__composioInstance;
+  return globalForComposio.__composioBase;
+}
+
+// Cache de sessões por userId — reuso via composio.use(sessionId)
+// Key: userId, Value: { sessionId, expiresAt }
+const sessionCache = new Map<string, { sessionId: string; expiresAt: number }>();
+
+/**
+ * Creates or reuses a Composio session for a user.
+ * Follows v3 pattern: composio.create(userId) → session
+ * For subsequent requests, uses composio.use(sessionId) for reuse.
+ */
+async function getOrCreateSession(userId: string): Promise<any> {
+  const composio = getComposioBase();
+  const cached = sessionCache.get(userId);
+
+  if (cached && cached.expiresAt > Date.now()) {
+    try {
+      return await composio.use(cached.sessionId);
+    } catch {
+      // Session may have expired on server, fall through to create
+    }
+  }
+
+  const session = await composio.create(userId);
+  if (session.sessionId) {
+    sessionCache.set(userId, { sessionId: session.sessionId, expiresAt: Date.now() + 3600000 });
+  }
+  return session;
 }
 
 /**
+ * Clears the session cache for a user, forcing a new session on next request.
+ */
+function clearSessionCache(userId: string): void {
+  sessionCache.delete(userId);
+}
+
+/**
+ * Clears ALL session caches. Exported for testing only.
+ */
+export function __clearAllSessionCachesForTesting(): void {
+  sessionCache.clear();
+  if (globalForComposio.__composioBase) {
+    delete globalForComposio.__composioBase;
+  }
+}
+
+// ============================================================
+// TOOL EXECUTION
+// ============================================================
+
+/**
  * Executes a Composio tool and returns the result.
- * Uses composio.tools.execute() — the correct v0.6.x API for direct tool execution.
+ *
+ * NOTE: The v3 docs discourage direct tool execution via composio.tools.execute().
+ * However, for deterministic operations (document generation, file copies, etc.)
+ * where we know exactly which tool to call, this remains the practical approach.
+ * The agentic pattern (session.tools() → LLM) is used in composio-gemini.ts.
  */
 async function executeTool(
-  composio: Composio,
+  session: any,
   toolSlug: string,
   params: Record<string, unknown>,
   userId: string,
-  connectedAccountId?: string,
   requestId?: string
 ): Promise<unknown> {
   const reqId = requestId || generateRequestId();
   try {
-    debugLog(reqId, 'ComposioTool', 'Executing tool', { toolSlug, userId, connectedAccountId, params: Object.keys(params) });
+    debugLog(reqId, 'ComposioTool', 'Executing tool', { toolSlug, userId, params: Object.keys(params) });
+    const composio = getComposioBase();
     const result = await composio.tools.execute(toolSlug, {
-      connectedAccountId,
       arguments: params,
       userId,
       version: 'latest',
@@ -101,124 +148,52 @@ async function executeTool(
     debugLog(reqId, 'ComposioTool', 'Tool executed successfully', { toolSlug });
     return result;
   } catch (error) {
-    debugError(reqId, 'ComposioTool', `Tool execution failed: ${toolSlug}`, error, { userId, connectedAccountId });
+    debugError(reqId, 'ComposioTool', `Tool execution failed: ${toolSlug}`, error, { userId });
     throw mapComposioError(error, toolSlug);
   }
 }
 
+// ============================================================
+// COMPOSIO CLIENT FACTORY
+// ============================================================
+
 /**
- * Creates a Composio client for Google Docs/Drive operations
- * Returns an adapter that mirrors google-docs.ts and google-drive.ts signatures
+ * Creates a Composio client for Google Docs/Drive operations.
+ * Returns an adapter that mirrors google-docs.ts and google-drive.ts signatures.
  *
- * Composio SDK v0.6.x API:
- * - composio.connectedAccounts.initiate(userId, authConfigId, options) → starts OAuth
- * - composio.connectedAccounts.list({ userIds: [userId] }) → lists connected accounts
- * - composio.tools.execute(slug, body, modifiers) → executes a tool
+ * Uses Composio v3 session-based architecture:
+ * - getOrCreateSession(userId) → session per user
+ * - session.authorize("google") → OAuth Connect Link
+ * - session.toolkits() → connection status
  */
 export async function createComposioClient(
   userId: string,
   config: ComposioClientConfig = {}
 ): Promise<ComposioClient> {
-  const composio = getComposioInstance(config.apiKey);
   const requestId = generateRequestId();
 
-  debugLog(requestId, 'ComposioClient', 'Client created', { userId, hasApiKey: !!config.apiKey, hasAuthConfigId: !!config.googleAuthConfigId });
+  debugLog(requestId, 'ComposioClient', 'Client created', { userId, hasApiKey: !!config.apiKey });
 
-  // Helper to get connected account for this user
-  async function getConnectedAccountId(): Promise<string | undefined> {
-    const cached = connectedAccountIdCache.get(userId);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.id;
-    }
-
-    const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
-
-    // Prefer authConfigId-based lookup (most precise)
-    if (authConfigId) {
-      try {
-        const accounts = await composio.connectedAccounts.list({ userIds: [userId] });
-        const matched = accounts?.items?.find(
-          (a: { authConfig?: { id?: string }; id?: string }) =>
-            a.authConfig?.id === authConfigId
-        );
-        if (matched?.id) {
-          console.info('[Composio] getConnectedAccountId: found account via authConfigId:', matched.id);
-          connectedAccountIdCache.set(userId, { id: matched.id, expiresAt: Date.now() + 300000 });
-          return matched.id;
-        }
-        console.warn('[Composio] getConnectedAccountId: authConfigId provided but no match found.', {
-          authConfigId,
-          availableAccounts: accounts?.items?.map((a: { id?: string; authConfig?: { id?: string }; toolkit?: { slug?: string } }) => ({
-            id: a.id,
-            authConfigId: a.authConfig?.id,
-            toolkitSlug: a.toolkit?.slug,
-          })),
-        });
-      } catch (error) {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        console.error('[Composio] getConnectedAccountId error during authConfigId lookup:', error);
-        throw new ConnectionCheckError(
-          `Falha ao verificar conexão com Google via Composio: ${errMsg}`,
-          error
-        );
-      }
-    }
-
-    // Fallback: filter by toolkit slug/name match for Google
+  // Helper to get connection status via session.toolkits()
+  async function getToolkitStatus(): Promise<ConnectionStatus> {
     try {
-      const accounts = await composio.connectedAccounts.list({ userIds: [userId] });
-      const googleAccounts = accounts?.items?.filter(
-        (a: { toolkit?: { slug?: string; name?: string } }) =>
-          a.toolkit?.slug?.toLowerCase() === 'google' ||
-          a.toolkit?.slug?.toLowerCase() === 'googleworkspace' ||
-          a.toolkit?.name?.toLowerCase() === 'google' ||
-          a.toolkit?.name?.toLowerCase() === 'google workspace'
+      const session = await getOrCreateSession(userId);
+      const toolkits = await session.toolkits();
+      const googleToolkit = toolkits?.find(
+        (t: { slug?: string; name?: string; status?: string }) =>
+          t.slug?.toLowerCase() === 'google' ||
+          t.slug?.toLowerCase() === 'googleworkspace' ||
+          t.name?.toLowerCase() === 'google' ||
+          t.name?.toLowerCase() === 'google workspace'
       );
-      if (googleAccounts && googleAccounts.length > 0) {
-        console.info('[Composio] getConnectedAccountId: found account via toolkit fallback:', googleAccounts[0].id);
-        connectedAccountIdCache.set(userId, { id: googleAccounts[0].id, expiresAt: Date.now() + 300000 });
-        return googleAccounts[0].id;
-      }
-      console.warn('[Composio] getConnectedAccountId: no Google accounts found.', {
-        userId,
-        availableAccounts: accounts?.items?.map((a: { id?: string; toolkit?: { slug?: string; name?: string } }) => ({
-          id: a.id,
-          slug: a.toolkit?.slug,
-          name: a.toolkit?.name,
-        })),
-      });
-      connectedAccountIdCache.set(userId, { id: undefined, expiresAt: Date.now() + 30000 });
-      return undefined;
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Composio] getConnectedAccountId error during fallback lookup:', error);
-      throw new ConnectionCheckError(
-        `Falha ao verificar conexão com Google via Composio: ${errMsg}`,
-        error
-      );
-    }
-  }
 
-  /** Standalone helper to check connection status, used by both getConnectionStatus and checkConnection */
-  async function getConnectionStatusHelper(userId: string): Promise<ConnectionStatus> {
-    try {
-      const accountId = await getConnectedAccountId();
-      if (!accountId) {
-        debugLog(requestId, 'ComposioClient', 'getConnectionStatus: no connected account found', { userId });
+      if (!googleToolkit) {
+        debugLog(requestId, 'ComposioClient', 'getToolkitStatus: no Google toolkit found', { userId });
         return 'INACTIVE';
       }
 
-      const accounts = await composio.connectedAccounts.list({ userIds: [userId] });
-      const items = accounts?.items ?? accounts;
-      const googleAccount = items?.find((a: { id?: string }) => a.id === accountId);
-
-      if (!googleAccount) {
-        console.warn('[Composio] getConnectionStatus: cached accountId not found in fresh list', { userId, accountId });
-        return 'FAILED';
-      }
-
-      const status = googleAccount.status;
-      debugLog(requestId, 'ComposioClient', 'getConnectionStatus', { userId, accountId, status });
+      const status = googleToolkit.status;
+      debugLog(requestId, 'ComposioClient', 'getToolkitStatus', { userId, status });
       if (status === 'ACTIVE') return 'ACTIVE';
       if (status === 'INITIALIZING') return 'INITIALIZING';
       if (status === 'INITIATED') return 'INITIATED';
@@ -226,8 +201,7 @@ export async function createComposioClient(
       if (status === 'INACTIVE') return 'INACTIVE';
       return 'FAILED';
     } catch (error) {
-      debugError(requestId, 'ComposioClient', 'getConnectionStatus error', error, { userId });
-      console.error('[Composio] getConnectionStatus error:', error, { userId });
+      debugError(requestId, 'ComposioClient', 'getToolkitStatus error', error, { userId });
       return 'FAILED';
     }
   }
@@ -240,24 +214,18 @@ export async function createComposioClient(
     async getDocumentContent(documentId: string): Promise<string> {
       try {
         debugLog(requestId, 'ComposioClient', 'getDocumentContent', { documentId, userId });
-        const connectedAccountId = await getConnectedAccountId();
-        if (!connectedAccountId) {
-          debugError(requestId, 'ComposioClient', 'No connected account for getDocumentContent', new Error('No connected account'), { documentId, userId });
-          throw new Error('Nenhuma conta Google conectada. Conecte sua conta nas configurações.');
-        }
+        const session = await getOrCreateSession(userId);
         const result = await executeWithRetry(
           () => executeTool(
-            composio,
+            session,
             COMPOSIO_GOOGLE_TOOLS.DOCS_GET_DOCUMENT,
             { document_id: documentId },
             userId,
-            connectedAccountId,
             requestId
           ),
           `getDocumentContent(${documentId})`,
           requestId
         );
-        // GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT returns plain text directly
         const text = typeof result === 'string' ? result : (result as any)?.data ?? result;
         const content = typeof text === 'string' ? text : JSON.stringify(text);
         debugLog(requestId, 'ComposioClient', 'getDocumentContent success', { documentId, contentLength: content.length });
@@ -269,8 +237,6 @@ export async function createComposioClient(
     },
 
     async getDocumentPlaceholders(documentId: string): Promise<TemplatePlaceholderDefinition[]> {
-      // GAP: No Composio tool for placeholder extraction
-      // Use local implementation (same as google-docs.ts)
       debugLog(requestId, 'ComposioClient', 'getDocumentPlaceholders', { documentId, userId });
       const self = this as ComposioClient;
       const content = await self.getDocumentContent(documentId);
@@ -282,26 +248,19 @@ export async function createComposioClient(
     async batchUpdateDocument(documentId: string, requests: any[]): Promise<void> {
       try {
         debugLog(requestId, 'ComposioClient', 'batchUpdateDocument', { documentId, requestCount: requests.length, userId });
-        const connectedAccountId = await getConnectedAccountId();
-        if (!connectedAccountId) {
-          debugError(requestId, 'ComposioClient', 'No connected account for batchUpdateDocument', new Error('No connected account'), { documentId, userId });
-          throw new Error('Nenhuma conta Google conectada. Conecte sua conta nas configurações.');
-        }
-        // Convert native Google Docs API requests to Composio format
-        // Handles both containsText and containingText input formats
+        const session = await getOrCreateSession(userId);
         const composioRequests = convertBatchRequestsToComposio(requests);
 
         if (composioRequests.length > 0) {
           await executeWithRetry(
             () => executeTool(
-              composio,
+              session,
               COMPOSIO_GOOGLE_TOOLS.DOCS_UPDATE_DOCUMENT,
               {
                 document_id: documentId,
                 requests: composioRequests
               },
               userId,
-              connectedAccountId,
               requestId
             ),
             `batchUpdateDocument(${documentId})`,
@@ -322,24 +281,18 @@ export async function createComposioClient(
     async getFileMetadata(fileId: string): Promise<ComposioFileMetadata> {
       try {
         debugLog(requestId, 'ComposioClient', 'getFileMetadata', { fileId, userId });
-        const connectedAccountId = await getConnectedAccountId();
-        if (!connectedAccountId) {
-          debugError(requestId, 'ComposioClient', 'No connected account for getFileMetadata', new Error('No connected account'), { fileId, userId });
-          throw new Error('Nenhuma conta Google conectada.');
-        }
+        const session = await getOrCreateSession(userId);
         const result = await executeWithRetry(
           () => executeTool(
-            composio,
+            session,
             COMPOSIO_GOOGLE_TOOLS.DRIVE_GET_FILE,
             { file_id: fileId },
             userId,
-            connectedAccountId,
             requestId
           ),
           `getFileMetadata(${fileId})`,
           requestId
         );
-        // GOOGLEDRIVE_GET_FILE_V2 returns data directly or in data field
         const data = (result as { data?: Record<string, unknown> })?.data ?? (result as Record<string, unknown>);
         const metadata = {
           id: (data.id as string) || fileId,
@@ -357,23 +310,17 @@ export async function createComposioClient(
     async copyFile(fileId: string, newName: string): Promise<string> {
       try {
         debugLog(requestId, 'ComposioClient', 'copyFile', { fileId, newName, userId });
-        const connectedAccountId = await getConnectedAccountId();
-        if (!connectedAccountId) {
-          debugError(requestId, 'ComposioClient', 'No connected account for copyFile', new Error('No connected account'), { fileId, userId });
-          throw new Error('Nenhuma conta Google conectada.');
-        }
+        const session = await getOrCreateSession(userId);
         const result = await executeWithRetry(
           () => executeTool(
-            composio,
+            session,
             COMPOSIO_GOOGLE_TOOLS.DRIVE_COPY_FILE,
             {
               file_id: fileId,
               name: newName,
-              // GOOGLEDRIVE_COPY_FILE_ADVANCED may support additional options
               copy_title: newName,
             },
             userId,
-            connectedAccountId,
             requestId
           ),
           `copyFile(${fileId}, ${newName})`,
@@ -396,20 +343,15 @@ export async function createComposioClient(
     ): Promise<ComposioShareResult> {
       try {
         debugLog(requestId, 'ComposioClient', 'shareFile', { fileId, email, role, userId });
-        const connectedAccountId = await getConnectedAccountId();
-        if (!connectedAccountId) {
-          debugError(requestId, 'ComposioClient', 'No connected account for shareFile', new Error('No connected account'), { fileId, userId });
-          throw new Error('Nenhuma conta Google conectada.');
-        }
+        const session = await getOrCreateSession(userId);
         const result = await executeWithRetry(
           () => executeTool(
-            composio,
+            session,
             COMPOSIO_GOOGLE_TOOLS.DRIVE_CREATE_PERMISSION,
             {
               file_id: fileId,
               email,
               role,
-              // GOOGLEDRIVE_CREATE_PERMISSION may expect specific parameter names
               permission: {
                 type: 'user',
                 role,
@@ -417,7 +359,6 @@ export async function createComposioClient(
               }
             },
             userId,
-            connectedAccountId,
             requestId
           ),
           `shareFile(${fileId}, ${email})`,
@@ -441,17 +382,10 @@ export async function createComposioClient(
     // ------------------------------------------------
 
     async getConnectionStatus(userId: string): Promise<ConnectionStatus> {
-      return getConnectionStatusHelper(userId);
+      return getToolkitStatus();
     },
 
     async initiateConnection(userId: string, returnTo?: string): Promise<string> {
-      const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
-      if (!authConfigId) {
-        const errMsg = 'COMPOSIO_GOOGLE_AUTH_CONFIG_ID not set. ' +
-          'Create a Composio integration at https://app.composio.dev and set this env var.';
-        debugError(requestId, 'ComposioClient', 'initiateConnection: missing authConfigId', new Error(errMsg), { userId });
-        throw new Error(errMsg);
-      }
       const callbackUrl = new URL(
         config.callbackUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/composio/callback`
       );
@@ -464,12 +398,26 @@ export async function createComposioClient(
       }
 
       try {
-        debugLog(requestId, 'ComposioClient', 'initiateConnection', { userId, returnTo, authConfigId });
-        const connectionRequest = await composio.connectedAccounts.initiate(
-          userId,
-          authConfigId,
-          { callbackUrl: callbackUrl.toString(), allowMultiple: true }
-        );
+        debugLog(requestId, 'ComposioClient', 'initiateConnection', { userId, returnTo });
+
+        // v3 pattern: session.authorize("google") → Connect Link
+        const session = await getOrCreateSession(userId);
+        const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+
+        let connectionRequest;
+        if (authConfigId) {
+          // Custom auth config for white-label OAuth
+          connectionRequest = await session.authorize("google", {
+            callbackUrl: callbackUrl.toString(),
+            authConfigId,
+          });
+        } else {
+          // Default: Composio managed auth
+          connectionRequest = await session.authorize("google", {
+            callbackUrl: callbackUrl.toString(),
+          });
+        }
+
         const redirectUrl = connectionRequest?.redirectUrl;
         if (!redirectUrl) {
           throw new Error('Composio did not return a redirect URL for OAuth.');
@@ -485,7 +433,7 @@ export async function createComposioClient(
 
     async checkConnection(userId: string): Promise<{ connected: boolean; status: ConnectionStatus }> {
       debugLog(requestId, 'ComposioClient', 'checkConnection', { userId });
-      const status = await getConnectionStatusHelper(userId);
+      const status = await getToolkitStatus();
       const result = {
         connected: status === 'ACTIVE',
         status,
@@ -496,7 +444,7 @@ export async function createComposioClient(
 
     clearConnectedAccountIdCache(userId: string): void {
       debugLog(requestId, 'ComposioClient', 'clearConnectedAccountIdCache', { userId });
-      clearConnectedAccountIdCache(userId);
+      clearSessionCache(userId);
     },
   };
 }
@@ -555,8 +503,6 @@ function convertBatchRequestsToComposio(requests: any[]): any[] {
         },
       });
     } else {
-      // Pass through unknown request types — Composio may support them,
-      // and if not, it's better to let it fail explicitly than drop silently
       composioRequests.push(req);
       droppedCount++;
     }
@@ -573,11 +519,6 @@ function convertBatchRequestsToComposio(requests: any[]): any[] {
 // RETRY LOGIC FOR RATE LIMITS
 // ============================================================
 
-/**
- * Executes a function with retry logic for rate limit errors (HTTP 429).
- * Uses exponential backoff: 100ms, 200ms, 400ms between retries.
- * Max 3 retries total.
- */
 async function executeWithRetry<T>(
   fn: () => Promise<T>,
   context: string,
@@ -618,16 +559,6 @@ async function executeWithRetry<T>(
 // RETRY WITH AUTH REFRESH FOR 401 ERRORS
 // ============================================================
 
-/**
- * Executes a function with retry logic that also handles auth errors (401/expired tokens).
- * If a rate limit error occurs, retries with exponential backoff.
- * If an auth error occurs (401), clears the connection cache once and retries.
- * @param fn - The function to execute
- * @param context - Description for logging
- * @param userId - User ID for cache invalidation
- * @param requestId - Request ID for logging
- * @param retries - Number of retries remaining
- */
 async function executeWithRetryAndAuthRefresh<T>(
   fn: () => Promise<T>,
   context: string,
@@ -649,24 +580,19 @@ async function executeWithRetryAndAuthRefresh<T>(
         userId,
       });
 
-      // Invalidate connection cache to force fresh auth check
-      const client = await createComposioClient(userId);
-      client.clearConnectedAccountIdCache(userId);
-
-      // Small delay before retry
+      clearSessionCache(userId);
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       return executeWithRetryAndAuthRefresh(fn, context, userId, requestId, retries - 1);
     }
 
-    // Check for rate limit
     const isRateLimit =
       (error instanceof Error && error.message?.includes('429')) ||
       (error as any)?.status === 429 ||
       (error as any)?.code === 'rateLimitExceeded';
 
     if (isRateLimit && retries > 0) {
-      const delay = 200 * (3 - retries); // 200ms, 400ms, 800ms
+      const delay = 200 * (3 - retries);
       debugLog(requestId, 'ComposioAuthRetry', `Rate limit hit, retrying in ${delay}ms`, { context });
       await new Promise((resolve) => setTimeout(resolve, delay));
       return executeWithRetryAndAuthRefresh(fn, context, userId, requestId, retries - 1);

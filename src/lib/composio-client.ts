@@ -63,9 +63,15 @@ const globalForComposio = globalThis as typeof globalThis & {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getComposioBase(): Composio<any> {
+  const apiKey = process.env.COMPOSIO_API_KEY;
+  if (!apiKey) {
+    console.error('[Composio] COMPOSIO_API_KEY is not set — all API calls will fail');
+    throw new Error('Composio API key is not configured. Set COMPOSIO_API_KEY environment variable.');
+  }
+
   if (!globalForComposio.__composioBase) {
     globalForComposio.__composioBase = new Composio({
-      apiKey: process.env.COMPOSIO_API_KEY,
+      apiKey,
       provider: new GoogleProvider(),
     });
   }
@@ -98,14 +104,51 @@ async function getOrCreateSession(userId: string, authConfigId?: string): Promis
     }
   }
 
-  const createOptions = authConfigId
-    ? {
-        authConfigs: {
-          googledocs: authConfigId,
-          // googledrive uses Composio managed auth (shares same Google OAuth consent)
-        },
-      }
-    : undefined;
+  const effectiveAuthConfigId = authConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+  if (!authConfigId && !process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID) {
+    console.warn('[Composio] COMPOSIO_GOOGLE_AUTH_CONFIG_ID not set — using hardcoded fallback');
+  }
+
+  const effectiveConnectedAccountId = process.env.COMPOSIO_GOOGLE_CONNECTED_ACCOUNT_ID || 'ca_aj67cMI66mzi';
+
+  const createOptions = {
+    toolkits: ['googledocs', 'googledrive'],
+    tools: {
+      googledocs: {
+        enable: [
+          'GOOGLEDOCS_COPY_DOCUMENT',
+          'GOOGLEDOCS_CREATE_DOCUMENT',
+          'GOOGLEDOCS_CREATE_DOCUMENT_MARKDOWN',
+          'GOOGLEDOCS_CREATE_DOCUMENT2',
+          'GOOGLEDOCS_CREATE_FOOTER',
+          'GOOGLEDOCS_CREATE_FOOTNOTE',
+          'GOOGLEDOCS_CREATE_HEADER',
+          'GOOGLEDOCS_SEARCH_DOCUMENTS',
+          'GOOGLEDOCS_UPDATE_EXISTING_DOCUMENT',
+          'GOOGLEDOCS_REPLACE_ALL_TEXT',
+          'GOOGLEDOCS_GET_DOCUMENT_BY_ID',
+          'GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT',
+        ],
+      },
+      googledrive: {
+        enable: [
+          'GOOGLEDRIVE_GET_FILE_V2',
+          'GOOGLEDRIVE_COPY_FILE_ADVANCED',
+          'GOOGLEDRIVE_CREATE_PERMISSION',
+        ],
+      },
+    },
+    authConfigs: {
+      googledocs: effectiveAuthConfigId || 'ac_hhBpnP-HVtg0',
+    },
+    connectedAccounts: {
+      googledocs: effectiveConnectedAccountId,
+      googledrive: effectiveConnectedAccountId,
+    },
+    manageConnections: {
+      waitForConnections: true,
+    },
+  };
 
   const session = await composio.create(userId, createOptions);
   if (session.sessionId) {
@@ -245,21 +288,40 @@ export async function createComposioClient(
     }
   }
 
-  // Wrapper with timeout to prevent indefinite hanging
-  async function getToolkitStatusWithTimeout(timeoutMs: number = 10000): Promise<ConnectionStatus> {
-    const timeoutPromise = new Promise<ConnectionStatus>((_, reject) =>
-      setTimeout(() => reject(new Error(`Connection check timed out after ${timeoutMs}ms`)), timeoutMs)
-    );
+  // Wrapper with timeout and retry to prevent indefinite hanging and handle transient network errors
+  async function getToolkitStatusWithTimeout(timeoutMs: number = 10000, maxRetries: number = 2): Promise<ConnectionStatus> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const timeoutPromise = new Promise<ConnectionStatus>((_, reject) =>
+        setTimeout(() => reject(new Error(`Connection check timed out after ${timeoutMs}ms`)), timeoutMs)
+      );
 
-    try {
-      return await Promise.race([getToolkitStatus(), timeoutPromise]);
-    } catch (error) {
-      debugError(requestId, 'ComposioClient', 'getToolkitStatusWithTimeout error', error, { userId });
-      return 'FAILED';
+      try {
+        return await Promise.race([getToolkitStatus(), timeoutPromise]);
+      } catch (error) {
+        const isNetworkError = error instanceof Error && (
+          error.message.includes('fetch') ||
+          error.message.includes('connect') ||
+          error.message.includes('refused') ||
+          error.message.includes('network') ||
+          error.message.includes('ECONNREFUSED')
+        );
+
+        if (isNetworkError && attempt < maxRetries) {
+          const delay = 1000 * (attempt + 1);
+          debugError(requestId, 'ComposioClient', `Network error, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`, error, { userId });
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
+        debugError(requestId, 'ComposioClient', 'getToolkitStatusWithTimeout error', error, { userId });
+        return 'FAILED';
+      }
     }
+
+    return 'FAILED';
   }
 
-  const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+  const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID || 'ac_hhBpnP-HVtg0';
 
   return {
     // ------------------------------------------------

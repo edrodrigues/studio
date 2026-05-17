@@ -5,6 +5,8 @@ import {
     User,
     GoogleAuthProvider,
     signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     signOut as firebaseSignOut,
@@ -30,39 +32,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const router = useRouter();
     const { toast } = useToast();
 
-    // We use local loading state to handle the action (signin/signup) loading as well
-    // But primarily we rely on useFirebase for the initial check
     const [actionLoading, setActionLoading] = useState(false);
+
+    // Handle redirect result on mount
+    useEffect(() => {
+        if (!auth) return;
+        getRedirectResult(auth)
+            .then((result) => {
+                if (result?.user) {
+                    toast({
+                        title: "Login realizado com sucesso",
+                        description: "Bem-vindo de volta!",
+                    });
+                    router.push("/projects");
+                }
+            })
+            .catch((error: any) => {
+                console.error("Redirect result error", error);
+                let msg = "Não foi possível entrar com Google.";
+                const errorMessages: Record<string, string> = {
+                    'auth/network-request-failed': "Erro de conexão. Verifique sua internet e tente novamente.",
+                    'auth/unauthorized-domain': "Domínio não autorizado. Contate o suporte.",
+                };
+                msg = errorMessages[error.code] || msg;
+                toast({ variant: "destructive", title: "Erro no login", description: msg });
+            });
+    }, [auth]);
 
     const signInWithGoogle = async () => {
         if (!auth) return;
         setActionLoading(true);
         try {
             const provider = new GoogleAuthProvider();
-            const result = await signInWithPopup(auth, provider);
-
-            if (result.user) {
-                toast({
-                    title: "Login realizado com sucesso",
-                    description: "Bem-vindo de volta!",
-                });
-                router.push("/projects");
+            // Try popup first, fall back to redirect on failure
+            try {
+                const result = await signInWithPopup(auth, provider);
+                if (result.user) {
+                    toast({
+                        title: "Login realizado com sucesso",
+                        description: "Bem-vindo de volta!",
+                    });
+                    router.push("/projects");
+                }
+            } catch (popupError: any) {
+                // If popup fails (Chrome security, popup blocked, etc), use redirect
+                if (
+                    popupError.code === 'auth/popup-blocked' ||
+                    popupError.code === 'auth/cancelled-popup-request' ||
+                    popupError.code === 'auth/popup-closed-by-user' ||
+                    popupError.message?.includes('chrome-error') ||
+                    popupError.message?.includes('cross-origin')
+                ) {
+                    await signInWithRedirect(auth, provider);
+                    // Redirect will navigate away; result handled by getRedirectResult effect
+                } else {
+                    throw popupError;
+                }
             }
         } catch (error: any) {
             console.error("Google Signin Error", error);
             let msg = "Não foi possível entrar com Google.";
-
-            // Map Firebase Auth error codes to user-friendly messages
             const errorMessages: Record<string, string> = {
                 'auth/network-request-failed': "Erro de conexão. Verifique sua internet e tente novamente.",
-                'auth/popup-closed-by-user': "Login cancelado. Você fechou a janela de login.",
-                'auth/popup-blocked': "Pop-up bloqueado. Permitir pop-ups para este site.",
-                'auth/cancelled-popup-request': "Login cancelado.",
                 'auth/timeout': "Tempo de conexão esgotado. Tente novamente.",
             };
-
             msg = errorMessages[error.code] || msg;
-
             toast({
                 variant: "destructive",
                 title: "Erro no login",

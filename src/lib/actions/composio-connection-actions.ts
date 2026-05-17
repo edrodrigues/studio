@@ -31,8 +31,25 @@ export async function checkComposioConnectionStatus(
   const requestId = generateRequestId();
   debugLog(requestId, 'checkComposioConnectionStatus', 'Checking connection', { userId });
 
+  // Step 1: Clear cache (best-effort, never throws)
   try {
-    const client = await createComposioClient(userId);
+    clearSessionCache(userId);
+  } catch (cacheError) {
+    debugError(requestId, 'checkComposioConnectionStatus', 'Cache clear failed', cacheError);
+  }
+
+  // Step 2: Create client (can throw if COMPOSIO_API_KEY is missing)
+  let client;
+  try {
+    client = await createComposioClient(userId);
+  } catch (clientError) {
+    debugError(requestId, 'checkComposioConnectionStatus', 'Client creation failed', clientError, { userId });
+    console.error('[Composio] checkComposioConnectionStatus — client creation error:', clientError, { userId });
+    return { connected: false, status: 'FAILED' };
+  }
+
+  // Step 3: Check connection (can throw on network/API errors)
+  try {
     const result = await client.checkConnection(userId);
     debugLog(requestId, 'checkComposioConnectionStatus', 'Connection check result', {
       userId,
@@ -40,9 +57,9 @@ export async function checkComposioConnectionStatus(
       status: result.status,
     });
     return result;
-  } catch (error) {
-    debugError(requestId, 'checkComposioConnectionStatus', 'Connection check failed', error, { userId });
-    console.error('[Composio] checkComposioConnectionStatus error:', error, { userId });
+  } catch (checkError) {
+    debugError(requestId, 'checkComposioConnectionStatus', 'Connection check failed', checkError, { userId });
+    console.error('[Composio] checkComposioConnectionStatus error:', checkError, { userId });
     return { connected: false, status: 'FAILED' };
   }
 }
@@ -102,6 +119,8 @@ export async function pollComposioConnectionStatus(
       // If not last attempt, wait before retrying
       if (attempt < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, delayMs));
+      } else {
+        debugLog(requestId, 'pollComposioConnectionStatus', 'All attempts failed', { userId, maxAttempts });
       }
     }
   }
@@ -126,8 +145,19 @@ export async function initiateComposioConnection(
   const requestId = generateRequestId();
   debugLog(requestId, 'initiateComposioConnection', 'Initiating connection', { userId, returnTo });
 
+  // Step 1: Create client
+  let client;
   try {
-    const client = await createComposioClient(userId);
+    client = await createComposioClient(userId);
+  } catch (clientError) {
+    debugError(requestId, 'initiateComposioConnection', 'Client creation failed', clientError, { userId });
+    console.error('[Composio] initiateComposioConnection — client creation error:', clientError, { userId });
+    const errorMsg = clientError instanceof Error ? clientError.message : 'Falha ao iniciar conexão com Google. Tente novamente.';
+    return { error: errorMsg };
+  }
+
+  // Step 2: Initiate OAuth
+  try {
     const redirectUrl = await client.initiateConnection(userId, returnTo);
     debugLog(requestId, 'initiateComposioConnection', 'Connection initiated', { redirectUrl });
     return { redirectUrl };

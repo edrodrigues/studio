@@ -183,6 +183,13 @@ export async function createComposioClient(
       const session = await getOrCreateSession(userId);
       const toolkits = await session.toolkits();
       
+      // Debug: Log all available toolkits
+      debugLog(requestId, 'ComposioClient', 'getToolkitStatus: all toolkits', { 
+        userId, 
+        toolkitCount: toolkits?.length || 0,
+        toolkits: toolkits?.map((t: any) => ({ slug: t.slug, status: t.status }))
+      });
+      
       const requiredToolkits = ['GOOGLEDOCS', 'GOOGLEDRIVE'];
       const toolkitStatuses: ConnectionStatus[] = [];
 

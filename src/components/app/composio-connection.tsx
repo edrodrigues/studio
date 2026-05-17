@@ -13,7 +13,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import type { ConnectionStatus } from '@/lib/composio-types';
-import { checkComposioConnectionStatus, initiateComposioConnection, clearComposioSessionCache } from '@/lib/actions/composio-connection-actions';
+import { checkComposioConnectionStatus, initiateComposioConnection, clearComposioSessionCache, pollComposioConnectionStatus } from '@/lib/actions/composio-connection-actions';
 
 interface ComposioConnectionState {
   status: ConnectionStatus;
@@ -115,6 +115,11 @@ export function ComposioConnection({
     error: null,
   });
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [pollingState, setPollingState] = useState<{
+    isPolling: boolean;
+    progress: number;
+    maxAttempts: number;
+  }>({ isPolling: false, progress: 0, maxAttempts: 8 });
 
   const cancelledRef = useRef(false);
 
@@ -216,7 +221,7 @@ export function ComposioConnection({
           // Clean URL params first — no page reload needed since we're already on the target page
           toast({
             title: 'Google conectado!',
-            description: 'Sua conta Google foi conectada com sucesso.',
+            description: 'Verificando conexão com Google Docs e Google Drive...',
           });
           try {
             const url = new URL(window.location.href);
@@ -227,13 +232,31 @@ export function ComposioConnection({
             // URL parsing failed, but connection was successful
           }
           sessionStorage.removeItem('composio_return_to');
-          // Clear session cache to ensure fresh session sees the new OAuth connection
+          
+          // Use polling to check connection status with retry
           if (user) {
-            await clearComposioSessionCache(user.uid);
+            setPollingState({ isPolling: true, progress: 0, maxAttempts: 8 });
+            
+            const result = await pollComposioConnectionStatus(user.uid);
+            
+            setPollingState({ isPolling: false, progress: 0, maxAttempts: 8 });
+            
+            if (result.connected && result.status === 'ACTIVE') {
+              toast({
+                title: 'Google conectado com sucesso!',
+                description: `Conexão verificada em ${result.attempts} tentativa(s). Pronto para gerar contratos.`,
+              });
+              setState({ status: result.status, loading: false, error: null });
+              onConnected?.();
+            } else {
+              toast({
+                variant: 'destructive',
+                title: 'Conexão não verificada',
+                description: 'Não foi possível verificar a conexão. Tente clicar em "Atualizar status" ou reconecte.',
+              });
+              setState({ status: result.status, loading: false, error: null });
+            }
           }
-          // Re-check connection status now that OAuth has completed
-          checkConnectionStatus();
-          onConnected?.();
         } else if (error) {
           toast({
             variant: 'destructive',
@@ -260,11 +283,15 @@ export function ComposioConnection({
     handleCallback();
   }, []);
 
-  if (state.loading) {
+  if (state.loading || pollingState.isPolling) {
+    const pollingText = pollingState.isPolling 
+      ? 'Verificando conexão com Google...'
+      : 'Verificando conexão...';
+    
     return (
       <div className={`flex items-center gap-2 text-muted-foreground ${className}`}>
         <span className="animate-spin text-sm">⏳</span>
-        <span className="text-sm">Verificando conexão...</span>
+        <span className="text-sm">{pollingText}</span>
       </div>
     );
   }

@@ -72,7 +72,7 @@ describe('composio-client (v3 session-based)', () => {
       const client = await createComposioClient('user-1');
       await client.checkConnection('user-1');
 
-      expect(mockComposioCreate).toHaveBeenCalledWith('user-1');
+      expect(mockComposioCreate).toHaveBeenCalledWith('user-1', undefined);
     });
 
     it('reuses session via composio.use(sessionId) for same user', async () => {
@@ -186,7 +186,7 @@ describe('composio-client (v3 session-based)', () => {
       expect(result).toBe('https://connect.composio.dev/link/test');
     });
 
-    it('passes authConfigId when provided for custom auth', async () => {
+    it('passes authConfigId to composio.create() when provided for custom auth', async () => {
       mockSessionAuthorize.mockResolvedValue({
         redirectUrl: 'https://connect.composio.dev/link/custom',
       });
@@ -196,16 +196,22 @@ describe('composio-client (v3 session-based)', () => {
       });
       await client.initiateConnection('user-1');
 
-      // Both authorizations should include authConfigId
+      // authConfigId should be passed to composio.create() via authConfigs, not to authorize()
+      expect(mockComposioCreate).toHaveBeenCalledWith('user-1', {
+        authConfigs: {
+          googledocs: 'ac_custom_config',
+          googledrive: 'ac_custom_config',
+        },
+      });
+
+      // authorize() should only receive callbackUrl
       expect(mockSessionAuthorize).toHaveBeenCalledTimes(2);
-      expect(mockSessionAuthorize).toHaveBeenNthCalledWith(1, 'GOOGLEDOCS', expect.objectContaining({
-        authConfigId: 'ac_custom_config',
+      expect(mockSessionAuthorize).toHaveBeenNthCalledWith(1, 'GOOGLEDOCS', {
         callbackUrl: expect.stringContaining('/api/composio/callback'),
-      }));
-      expect(mockSessionAuthorize).toHaveBeenNthCalledWith(2, 'GOOGLEDRIVE', expect.objectContaining({
-        authConfigId: 'ac_custom_config',
+      });
+      expect(mockSessionAuthorize).toHaveBeenNthCalledWith(2, 'GOOGLEDRIVE', {
         callbackUrl: expect.stringContaining('/api/composio/callback'),
-      }));
+      });
     });
   });
 

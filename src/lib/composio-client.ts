@@ -73,29 +73,43 @@ function getComposioBase(): Composio<any> {
 }
 
 // Cache de sessões por userId — reuso via composio.use(sessionId)
-// Key: userId, Value: { sessionId, expiresAt }
-const sessionCache = new Map<string, { sessionId: string; expiresAt: number }>();
+// Key: userId, Value: sessionId
+// Note: Sessions persist on the server and don't expire (per Composio v3 docs).
+// No client-side TTL needed — cache is cleared explicitly after OAuth.
+const sessionCache = new Map<string, string>();
 
 /**
  * Creates or reuses a Composio session for a user.
  * Follows v3 pattern: composio.create(userId) → session
  * For subsequent requests, uses composio.use(sessionId) for reuse.
+ *
+ * authConfigId is passed during session creation (not during authorize),
+ * per the official SDK docs: https://docs.composio.dev/reference/sdk-reference/typescript/tool-router-session
  */
-async function getOrCreateSession(userId: string): Promise<any> {
+async function getOrCreateSession(userId: string, authConfigId?: string): Promise<any> {
   const composio = getComposioBase();
   const cached = sessionCache.get(userId);
 
-  if (cached && cached.expiresAt > Date.now()) {
+  if (cached) {
     try {
-      return await composio.use(cached.sessionId);
+      return await composio.use(cached);
     } catch {
-      // Session may have expired on server, fall through to create
+      // Session may have been invalidated on server, fall through to create
     }
   }
 
-  const session = await composio.create(userId);
+  const createOptions = authConfigId
+    ? {
+        authConfigs: {
+          googledocs: authConfigId,
+          googledrive: authConfigId,
+        },
+      }
+    : undefined;
+
+  const session = await composio.create(userId, createOptions);
   if (session.sessionId) {
-    sessionCache.set(userId, { sessionId: session.sessionId, expiresAt: Date.now() + 3600000 });
+    sessionCache.set(userId, session.sessionId);
   }
   return session;
 }
@@ -125,10 +139,15 @@ export function __clearAllSessionCachesForTesting(): void {
 /**
  * Executes a Composio tool and returns the result.
  *
- * NOTE: The v3 docs discourage direct tool execution via composio.tools.execute().
- * However, for deterministic operations (document generation, file copies, etc.)
- * where we know exactly which tool to call, this remains the practical approach.
- * The agentic pattern (session.tools() → LLM) is used in composio-gemini.ts.
+ * NOTE: The v3 SDK docs discourage direct tool execution via composio.tools.execute()
+ * (https://docs.composio.dev/reference/v3/api-reference/tool-router):
+ *   "Do not generate composio.tools.execute() ... These are a supported but not
+ *    recommended low-level interface."
+ *
+ * We use it intentionally here for deterministic operations (document generation,
+ * file copies, etc.) where we know exactly which tool to call. The agentic pattern
+ * (session.tools() → LLM) is used in composio-gemini.ts.
+ * This is a tracked trade-off — see issue #XXX for full refactor to session-based execution.
  */
 async function executeTool(
   session: any,
@@ -180,7 +199,7 @@ export async function createComposioClient(
   // Checks both GOOGLEDOCS and GOOGLEDRIVE toolkits
   async function getToolkitStatus(): Promise<ConnectionStatus> {
     try {
-      const session = await getOrCreateSession(userId);
+      const session = await getOrCreateSession(userId, authConfigId);
       const toolkits = await session.toolkits();
       
       // Debug: Log all available toolkits
@@ -226,6 +245,8 @@ export async function createComposioClient(
     }
   }
 
+  const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+
   return {
     // ------------------------------------------------
     // Docs operations
@@ -234,7 +255,7 @@ export async function createComposioClient(
     async getDocumentContent(documentId: string): Promise<string> {
       try {
         debugLog(requestId, 'ComposioClient', 'getDocumentContent', { documentId, userId });
-        const session = await getOrCreateSession(userId);
+        const session = await getOrCreateSession(userId, authConfigId);
         const result = await executeWithRetry(
           () => executeTool(
             session,
@@ -268,7 +289,7 @@ export async function createComposioClient(
     async batchUpdateDocument(documentId: string, requests: any[]): Promise<void> {
       try {
         debugLog(requestId, 'ComposioClient', 'batchUpdateDocument', { documentId, requestCount: requests.length, userId });
-        const session = await getOrCreateSession(userId);
+        const session = await getOrCreateSession(userId, authConfigId);
         const composioRequests = convertBatchRequestsToComposio(requests);
 
         if (composioRequests.length > 0) {
@@ -301,7 +322,7 @@ export async function createComposioClient(
     async getFileMetadata(fileId: string): Promise<ComposioFileMetadata> {
       try {
         debugLog(requestId, 'ComposioClient', 'getFileMetadata', { fileId, userId });
-        const session = await getOrCreateSession(userId);
+        const session = await getOrCreateSession(userId, authConfigId);
         const result = await executeWithRetry(
           () => executeTool(
             session,
@@ -330,7 +351,7 @@ export async function createComposioClient(
     async copyFile(fileId: string, newName: string): Promise<string> {
       try {
         debugLog(requestId, 'ComposioClient', 'copyFile', { fileId, newName, userId });
-        const session = await getOrCreateSession(userId);
+        const session = await getOrCreateSession(userId, authConfigId);
         const result = await executeWithRetry(
           () => executeTool(
             session,
@@ -363,7 +384,7 @@ export async function createComposioClient(
     ): Promise<ComposioShareResult> {
       try {
         debugLog(requestId, 'ComposioClient', 'shareFile', { fileId, email, role, userId });
-        const session = await getOrCreateSession(userId);
+        const session = await getOrCreateSession(userId, authConfigId);
         const result = await executeWithRetry(
           () => executeTool(
             session,
@@ -423,12 +444,12 @@ export async function createComposioClient(
 
         // v3 pattern: session.authorize() for each toolkit → Connect Links
         // Authorize both GOOGLEDOCS and GOOGLEDRIVE (both use Google OAuth)
-        const session = await getOrCreateSession(userId);
-        const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+        // Note: authConfigId is passed during session.create(), not during authorize()
+        // per SDK docs: https://docs.composio.dev/reference/sdk-reference/typescript/tool-router-session
+        const session = await getOrCreateSession(userId, authConfigId);
 
         const authorizeOptions = {
           callbackUrl: callbackUrl.toString(),
-          ...(authConfigId ? { authConfigId } : {}),
         };
 
         // Authorize Google Docs first

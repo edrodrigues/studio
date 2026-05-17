@@ -141,6 +141,7 @@ async function getOrCreateSession(userId: string, authConfigId?: string): Promis
     },
     manageConnections: {
       waitForConnections: true,
+      autoAddConnections: true,
     },
   };
 

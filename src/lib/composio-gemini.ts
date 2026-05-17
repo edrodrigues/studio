@@ -132,6 +132,7 @@ export async function runComposioAgent(
       },
       manageConnections: {
         waitForConnections: true,
+        autoAddConnections: true,
       },
     });
 

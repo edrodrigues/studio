@@ -102,7 +102,7 @@ async function getOrCreateSession(userId: string, authConfigId?: string): Promis
     ? {
         authConfigs: {
           googledocs: authConfigId,
-          googledrive: authConfigId,
+          // googledrive uses Composio managed auth (shares same Google OAuth consent)
         },
       }
     : undefined;

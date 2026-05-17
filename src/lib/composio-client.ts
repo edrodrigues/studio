@@ -386,9 +386,10 @@ export async function createComposioClient(
     },
 
     async initiateConnection(userId: string, returnTo?: string): Promise<string> {
-      const callbackUrl = new URL(
-        config.callbackUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/composio/callback`
-      );
+      const baseUrl = (config.callbackUrl || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+        .trim()
+        .replace(/\/+$/, '');
+      const callbackUrl = new URL(`${baseUrl}/api/composio/callback`);
       if (returnTo && returnTo.startsWith('/')) {
         callbackUrl.searchParams.set('return_to', returnTo);
       }
@@ -398,7 +399,7 @@ export async function createComposioClient(
       }
 
       try {
-        debugLog(requestId, 'ComposioClient', 'initiateConnection', { userId, returnTo });
+        debugLog(requestId, 'ComposioClient', 'initiateConnection', { userId, returnTo, baseUrl });
 
         // v3 pattern: session.authorize("google") → Connect Link
         const session = await getOrCreateSession(userId);
@@ -406,13 +407,11 @@ export async function createComposioClient(
 
         let connectionRequest;
         if (authConfigId) {
-          // Custom auth config for white-label OAuth
           connectionRequest = await session.authorize("google", {
             callbackUrl: callbackUrl.toString(),
             authConfigId,
           });
         } else {
-          // Default: Composio managed auth
           connectionRequest = await session.authorize("google", {
             callbackUrl: callbackUrl.toString(),
           });

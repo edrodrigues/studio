@@ -245,6 +245,20 @@ export async function createComposioClient(
     }
   }
 
+  // Wrapper with timeout to prevent indefinite hanging
+  async function getToolkitStatusWithTimeout(timeoutMs: number = 10000): Promise<ConnectionStatus> {
+    const timeoutPromise = new Promise<ConnectionStatus>((_, reject) =>
+      setTimeout(() => reject(new Error(`Connection check timed out after ${timeoutMs}ms`)), timeoutMs)
+    );
+
+    try {
+      return await Promise.race([getToolkitStatus(), timeoutPromise]);
+    } catch (error) {
+      debugError(requestId, 'ComposioClient', 'getToolkitStatusWithTimeout error', error, { userId });
+      return 'FAILED';
+    }
+  }
+
   const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
 
   return {
@@ -480,7 +494,7 @@ export async function createComposioClient(
 
     async checkConnection(userId: string): Promise<{ connected: boolean; status: ConnectionStatus }> {
       debugLog(requestId, 'ComposioClient', 'checkConnection', { userId });
-      const status = await getToolkitStatus();
+      const status = await getToolkitStatusWithTimeout();
       const result = {
         connected: status === 'ACTIVE',
         status,

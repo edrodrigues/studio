@@ -109,8 +109,6 @@ async function getOrCreateSession(userId: string, authConfigId?: string): Promis
     console.warn('[Composio] COMPOSIO_GOOGLE_AUTH_CONFIG_ID not set — using hardcoded fallback');
   }
 
-  const effectiveConnectedAccountId = process.env.COMPOSIO_GOOGLE_CONNECTED_ACCOUNT_ID || 'ca_aj67cMI66mzi';
-
   const createOptions = {
     toolkits: ['googledocs', 'googledrive'],
     tools: {
@@ -140,10 +138,6 @@ async function getOrCreateSession(userId: string, authConfigId?: string): Promis
     },
     authConfigs: {
       googledocs: effectiveAuthConfigId || 'ac_hhBpnP-HVtg0',
-    },
-    connectedAccounts: {
-      googledocs: effectiveConnectedAccountId,
-      googledrive: effectiveConnectedAccountId,
     },
     manageConnections: {
       waitForConnections: true,

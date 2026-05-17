@@ -130,10 +130,6 @@ export async function runComposioAgent(
       authConfigs: {
         googledocs: process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID || 'ac_hhBpnP-HVtg0',
       },
-      connectedAccounts: {
-        googledocs: process.env.COMPOSIO_GOOGLE_CONNECTED_ACCOUNT_ID || 'ca_aj67cMI66mzi',
-        googledrive: process.env.COMPOSIO_GOOGLE_CONNECTED_ACCOUNT_ID || 'ca_aj67cMI66mzi',
-      },
       manageConnections: {
         waitForConnections: true,
       },

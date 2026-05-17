@@ -74,8 +74,8 @@
 **Assessment:** Key changes:
 1. **Hardcoded fallback** for `authConfigId` (`'ac_hhBpnP-HVtg0'`) — prevents undefined auth config if env var is missing
 2. **Explicit toolkit/tool allowlist** — scoped to `googledocs` + `googledrive` with all needed tools
-3. **`connectedAccounts`** — pins to specific connected account (`ca_aj67cMI66mzi`), configurable via `COMPOSIO_GOOGLE_CONNECTED_ACCOUNT_ID` env var
-4. **`waitForConnections: true`** — session waits for OAuth to complete before proceeding
+3. **`waitForConnections: true`** — session waits for OAuth to complete before proceeding
+4. **No `connectedAccounts`** — removed because connected account IDs are user-specific and cannot be hardcoded. Composio resolves the correct account per user via OAuth.
 
 ### ✅ Fix Applied: Gemini Agent Session Options (consistency)
 
@@ -242,9 +242,9 @@ export async function checkComposioConnectionStatus(userId: string) {
 - ~~Session created without explicit toolkits~~
 - **Status:** Fixed — explicit `toolkits: ['googledocs']` with 12 enabled tools
 
-**Hypothesis F: Missing Connected Account (RESOLVED ✅)**
-- ~~Session created without `connectedAccounts` — Composio couldn't route to the right Google account~~
-- **Status:** Fixed — `connectedAccounts: { googledocs: 'ca_aj67cMI66mzi' }` with env var override
+**Hypothesis F: Hardcoded Connected Account ID (RESOLVED ✅)**
+- ~~`connectedAccounts: { googledocs: 'ca_aj67cMI66mzi' }` — account ID belongs to a different user~~
+- **Status:** Fixed — `connectedAccounts` removed entirely. Composio resolves the correct account per user via OAuth.
 
 ---
 
@@ -358,7 +358,7 @@ After implementing fixes:
 | Gemini session consistency | P0 | Low | Medium | ✅ **DONE** (user) |
 | API key validation | P0 | Low | High | ✅ **DONE** |
 | authConfigId fallback warning | P0 | Low | Medium | ✅ **DONE** |
-| Connected account config | P0 | Low | High | ✅ **DONE** |
+| Connected account removed | P0 | Low | High | ✅ **DONE** |
 | Drive toolkit restored | P0 | Low | High | ✅ **DONE** |
 | Granular error handling | P0 | Low | High | ✅ **DONE** |
 | Network retry logic | P1 | Low | Medium | ✅ **DONE** |
@@ -390,7 +390,6 @@ All identified risks have been addressed. The session config now includes both `
 2. **Monitor server logs** for the new diagnostic messages:
    - `[Composio] COMPOSIO_API_KEY is not set` — env var needs to be set
    - `[Composio] COMPOSIO_GOOGLE_AUTH_CONFIG_ID not set` — consider setting the env var
-   - `[Composio] COMPOSIO_GOOGLE_CONNECTED_ACCOUNT_ID not set` — using hardcoded fallback
    - `[ComposioClient] Network error, retrying` — Composio service may be unstable
 3. **If 500 error persists**, check if the error is now a clear "Composio API key is not configured" message
 4. **If `ERR_CONNECTION_REFUSED` persists** after retry logic, investigate Composio service status or network/firewall configuration

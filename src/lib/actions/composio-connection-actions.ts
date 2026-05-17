@@ -1,6 +1,6 @@
 'use server';
 
-import { createComposioClient, type ConnectionStatus } from '@/lib/composio-client';
+import { createComposioClient, clearSessionCache, type ConnectionStatus } from '@/lib/composio-client';
 import { debugLog, debugError, generateRequestId } from '@/lib/utils/request-id';
 
 /**
@@ -8,6 +8,18 @@ import { debugLog, debugError, generateRequestId } from '@/lib/utils/request-id'
  * These are called from client components to check connection status
  * and initiate the OAuth connection flow.
  */
+
+/**
+ * Clear the session cache for a user after OAuth completion.
+ * This ensures the next status check creates a fresh session that can see the new connection.
+ */
+export async function clearComposioSessionCache(
+  userId: string
+): Promise<void> {
+  const requestId = generateRequestId();
+  debugLog(requestId, 'clearComposioSessionCache', 'Clearing session cache', { userId });
+  clearSessionCache(userId);
+}
 
 /**
  * Check Composio connection status for a user.

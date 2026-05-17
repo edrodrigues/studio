@@ -13,7 +13,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import type { ConnectionStatus } from '@/lib/composio-types';
-import { checkComposioConnectionStatus, initiateComposioConnection } from '@/lib/actions/composio-connection-actions';
+import { checkComposioConnectionStatus, initiateComposioConnection, clearComposioSessionCache } from '@/lib/actions/composio-connection-actions';
 
 interface ComposioConnectionState {
   status: ConnectionStatus;
@@ -206,50 +206,58 @@ export function ComposioConnection({
 
   // Check URL params for callback status
   useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const connected = params.get('composio_connected');
-      const error = params.get('composio_error');
+    async function handleCallback() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const connected = params.get('composio_connected');
+        const error = params.get('composio_error');
 
-      if (connected === 'true') {
-        // Clean URL params first — no page reload needed since we're already on the target page
-        toast({
-          title: 'Google conectado!',
-          description: 'Sua conta Google foi conectada com sucesso.',
-        });
-        try {
-          const url = new URL(window.location.href);
-          url.searchParams.delete('composio_connected');
-          url.searchParams.delete('return_to');
-          window.history.replaceState({}, '', url.toString());
-        } catch {
-          // URL parsing failed, but connection was successful
+        if (connected === 'true') {
+          // Clean URL params first — no page reload needed since we're already on the target page
+          toast({
+            title: 'Google conectado!',
+            description: 'Sua conta Google foi conectada com sucesso.',
+          });
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('composio_connected');
+            url.searchParams.delete('return_to');
+            window.history.replaceState({}, '', url.toString());
+          } catch {
+            // URL parsing failed, but connection was successful
+          }
+          sessionStorage.removeItem('composio_return_to');
+          // Clear session cache to ensure fresh session sees the new OAuth connection
+          if (user) {
+            await clearComposioSessionCache(user.uid);
+          }
+          // Re-check connection status now that OAuth has completed
+          checkConnectionStatus();
+          onConnected?.();
+        } else if (error) {
+          toast({
+            variant: 'destructive',
+            title: 'Erro na conexão',
+            description: error,
+          });
+          setState({ status: 'FAILED', loading: false, error });
+          onError?.(error);
+          // Clean URL
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('composio_error');
+            url.searchParams.delete('return_to');
+            window.history.replaceState({}, '', url.toString());
+          } catch {
+            // URL parsing failed, but cleanup is best-effort
+          }
         }
-        sessionStorage.removeItem('composio_return_to');
-        // Re-check connection status now that OAuth has completed
-        checkConnectionStatus();
-        onConnected?.();
-      } else if (error) {
-        toast({
-          variant: 'destructive',
-          title: 'Erro na conexão',
-          description: error,
-        });
-        setState({ status: 'FAILED', loading: false, error });
-        onError?.(error);
-        // Clean URL
-        try {
-          const url = new URL(window.location.href);
-          url.searchParams.delete('composio_error');
-          url.searchParams.delete('return_to');
-          window.history.replaceState({}, '', url.toString());
-        } catch {
-          // URL parsing failed, but cleanup is best-effort
-        }
+      } catch {
+        console.error('[ComposioConnection] Error parsing URL params');
       }
-    } catch {
-      console.error('[ComposioConnection] Error parsing URL params');
     }
+
+    handleCallback();
   }, []);
 
   if (state.loading) {

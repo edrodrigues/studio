@@ -102,8 +102,9 @@ async function getOrCreateSession(userId: string): Promise<any> {
 
 /**
  * Clears the session cache for a user, forcing a new session on next request.
+ * Exported for use after OAuth completion to ensure fresh session sees new connections.
  */
-function clearSessionCache(userId: string): void {
+export function clearSessionCache(userId: string): void {
   sessionCache.delete(userId);
 }
 

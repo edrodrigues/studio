@@ -163,8 +163,9 @@ async function executeTool(
  *
  * Uses Composio v3 session-based architecture:
  * - getOrCreateSession(userId) → session per user
- * - session.authorize("google") → OAuth Connect Link
- * - session.toolkits() → connection status
+ * - session.authorize("GOOGLEDOCS") → OAuth Connect Link for Google Docs
+ * - session.authorize("GOOGLEDRIVE") → OAuth Connect Link for Google Drive
+ * - session.toolkits() → connection status for both toolkits
  */
 export async function createComposioClient(
   userId: string,
@@ -175,31 +176,42 @@ export async function createComposioClient(
   debugLog(requestId, 'ComposioClient', 'Client created', { userId, hasApiKey: !!config.apiKey });
 
   // Helper to get connection status via session.toolkits()
+  // Checks both GOOGLEDOCS and GOOGLEDRIVE toolkits
   async function getToolkitStatus(): Promise<ConnectionStatus> {
     try {
       const session = await getOrCreateSession(userId);
       const toolkits = await session.toolkits();
-      const googleToolkit = toolkits?.find(
-        (t: { slug?: string; name?: string; status?: string }) =>
-          t.slug?.toLowerCase() === 'google' ||
-          t.slug?.toLowerCase() === 'googleworkspace' ||
-          t.name?.toLowerCase() === 'google' ||
-          t.name?.toLowerCase() === 'google workspace'
-      );
+      
+      const requiredToolkits = ['GOOGLEDOCS', 'GOOGLEDRIVE'];
+      const toolkitStatuses: ConnectionStatus[] = [];
 
-      if (!googleToolkit) {
-        debugLog(requestId, 'ComposioClient', 'getToolkitStatus: no Google toolkit found', { userId });
-        return 'INACTIVE';
+      for (const slug of requiredToolkits) {
+        const toolkit = toolkits?.find(
+          (t: { slug?: string; name?: string; status?: string }) =>
+            t.slug?.toUpperCase() === slug
+        );
+
+        if (!toolkit) {
+          debugLog(requestId, 'ComposioClient', 'getToolkitStatus: toolkit not found', { userId, slug });
+          return 'INACTIVE';
+        }
+
+        const status = toolkit.status as ConnectionStatus;
+        toolkitStatuses.push(status);
+        debugLog(requestId, 'ComposioClient', 'getToolkitStatus', { userId, slug, status });
       }
 
-      const status = googleToolkit.status;
-      debugLog(requestId, 'ComposioClient', 'getToolkitStatus', { userId, status });
-      if (status === 'ACTIVE') return 'ACTIVE';
-      if (status === 'INITIALIZING') return 'INITIALIZING';
-      if (status === 'INITIATED') return 'INITIATED';
-      if (status === 'EXPIRED') return 'EXPIRED';
-      if (status === 'INACTIVE') return 'INACTIVE';
-      return 'FAILED';
+      // Return the "worst" status among required toolkits
+      const priority: ConnectionStatus[] = ['FAILED', 'EXPIRED', 'INACTIVE', 'INITIATED', 'INITIALIZING', 'ACTIVE'];
+      let worstStatus: ConnectionStatus = 'ACTIVE';
+      for (const status of toolkitStatuses) {
+        if (priority.indexOf(status) < priority.indexOf(worstStatus)) {
+          worstStatus = status;
+        }
+      }
+
+      debugLog(requestId, 'ComposioClient', 'getToolkitStatus final', { userId, worstStatus });
+      return worstStatus;
     } catch (error) {
       debugError(requestId, 'ComposioClient', 'getToolkitStatus error', error, { userId });
       return 'FAILED';
@@ -401,23 +413,30 @@ export async function createComposioClient(
       try {
         debugLog(requestId, 'ComposioClient', 'initiateConnection', { userId, returnTo, baseUrl });
 
-        // v3 pattern: session.authorize("google") → Connect Link
+        // v3 pattern: session.authorize() for each toolkit → Connect Links
+        // Authorize both GOOGLEDOCS and GOOGLEDRIVE (both use Google OAuth)
         const session = await getOrCreateSession(userId);
         const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
 
-        let connectionRequest;
-        if (authConfigId) {
-          connectionRequest = await session.authorize("google", {
-            callbackUrl: callbackUrl.toString(),
-            authConfigId,
-          });
-        } else {
-          connectionRequest = await session.authorize("google", {
-            callbackUrl: callbackUrl.toString(),
-          });
-        }
+        const authorizeOptions = {
+          callbackUrl: callbackUrl.toString(),
+          ...(authConfigId ? { authConfigId } : {}),
+        };
 
-        const redirectUrl = connectionRequest?.redirectUrl;
+        // Authorize Google Docs first
+        const docsConnectionRequest = await session.authorize("GOOGLEDOCS", authorizeOptions);
+        debugLog(requestId, 'ComposioClient', 'initiateConnection GOOGLEDOCS authorized', { 
+          redirectUrl: docsConnectionRequest?.redirectUrl 
+        });
+
+        // Then authorize Google Drive
+        const driveConnectionRequest = await session.authorize("GOOGLEDRIVE", authorizeOptions);
+        debugLog(requestId, 'ComposioClient', 'initiateConnection GOOGLEDRIVE authorized', { 
+          redirectUrl: driveConnectionRequest?.redirectUrl 
+        });
+
+        // Return the first redirect URL - user will authenticate once for both Google toolkits
+        const redirectUrl = docsConnectionRequest?.redirectUrl;
         if (!redirectUrl) {
           throw new Error('Composio did not return a redirect URL for OAuth.');
         }
@@ -426,7 +445,7 @@ export async function createComposioClient(
       } catch (error) {
         debugError(requestId, 'ComposioClient', 'initiateConnection failed', error, { userId, returnTo });
         const sdkMessage = error instanceof Error ? error.message : String(error);
-        throw new Error(`Falha ao iniciar conexão com Google: ${sdkMessage}`);
+        throw new Error(`Falha ao iniciar conexão com Google Docs/Drive: ${sdkMessage}`);
       }
     },
 

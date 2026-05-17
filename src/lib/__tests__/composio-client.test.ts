@@ -65,7 +65,8 @@ describe('composio-client (v3 session-based)', () => {
   describe('session creation', () => {
     it('creates a session via composio.create(userId)', async () => {
       mockSessionToolkits.mockResolvedValue([
-        { slug: 'google', name: 'Google', status: 'ACTIVE' },
+        { slug: 'GOOGLEDOCS', name: 'Google Docs', status: 'ACTIVE' },
+        { slug: 'GOOGLEDRIVE', name: 'Google Drive', status: 'ACTIVE' },
       ]);
 
       const client = await createComposioClient('user-1');
@@ -76,7 +77,8 @@ describe('composio-client (v3 session-based)', () => {
 
     it('reuses session via composio.use(sessionId) for same user', async () => {
       mockSessionToolkits.mockResolvedValue([
-        { slug: 'google', name: 'Google', status: 'ACTIVE' },
+        { slug: 'GOOGLEDOCS', name: 'Google Docs', status: 'ACTIVE' },
+        { slug: 'GOOGLEDRIVE', name: 'Google Drive', status: 'ACTIVE' },
       ]);
 
       const client1 = await createComposioClient('user-1');
@@ -93,9 +95,10 @@ describe('composio-client (v3 session-based)', () => {
   });
 
   describe('connection status via session.toolkits()', () => {
-    it('returns ACTIVE when Google toolkit is active', async () => {
+    it('returns ACTIVE when both GOOGLEDOCS and GOOGLEDRIVE toolkits are active', async () => {
       mockSessionToolkits.mockResolvedValue([
-        { slug: 'google', name: 'Google', status: 'ACTIVE' },
+        { slug: 'GOOGLEDOCS', name: 'Google Docs', status: 'ACTIVE' },
+        { slug: 'GOOGLEDRIVE', name: 'Google Drive', status: 'ACTIVE' },
       ]);
 
       const client = await createComposioClient('user-1');
@@ -105,7 +108,44 @@ describe('composio-client (v3 session-based)', () => {
       expect(result.status).toBe('ACTIVE');
     });
 
-    it('returns INACTIVE when no Google toolkit found', async () => {
+    it('returns INACTIVE when GOOGLEDOCS toolkit is missing', async () => {
+      mockSessionToolkits.mockResolvedValue([
+        { slug: 'GOOGLEDRIVE', name: 'Google Drive', status: 'ACTIVE' },
+      ]);
+
+      const client = await createComposioClient('user-1');
+      const result = await client.checkConnection('user-1');
+
+      expect(result.connected).toBe(false);
+      expect(result.status).toBe('INACTIVE');
+    });
+
+    it('returns INACTIVE when GOOGLEDRIVE toolkit is missing', async () => {
+      mockSessionToolkits.mockResolvedValue([
+        { slug: 'GOOGLEDOCS', name: 'Google Docs', status: 'ACTIVE' },
+      ]);
+
+      const client = await createComposioClient('user-1');
+      const result = await client.checkConnection('user-1');
+
+      expect(result.connected).toBe(false);
+      expect(result.status).toBe('INACTIVE');
+    });
+
+    it('returns the worst status when toolkits have different statuses', async () => {
+      mockSessionToolkits.mockResolvedValue([
+        { slug: 'GOOGLEDOCS', name: 'Google Docs', status: 'ACTIVE' },
+        { slug: 'GOOGLEDRIVE', name: 'Google Drive', status: 'EXPIRED' },
+      ]);
+
+      const client = await createComposioClient('user-1');
+      const result = await client.checkConnection('user-1');
+
+      expect(result.connected).toBe(false);
+      expect(result.status).toBe('EXPIRED');
+    });
+
+    it('returns INACTIVE when no toolkits found', async () => {
       mockSessionToolkits.mockResolvedValue([]);
 
       const client = await createComposioClient('user-1');
@@ -127,7 +167,7 @@ describe('composio-client (v3 session-based)', () => {
   });
 
   describe('initiateConnection via session.authorize()', () => {
-    it('calls session.authorize("google") for OAuth', async () => {
+    it('calls session.authorize() for both GOOGLEDOCS and GOOGLEDRIVE', async () => {
       mockSessionAuthorize.mockResolvedValue({
         redirectUrl: 'https://connect.composio.dev/link/test',
       });
@@ -135,7 +175,12 @@ describe('composio-client (v3 session-based)', () => {
       const client = await createComposioClient('user-1');
       const result = await client.initiateConnection('user-1');
 
-      expect(mockSessionAuthorize).toHaveBeenCalledWith('google', expect.objectContaining({
+      // Should authorize both toolkits
+      expect(mockSessionAuthorize).toHaveBeenCalledTimes(2);
+      expect(mockSessionAuthorize).toHaveBeenNthCalledWith(1, 'GOOGLEDOCS', expect.objectContaining({
+        callbackUrl: expect.stringContaining('/api/composio/callback'),
+      }));
+      expect(mockSessionAuthorize).toHaveBeenNthCalledWith(2, 'GOOGLEDRIVE', expect.objectContaining({
         callbackUrl: expect.stringContaining('/api/composio/callback'),
       }));
       expect(result).toBe('https://connect.composio.dev/link/test');
@@ -151,8 +196,15 @@ describe('composio-client (v3 session-based)', () => {
       });
       await client.initiateConnection('user-1');
 
-      expect(mockSessionAuthorize).toHaveBeenCalledWith('google', expect.objectContaining({
+      // Both authorizations should include authConfigId
+      expect(mockSessionAuthorize).toHaveBeenCalledTimes(2);
+      expect(mockSessionAuthorize).toHaveBeenNthCalledWith(1, 'GOOGLEDOCS', expect.objectContaining({
         authConfigId: 'ac_custom_config',
+        callbackUrl: expect.stringContaining('/api/composio/callback'),
+      }));
+      expect(mockSessionAuthorize).toHaveBeenNthCalledWith(2, 'GOOGLEDRIVE', expect.objectContaining({
+        authConfigId: 'ac_custom_config',
+        callbackUrl: expect.stringContaining('/api/composio/callback'),
       }));
     });
   });
@@ -160,7 +212,8 @@ describe('composio-client (v3 session-based)', () => {
   describe('clearConnectedAccountIdCache', () => {
     it('clears session cache forcing new session on next request', async () => {
       mockSessionToolkits.mockResolvedValue([
-        { slug: 'google', name: 'Google', status: 'ACTIVE' },
+        { slug: 'GOOGLEDOCS', name: 'Google Docs', status: 'ACTIVE' },
+        { slug: 'GOOGLEDRIVE', name: 'Google Drive', status: 'ACTIVE' },
       ]);
 
       const client = await createComposioClient('user-1');

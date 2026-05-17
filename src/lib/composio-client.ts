@@ -141,7 +141,6 @@ async function getOrCreateSession(userId: string, authConfigId?: string): Promis
     },
     manageConnections: {
       waitForConnections: true,
-      autoAddConnections: true,
     },
   };
 
@@ -233,50 +232,51 @@ export async function createComposioClient(
 
   debugLog(requestId, 'ComposioClient', 'Client created', { userId, hasApiKey: !!config.apiKey });
 
-  // Helper to get connection status via session.toolkits()
-  // Checks both GOOGLEDOCS and GOOGLEDRIVE toolkits
+  // Helper to check connection status via connectedAccounts.list()
+  // This directly queries for active connections rather than relying on session.toolkits()
+  // which doesn't attach to existing connections on new sessions.
   async function getToolkitStatus(): Promise<ConnectionStatus> {
     try {
-      const session = await getOrCreateSession(userId, authConfigId);
-      const toolkits = await session.toolkits();
-      
-      // Debug: Log all available toolkits
-      debugLog(requestId, 'ComposioClient', 'getToolkitStatus: all toolkits', { 
-        userId, 
-        toolkitCount: toolkits?.length || 0,
-        toolkits: toolkits?.map((t: any) => ({ slug: t.slug, status: t.status }))
+      const composio = getComposioBase();
+      const response = await composio.connectedAccounts.list({
+        userIds: [userId],
+        toolkitSlugs: ['googledocs', 'googledrive'],
       });
-      
-      const requiredToolkits = ['GOOGLEDOCS', 'GOOGLEDRIVE'];
-      const toolkitStatuses: ConnectionStatus[] = [];
 
-      for (const slug of requiredToolkits) {
-        const toolkit = toolkits?.find(
-          (t: { slug?: string; name?: string; status?: string }) =>
-            t.slug?.toUpperCase() === slug
-        );
+      debugLog(requestId, 'ComposioClient', 'getToolkitStatus: connected accounts', {
+        userId,
+        accountCount: response?.items?.length || 0,
+        accounts: response?.items?.map((a: any) => ({ id: a.id, toolkit: a.toolkit, status: a.status })),
+      });
 
-        if (!toolkit) {
-          debugLog(requestId, 'ComposioClient', 'getToolkitStatus: toolkit not found', { userId, slug });
-          return 'INACTIVE';
-        }
-
-        const status = toolkit.status as ConnectionStatus;
-        toolkitStatuses.push(status);
-        debugLog(requestId, 'ComposioClient', 'getToolkitStatus', { userId, slug, status });
+      if (!response?.items?.length) {
+        debugLog(requestId, 'ComposioClient', 'getToolkitStatus: no connected accounts found', { userId });
+        return 'INACTIVE';
       }
 
-      // Return the "worst" status among required toolkits
-      const priority: ConnectionStatus[] = ['FAILED', 'EXPIRED', 'INACTIVE', 'INITIATED', 'INITIALIZING', 'ACTIVE'];
-      let worstStatus: ConnectionStatus = 'ACTIVE';
-      for (const status of toolkitStatuses) {
-        if (priority.indexOf(status) < priority.indexOf(worstStatus)) {
-          worstStatus = status;
+      const requiredToolkits = ['googledocs', 'googledrive'];
+      const activeToolkits = new Set<string>();
+
+      for (const account of response.items) {
+        if (account.status === 'ACTIVE' && account.toolkit?.slug) {
+          activeToolkits.add(account.toolkit.slug.toLowerCase());
         }
       }
 
-      debugLog(requestId, 'ComposioClient', 'getToolkitStatus final', { userId, worstStatus });
-      return worstStatus;
+      const allActive = requiredToolkits.every((slug) => activeToolkits.has(slug));
+      const anyActive = requiredToolkits.some((slug) => activeToolkits.has(slug));
+
+      if (allActive) {
+        debugLog(requestId, 'ComposioClient', 'getToolkitStatus: all toolkits active', { userId });
+        return 'ACTIVE';
+      }
+
+      if (anyActive) {
+        debugLog(requestId, 'ComposioClient', 'getToolkitStatus: some toolkits active', { userId, activeToolkits: [...activeToolkits] });
+        return 'INITIATED';
+      }
+
+      return 'INACTIVE';
     } catch (error) {
       debugError(requestId, 'ComposioClient', 'getToolkitStatus error', error, { userId });
       return 'FAILED';

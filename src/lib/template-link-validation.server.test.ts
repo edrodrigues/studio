@@ -82,16 +82,18 @@ describe("validateTemplateLinksForPersistence", () => {
 
     expect(result.canSave).toBe(true);
     expect(result.blockingErrors).toEqual([]);
-    expect(result.validations.googleDocLink?.status).toBe("inaccessible");
+    expect(result.validations.googleDocLink?.status).toBe("valid_google_doc");
+    expect(result.validations.googleDocLink?.fileName).toBeNull();
     expect(result.validations.projectDocLink?.status).toBe("valid_google_doc");
+    expect(result.validations.projectDocLink?.fileName).toBe("Fallback Projeto");
     expect(result.warnings).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("A geração continuará dependendo do outro link validado."),
+        expect.stringContaining("O link original não pôde ser verificado em tempo real"),
       ])
     );
   });
 
-  it("blocks save when no accessible native Google Docs remain", async () => {
+  it("allows save with warnings when all links are inaccessible (Composio fallback)", async () => {
     mockGetFileMetadata.mockRejectedValue(new Error("PERMISSION_DENIED: forbidden"));
 
     const result = await validateTemplateLinksForPersistence("token", {
@@ -99,9 +101,15 @@ describe("validateTemplateLinksForPersistence", () => {
       projectDocLink: "https://docs.google.com/document/d/1fallbackId123456/edit",
     });
 
-    expect(result.canSave).toBe(false);
-    expect(result.blockingErrors).toEqual(
-      expect.arrayContaining([expect.stringContaining("PERMISSION_DENIED")])
+    expect(result.canSave).toBe(true);
+    expect(result.blockingErrors).toEqual([]);
+    expect(result.validations.googleDocLink?.status).toBe("valid_google_doc");
+    expect(result.validations.projectDocLink?.status).toBe("valid_google_doc");
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("O link original não pôde ser verificado em tempo real"),
+        expect.stringContaining("O link customizado não pôde ser verificado em tempo real"),
+      ])
     );
   });
 });

@@ -108,13 +108,18 @@ async function validateSingleTemplateLink(
       error: null,
     };
   } catch (error) {
-    return buildInaccessibleValidation(
-      label,
+    // Quick fix: treat Composio access failures as soft warnings if URL format is valid.
+    // This allows saving when the Google Doc URL looks correct but Composio can't verify it
+    // (e.g., expired API key, disconnected account, network issues).
+    return {
+      status: "valid_google_doc",
       link,
-      audit.fileId,
-      error instanceof Error ? error.message : "Não foi possível validar o documento no Google Drive.",
-      validatedAt
-    );
+      fileId: audit.fileId,
+      fileName: null,
+      mimeType: GOOGLE_DOCS_MIME_TYPE,
+      validatedAt,
+      error: null,
+    };
   }
 }
 
@@ -146,16 +151,17 @@ export async function validateTemplateLinksForPersistence(
         blockingErrors.push(entry.error);
       }
     }
-
-    if (entry.status === "inaccessible" && validCount === 0 && entry.error) {
-      blockingErrors.push(entry.error);
-    } else if (entry.status === "inaccessible" && entry.error) {
-      warnings.push(`${entry.error} A geração continuará dependendo do outro link validado.`);
-    }
   }
 
   if (validCount === 0 && !blockingErrors.length) {
     blockingErrors.push("Cadastre pelo menos um Google Docs nativo e acessível antes de salvar o template.");
+  }
+
+  if (original.status === "valid_google_doc" && !original.fileName && original.fileId) {
+    warnings.push("O link original não pôde ser verificado em tempo real. Verifique se o documento está acessível antes de gerar contratos.");
+  }
+  if (custom.status === "valid_google_doc" && !custom.fileName && custom.fileId) {
+    warnings.push("O link customizado não pôde ser verificado em tempo real. Verifique se o documento está acessível antes de gerar contratos.");
   }
 
   if (custom.status === "missing") {

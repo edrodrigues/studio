@@ -164,7 +164,10 @@ export function GenerateExportChat({ projectId, templateId, onGenerationComplete
           projectId,
           contractModelId: templateId,
           createdAt: new Date().toISOString(),
-        } as Contract);
+          clientName: "",
+          filledData: "",
+          markdownContent: "",
+        } as unknown as Contract);
       }
     }
   };

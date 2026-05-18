@@ -68,7 +68,7 @@ async function handleCopyStep(
   if (!inspection.success || !inspection.fileId) {
     return {
       success: false,
-      error: inspection.error || 'Falha ao inspecionar o modelo.',
+      error: 'error' in inspection ? inspection.error : 'Falha ao inspecionar o modelo.',
       requestId,
     };
   }
@@ -92,7 +92,7 @@ async function handleCopyStep(
   if (!generation.success || !generation.documentId) {
     return {
       success: false,
-      error: generation.error || 'Falha ao copiar o documento.',
+      error: 'error' in generation ? generation.error : 'Falha ao copiar o documento.',
       requestId,
     };
   }

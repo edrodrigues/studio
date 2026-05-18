@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { Project, Template, ProjectDocument, DocumentStatus } from "@/lib/types";
+import { Project, Template, ProjectDocument, DocumentStatus } from "@/lib/types";
 import { summarizeTemplateValidation } from "@/lib/template-link-validation";
 
 type ProjectRecord = Project & { id: string };

@@ -94,3 +94,15 @@ Firestore updated → history table refreshes
 | `src/components/app/generate-export-selectors.tsx` | New: project + template selectors |
 | `src/components/app/generate-export-history.tsx` | New: generated documents history table |
 | `src/components/app/generate-export-explanation.tsx` | New: explanation card |
+
+## Implementation Status
+
+- [x] Explanation card component (`generate-export-explanation.tsx`)
+- [x] Project + template selectors (`generate-export-selectors.tsx`)
+- [x] Generated documents history table (`generate-export-history.tsx`)
+- [x] Inline Alex chat component (`generate-export-chat.tsx`)
+- [x] Server actions for generation steps (`generate-export-actions.ts`)
+- [x] Page rewrite (`gerar-exportar/page.tsx`)
+- [x] Hide floating widget on gerar-exportar (`middleware.ts`, `playbook-chat-widget-wrapper.tsx`)
+- [x] TypeScript type check passes (0 errors)
+- [x] All commits on `main` branch

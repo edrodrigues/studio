@@ -10,7 +10,7 @@ import {
   type TemplateSourceField,
 } from '@/lib/template-source';
 import { extractGoogleDocId } from '@/lib/utils';
-import { createComposioClient, type ComposioClient, type ConnectionStatus } from '@/lib/composio-client';
+import { createComposioClient, clearSessionCache, type ComposioClient, type ConnectionStatus } from '@/lib/composio-client';
 import { db } from '@/lib/firebase-server';
 import {
   getErrorType,
@@ -122,6 +122,12 @@ export async function enrichContractWithAI(
  * Returns true if connected, false otherwise
  */
 async function checkComposioConnection(userId: string): Promise<{ connected: boolean; status: ConnectionStatus }> {
+  try {
+    // Clear session cache to ensure fresh connection check
+    clearSessionCache(userId);
+  } catch {
+    // Cache clear failure is non-fatal
+  }
   try {
     const client = await createComposioClient(userId);
     return await client.checkConnection(userId);

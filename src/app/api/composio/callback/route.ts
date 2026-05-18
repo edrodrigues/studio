@@ -9,10 +9,24 @@
  * The callbackUrl we pass to session.authorize("google") is the
  * final destination AFTER Composio processes the OAuth callback internally.
  * This route simply stores the result and redirects the user back to the app.
+ *
+ * The return_to path is preserved via a cookie (set before the OAuth redirect)
+ * because Composio strips custom query params from the callback URL.
  */
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
+
+/** Parse cookies from the request header string */
+function parseCookies(cookieHeader: string | null): Record<string, string> {
+  if (!cookieHeader) return {};
+  const cookies: Record<string, string> = {};
+  for (const pair of cookieHeader.split(';')) {
+    const [name, ...rest] = pair.trim().split('=');
+    if (name) cookies[decodeURIComponent(name)] = decodeURIComponent(rest.join('='));
+  }
+  return cookies;
+}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -42,9 +56,15 @@ export async function GET(request: NextRequest) {
     );
   };
 
-  const safeReturnTo = returnTo && isValidReturnPath(returnTo)
-    ? returnTo
+  // Resolve return_to: query param > cookie > default
+  const cookies = parseCookies(request.headers.get('cookie'));
+  const cookieReturnTo = cookies['composio_return_to'] || null;
+
+  const rawReturnTo = returnTo || cookieReturnTo || '/gerar-exportar';
+  const safeReturnTo = isValidReturnPath(rawReturnTo)
+    ? rawReturnTo
     : '/gerar-exportar';
+
   const redirectUrl = new URL(safeReturnTo, request.url);
 
   // Handle error cases
@@ -53,19 +73,25 @@ export async function GET(request: NextRequest) {
     const errorMsg = errorDescription || 'Erro desconhecido na conexão com Google.';
     console.error('[ComposioCallback] OAuth error', { error: errorType, description: errorDescription, connectedAccountId });
     redirectUrl.searchParams.set('composio_error', errorMsg);
-    return NextResponse.redirect(redirectUrl.toString());
+    const response = NextResponse.redirect(redirectUrl.toString());
+    response.cookies.delete('composio_return_to');
+    return response;
   }
 
   // Handle success
   if (status === 'success' || connectedAccountId) {
-    console.info('[ComposioCallback] OAuth success', { connectedAccountId });
+    console.info('[ComposioCallback] OAuth success', { connectedAccountId, resolvedReturnTo: safeReturnTo });
     // Connection status is verified on-demand via session.toolkits()
     redirectUrl.searchParams.set('composio_connected', 'true');
-    return NextResponse.redirect(redirectUrl.toString());
+    const response = NextResponse.redirect(redirectUrl.toString());
+    response.cookies.delete('composio_return_to');
+    return response;
   }
 
   // Handle missing parameters
   console.warn('[ComposioCallback] Missing parameters', { status, connectedAccountId });
   redirectUrl.searchParams.set('composio_error', 'Parâmetros inválidos no callback.');
-  return NextResponse.redirect(redirectUrl.toString());
+  const response = NextResponse.redirect(redirectUrl.toString());
+  response.cookies.delete('composio_return_to');
+  return response;
 }

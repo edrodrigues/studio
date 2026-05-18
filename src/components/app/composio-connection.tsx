@@ -190,6 +190,9 @@ export function ComposioConnection({
 
       // Store current path to return to after OAuth
       sessionStorage.setItem('composio_return_to', returnTo);
+      // Persist returnTo in cookie so the callback route can read it after
+      // Composio's OAuth redirect (which strips custom query params).
+      document.cookie = `composio_return_to=${encodeURIComponent(returnTo)}; path=/; max-age=300; SameSite=Lax`;
       // Redirect to Composio OAuth — navigation will unmount the component,
       // so no need to reset loading state here.
       window.location.href = result.redirectUrl;

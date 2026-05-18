@@ -43,7 +43,7 @@ export function GenerateExportSelectors({
 
   const projectsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    return query(collection(firestore, "projects"), where("createdBy", "==", user.uid), orderBy("updatedAt", "desc"));
+    return query(collection(firestore, "projects"), where("createdBy", "==", user.uid));
   }, [firestore, user]);
 
   const { data: projects, isLoading: isLoadingProjects } = useCollection<Project>(projectsQuery);
@@ -71,7 +71,8 @@ export function GenerateExportSelectors({
       .map((p) => ({
         ...p,
         indexedDocCount: indexedDocCounts.get(p.id) || 0,
-      }));
+      }))
+      .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
   }, [projects, indexedDocCounts]);
 
   const templatesQuery = useMemoFirebase(() => {

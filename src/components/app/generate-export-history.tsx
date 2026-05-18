@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useCollection, useFirebase, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where, orderBy, deleteDoc, doc, getDoc, updateDoc, increment } from "firebase/firestore";
+import { collection, query, where, deleteDoc, doc, getDoc, updateDoc, increment } from "firebase/firestore";
 import { format } from "date-fns";
 import { ExternalLink, Eye, MoreHorizontal, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,8 +31,7 @@ export function GenerateExportHistory({ projectId, onPreview }: GenerateExportHi
     if (!user || !firestore || !projectId) return null;
     return query(
       collection(firestore, "users", user.uid, "filledContracts"),
-      where("projectId", "==", projectId),
-      orderBy("createdAt", "desc")
+      where("projectId", "==", projectId)
     );
   }, [firestore, user, projectId]);
 

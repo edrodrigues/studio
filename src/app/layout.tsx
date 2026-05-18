@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { cn } from '@/lib/utils';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { AuthProvider } from '@/context/auth-context';
-import { PlaybookChatWidget } from '@/components/app/playbook-chat-widget';
+import { PlaybookChatWidgetWrapper } from '@/components/app/playbook-chat-widget-wrapper';
 import { Suspense } from 'react';
 
 const outfit = Outfit({
@@ -39,7 +39,7 @@ export default function RootLayout({
           <AuthProvider>
             {children}
             <Suspense>
-              <PlaybookChatWidget />
+              <PlaybookChatWidgetWrapper />
             </Suspense>
           </AuthProvider>
         </FirebaseClientProvider>

@@ -16,7 +16,7 @@ interface ChatMessage {
   role: "user" | "model";
   content: string;
   timestamp: Date;
-  action?: "proceed" | "open" | "done";
+  action?: "proceed" | "open" | "done" | "reconnect";
   actionLabel?: string;
   documentLink?: string;
 }
@@ -25,11 +25,18 @@ interface GenerateExportChatProps {
   projectId: string | null;
   templateId: string | null;
   onGenerationComplete?: (contract: Contract) => void;
+  onAuthError?: () => void;
 }
 
 type GenerationStep = "idle" | "copy" | "customize" | "open" | "complete";
 
-export function GenerateExportChat({ projectId, templateId, onGenerationComplete }: GenerateExportChatProps) {
+const isAuthError = (message: string) =>
+  message.includes("AUTH_EXPIRED") ||
+  message.toLowerCase().includes("sessão") ||
+  message.toLowerCase().includes("expirou") ||
+  message.toLowerCase().includes("não está conectada");
+
+export function GenerateExportChat({ projectId, templateId, onGenerationComplete, onAuthError }: GenerateExportChatProps) {
   const { user } = useAuthContext();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -74,10 +81,18 @@ export function GenerateExportChat({ projectId, templateId, onGenerationComplete
       });
 
       if (!copyResult.success) {
+        const isAuth = isAuthError(copyResult.error || "");
+        if (isAuth) {
+          onAuthError?.();
+        }
         setMessages((prev) => [...prev, {
           role: "model",
-          content: `Erro ao copiar o documento: ${copyResult.error}`,
+          content: isAuth
+            ? "Sua conexão com o Google expirou. Clique no botão abaixo para reconectar e tente novamente."
+            : `Erro ao copiar o documento: ${copyResult.error}`,
           timestamp: new Date(),
+          action: isAuth ? "reconnect" : undefined,
+          actionLabel: isAuth ? "Reconectar Google" : undefined,
         }]);
         setIsPending(false);
         setCurrentStep("idle");
@@ -123,10 +138,18 @@ export function GenerateExportChat({ projectId, templateId, onGenerationComplete
       });
 
       if (!customizeResult.success) {
+        const isAuth = isAuthError(customizeResult.error || "");
+        if (isAuth) {
+          onAuthError?.();
+        }
         setMessages((prev) => [...prev, {
           role: "model",
-          content: `Erro ao personalizar o documento: ${customizeResult.error}`,
+          content: isAuth
+            ? "Sua conexão com o Google expirou. Clique no botão abaixo para reconectar."
+            : `Erro ao personalizar o documento: ${customizeResult.error}`,
           timestamp: new Date(),
+          action: isAuth ? "reconnect" : undefined,
+          actionLabel: isAuth ? "Reconectar Google" : undefined,
         }]);
         setIsPending(false);
         return;
@@ -233,7 +256,7 @@ export function GenerateExportChat({ projectId, templateId, onGenerationComplete
                     <Button
                       size="sm"
                       className="w-full"
-                      onClick={handleProceed}
+                      onClick={() => message.action === "reconnect" ? onAuthError?.() : handleProceed()}
                       disabled={isPending}
                     >
                       {isPending ? (
@@ -242,6 +265,8 @@ export function GenerateExportChat({ projectId, templateId, onGenerationComplete
                         <>
                           {message.action === "done" ? (
                             <CheckCircle2 className="mr-2 h-4 w-4" />
+                          ) : message.action === "reconnect" ? (
+                            <ExternalLink className="mr-2 h-4 w-4" />
                           ) : (
                             <ArrowRight className="mr-2 h-4 w-4" />
                           )}

@@ -50,6 +50,7 @@ export default function GerarExportarPage() {
           projectId={selectedProjectId}
           templateId={selectedTemplateId}
           onGenerationComplete={handleGenerationComplete}
+          onAuthError={() => setComposioConnectPrompt((prev) => prev + 1)}
         />
 
         <GenerateExportHistory

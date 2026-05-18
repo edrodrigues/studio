@@ -22,7 +22,27 @@ export async function GET(request: NextRequest) {
   const errorDescription = searchParams.get('error_description');
   const returnTo = searchParams.get('return_to');
 
-  const safeReturnTo = returnTo?.startsWith('/') && !returnTo.startsWith('//')
+  // Validate returnTo against a whitelist of allowed paths to prevent open redirect
+  const ALLOWED_RETURN_PATHS = [
+    '/gerar-exportar',
+    '/dashboard',
+    '/templates',
+    '/contratos',
+    '/configuracoes',
+  ] as const;
+
+  const isValidReturnPath = (path: string): boolean => {
+    // Must start with / but not // (protocol-relative)
+    if (!path.startsWith('/') || path.startsWith('//')) return false;
+    // Must not contain path traversal segments
+    if (path.includes('..')) return false;
+    // Must match a known allowed path or be a subpath of one
+    return ALLOWED_RETURN_PATHS.some(
+      (allowed) => path === allowed || path.startsWith(allowed + '/')
+    );
+  };
+
+  const safeReturnTo = returnTo && isValidReturnPath(returnTo)
     ? returnTo
     : '/gerar-exportar';
   const redirectUrl = new URL(safeReturnTo, request.url);

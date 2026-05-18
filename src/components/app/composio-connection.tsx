@@ -119,7 +119,7 @@ export function ComposioConnection({
     isPolling: boolean;
     progress: number;
     maxAttempts: number;
-  }>({ isPolling: false, progress: 0, maxAttempts: 8 });
+  }>({ isPolling: false, progress: 0, maxAttempts: 5 });
 
   const cancelledRef = useRef(false);
 
@@ -235,11 +235,11 @@ export function ComposioConnection({
           
           // Use polling to check connection status with retry
           if (user) {
-            setPollingState({ isPolling: true, progress: 0, maxAttempts: 8 });
-            
+            setPollingState({ isPolling: true, progress: 0, maxAttempts: 5 });
+
             const result = await pollComposioConnectionStatus(user.uid);
-            
-            setPollingState({ isPolling: false, progress: 0, maxAttempts: 8 });
+
+            setPollingState({ isPolling: false, progress: 0, maxAttempts: 5 });
             
             if (result.connected && result.status === 'ACTIVE') {
               toast({
@@ -281,7 +281,7 @@ export function ComposioConnection({
     }
 
     handleCallback();
-  }, []);
+  }, [user]);
 
   if (state.loading || pollingState.isPolling) {
     const pollingText = pollingState.isPolling 

@@ -423,7 +423,10 @@ export async function inspectTemplateForGeneration(
 
     // Wrap placeholder extraction with auth retry to handle 401/403 from Google Workspace
     const googleDocPlaceholders = await executeWithRetryAndAuthRefresh(
-      () => client.getDocumentPlaceholders(resolved.fileId),
+      async () => {
+        const freshClient = await createComposioClient(userId);
+        return freshClient.getDocumentPlaceholders(resolved.fileId);
+      },
       `getDocumentPlaceholders(${resolved.fileId})`,
       userId,
       requestId
@@ -504,7 +507,7 @@ export async function generateContractDoc(
       projectDocId: resolved.sourceDiagnostics.projectDocLink.fileId,
     });
 
-    const dateStr = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+    const dateStr = new Date().toISOString().split('T')[0];
     const newFileName = `Contrato - ${input.templateName || resolved.templateName} - ${input.clientName} - ${dateStr}`;
 
     // Use Composio copyFile (via composio-client adapter)

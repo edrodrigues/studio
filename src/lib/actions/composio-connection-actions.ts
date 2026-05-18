@@ -1,6 +1,6 @@
 'use server';
 
-import { createComposioClient, clearSessionCache, type ConnectionStatus } from '@/lib/composio-client';
+import { createComposioClient, clearSessionCache, type ConnectionStatus, type ComposioClient } from '@/lib/composio-client';
 import { debugLog, debugError, generateRequestId } from '@/lib/utils/request-id';
 
 /**
@@ -75,20 +75,32 @@ export async function checkComposioConnectionStatus(
  */
 export async function pollComposioConnectionStatus(
   userId: string,
-  maxAttempts: number = 8,
+  maxAttempts: number = 5,
   delayMs: number = 2000
 ): Promise<{ connected: boolean; status: ConnectionStatus; attempts: number }> {
   const requestId = generateRequestId();
   debugLog(requestId, 'pollComposioConnectionStatus', 'Starting polling', { userId, maxAttempts, delayMs });
 
+  // Clear cache once before the polling loop starts
+  try {
+    clearSessionCache(userId);
+  } catch (cacheError) {
+    debugError(requestId, 'pollComposioConnectionStatus', 'Initial cache clear failed', cacheError);
+  }
+
+  // Create client once and reuse across attempts
+  let client: ComposioClient | null = null;
+  try {
+    client = await createComposioClient(userId);
+  } catch (clientError) {
+    debugError(requestId, 'pollComposioConnectionStatus', 'Client creation failed', clientError, { userId });
+    return { connected: false, status: 'FAILED', attempts: 0 };
+  }
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      // Clear cache before each attempt to ensure fresh session
-      clearSessionCache(userId);
-      
-      const client = await createComposioClient(userId);
       const result = await client.checkConnection(userId);
-      
+
       debugLog(requestId, 'pollComposioConnectionStatus', `Attempt ${attempt}/${maxAttempts}`, {
         userId,
         connected: result.connected,
@@ -115,7 +127,7 @@ export async function pollComposioConnectionStatus(
       }
     } catch (error) {
       debugError(requestId, 'pollComposioConnectionStatus', `Attempt ${attempt} failed`, error, { userId });
-      
+
       // If not last attempt, wait before retrying
       if (attempt < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, delayMs));

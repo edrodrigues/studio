@@ -79,10 +79,29 @@ function getComposioBase(): Composio<any> {
 }
 
 // Cache de sessões por userId — reuso via composio.use(sessionId)
-// Key: userId, Value: sessionId
-// Note: Sessions persist on the server and don't expire (per Composio v3 docs).
-// No client-side TTL needed — cache is cleared explicitly after OAuth.
-const sessionCache = new Map<string, string>();
+// Key: userId, Value: { sessionId, createdAt }
+// Note: Sessions persist on the server and don't expire (per Composio v3 docs),
+// but we add a 55-minute TTL to prevent unbounded memory growth in serverless.
+const SESSION_CACHE_TTL_MS = 55 * 60 * 1000; // 55 minutes
+const MAX_CACHE_SIZE = 1000;
+
+interface CacheEntry {
+  sessionId: string;
+  createdAt: number;
+}
+
+const sessionCache = new Map<string, CacheEntry>();
+
+function isEntryExpired(entry: CacheEntry): boolean {
+  return Date.now() - entry.createdAt > SESSION_CACHE_TTL_MS;
+}
+
+function evictOldestIfNeeded(): void {
+  if (sessionCache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = sessionCache.keys().next().value;
+    if (oldestKey) sessionCache.delete(oldestKey);
+  }
+}
 
 /**
  * Creates or reuses a Composio session for a user.
@@ -96,17 +115,26 @@ async function getOrCreateSession(userId: string, authConfigId?: string): Promis
   const composio = getComposioBase();
   const cached = sessionCache.get(userId);
 
-  if (cached) {
+  if (cached && !isEntryExpired(cached)) {
     try {
-      return await composio.use(cached);
+      return await composio.use(cached.sessionId);
     } catch {
       // Session may have been invalidated on server, fall through to create
     }
   }
 
+  // Evict expired or oldest entry if cache is full
+  if (cached && isEntryExpired(cached)) {
+    sessionCache.delete(userId);
+  }
+  evictOldestIfNeeded();
+
   const effectiveAuthConfigId = authConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
-  if (!authConfigId && !process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID) {
-    console.warn('[Composio] COMPOSIO_GOOGLE_AUTH_CONFIG_ID not set — using hardcoded fallback');
+  if (!effectiveAuthConfigId) {
+    throw new Error(
+      'COMPOSIO_GOOGLE_AUTH_CONFIG_ID environment variable is not set. ' +
+      'Set it to your Composio Google auth config ID to configure OAuth.'
+    );
   }
 
   const createOptions = {
@@ -137,7 +165,7 @@ async function getOrCreateSession(userId: string, authConfigId?: string): Promis
       },
     },
     authConfigs: {
-      googledocs: effectiveAuthConfigId || 'ac_hhBpnP-HVtg0',
+      googledocs: effectiveAuthConfigId,
     },
     manageConnections: {
       waitForConnections: true,
@@ -146,7 +174,7 @@ async function getOrCreateSession(userId: string, authConfigId?: string): Promis
 
   const session = await composio.create(userId, createOptions);
   if (session.sessionId) {
-    sessionCache.set(userId, session.sessionId);
+    sessionCache.set(userId, { sessionId: session.sessionId, createdAt: Date.now() });
   }
   return session;
 }
@@ -195,11 +223,9 @@ async function executeTool(
 ): Promise<unknown> {
   const reqId = requestId || generateRequestId();
   try {
-    debugLog(reqId, 'ComposioTool', 'Executing tool', { toolSlug, userId, params: Object.keys(params) });
-    const composio = getComposioBase();
-    const result = await composio.tools.execute(toolSlug, {
+    debugLog(reqId, 'ComposioTool', 'Executing tool via session', { toolSlug, userId, params: Object.keys(params) });
+    const result = await session.tools.execute(toolSlug, {
       arguments: params,
-      userId,
       version: 'latest',
     });
     debugLog(reqId, 'ComposioTool', 'Tool executed successfully', { toolSlug });
@@ -316,7 +342,13 @@ export async function createComposioClient(
     return 'FAILED';
   }
 
-  const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID || 'ac_hhBpnP-HVtg0';
+  const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+  if (!authConfigId) {
+    throw new Error(
+      'COMPOSIO_GOOGLE_AUTH_CONFIG_ID environment variable is not set. ' +
+      'Set it to your Composio Google auth config ID to configure OAuth.'
+    );
+  }
 
   return {
     // ------------------------------------------------
@@ -344,7 +376,7 @@ export async function createComposioClient(
         return content;
       } catch (error) {
         debugError(requestId, 'ComposioClient', 'getDocumentContent failed', error, { documentId, userId });
-        mapGoogleDocsErrorToComposio(error, documentId);
+        throw mapGoogleDocsErrorToComposio(error, documentId);
       }
     },
 
@@ -382,7 +414,7 @@ export async function createComposioClient(
         debugLog(requestId, 'ComposioClient', 'batchUpdateDocument success', { documentId, appliedCount: composioRequests.length });
       } catch (error) {
         debugError(requestId, 'ComposioClient', 'batchUpdateDocument failed', error, { documentId, requestCount: requests.length, userId });
-        mapGoogleDocsErrorToComposio(error, documentId);
+        throw mapGoogleDocsErrorToComposio(error, documentId);
       }
     },
 
@@ -415,7 +447,7 @@ export async function createComposioClient(
         return metadata;
       } catch (error) {
         debugError(requestId, 'ComposioClient', 'getFileMetadata failed', error, { fileId, userId });
-        mapGoogleDriveErrorToComposio(error, fileId);
+        throw mapGoogleDriveErrorToComposio(error, fileId);
       }
     },
 
@@ -444,7 +476,7 @@ export async function createComposioClient(
         return newFileId;
       } catch (error) {
         debugError(requestId, 'ComposioClient', 'copyFile failed', error, { fileId, newName, userId });
-        mapGoogleDriveErrorToComposio(error, fileId);
+        throw mapGoogleDriveErrorToComposio(error, fileId);
       }
     },
 
@@ -485,7 +517,7 @@ export async function createComposioClient(
         return shareResult;
       } catch (error) {
         debugError(requestId, 'ComposioClient', 'shareFile failed', error, { fileId, email, role, userId });
-        mapGoogleDriveErrorToComposio(error, fileId);
+        throw mapGoogleDriveErrorToComposio(error, fileId);
       }
     },
 
@@ -535,7 +567,11 @@ export async function createComposioClient(
           redirectUrl: driveConnectionRequest?.redirectUrl 
         });
 
-        // Return the first redirect URL - user will authenticate once for both Google toolkits
+        // Return the first redirect URL.
+        // NOTE: Both GOOGLEDOCS and GOOGLEDRIVE use the same underlying Google OAuth account.
+        // When the user authenticates via the Docs redirect, Composio automatically links the
+        // same Google account to the Drive toolkit as well (same connectedAccountId).
+        // A single OAuth flow is sufficient — no need to chain redirects.
         const redirectUrl = docsConnectionRequest?.redirectUrl;
         if (!redirectUrl) {
           throw new Error('Composio did not return a redirect URL for OAuth.');
@@ -634,24 +670,45 @@ function convertBatchRequestsToComposio(requests: any[]): any[] {
 }
 
 // ============================================================
-// RETRY LOGIC FOR RATE LIMITS
+// CONSOLIDATED RETRY LOGIC (rate limits + auth refresh)
 // ============================================================
 
 async function executeWithRetry<T>(
   fn: () => Promise<T>,
   context: string,
-  requestId?: string
+  userId?: string,
+  requestId?: string,
+  maxRetries = 3
 ): Promise<T> {
   const reqId = requestId || generateRequestId();
-  const maxRetries = 3;
-  const backoffMs = [100, 200, 400];
+  const rateLimitBackoff = [100, 200, 400];
+  let authRetries = maxRetries;
 
-  debugLog(reqId, 'ComposioRetry', `Starting retry loop`, { context, maxRetries });
+  debugLog(reqId, 'ComposioRetry', `Starting consolidated retry loop`, { context, maxRetries });
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
     } catch (error) {
+      // Check for auth errors first
+      const isAuthError =
+        (error instanceof Error && (error.message?.includes('401') || error.message?.includes('AUTH_EXPIRED') || error.message?.includes('unauthorized'))) ||
+        (error as any)?.status === 401 ||
+        (error as any)?.code === 'AUTH_EXPIRED';
+
+      if (isAuthError && authRetries > 0 && userId) {
+        debugLog(reqId, 'ComposioRetry', `Auth error detected, clearing cache and retrying (${authRetries} attempts left)`, {
+          context,
+          userId,
+        });
+
+        clearSessionCache(userId);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        authRetries--;
+        continue;
+      }
+
+      // Check for rate limit errors
       const isRateLimit =
         (error instanceof Error && error.message?.includes('429')) ||
         (error as any)?.status === 429 ||
@@ -659,13 +716,13 @@ async function executeWithRetry<T>(
         JSON.stringify(error).includes('rateLimitExceeded');
 
       if (isRateLimit && attempt < maxRetries) {
-        const delay = backoffMs[attempt] || backoffMs[backoffMs.length - 1];
+        const delay = rateLimitBackoff[attempt] || rateLimitBackoff[rateLimitBackoff.length - 1];
         debugLog(reqId, 'ComposioRetry', `Rate limit hit on ${context}. Retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
 
-      debugError(reqId, 'ComposioRetry', `Max retries exceeded or non-rate-limit error for ${context}`, error);
+      debugError(reqId, 'ComposioRetry', `Max retries exceeded or non-retryable error for ${context}`, error);
       throw error;
     }
   }
@@ -673,10 +730,7 @@ async function executeWithRetry<T>(
   throw new Error(`[Composio] Max retries exceeded for ${context}`);
 }
 
-// ============================================================
-// RETRY WITH AUTH REFRESH FOR 401 ERRORS
-// ============================================================
-
+// Keep executeWithRetryAndAuthRefresh as an alias for backward compatibility
 async function executeWithRetryAndAuthRefresh<T>(
   fn: () => Promise<T>,
   context: string,
@@ -684,40 +738,7 @@ async function executeWithRetryAndAuthRefresh<T>(
   requestId: string,
   retries = 2
 ): Promise<T> {
-  try {
-    return await fn();
-  } catch (error) {
-    const isAuthError =
-      (error instanceof Error && (error.message?.includes('401') || error.message?.includes('AUTH_EXPIRED') || error.message?.includes('unauthorized'))) ||
-      (error as any)?.status === 401 ||
-      (error as any)?.code === 'AUTH_EXPIRED';
-
-    if (isAuthError && retries > 0) {
-      debugLog(requestId, 'ComposioAuthRetry', `Auth error detected, clearing cache and retrying (${retries} attempts left)`, {
-        context,
-        userId,
-      });
-
-      clearSessionCache(userId);
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      return executeWithRetryAndAuthRefresh(fn, context, userId, requestId, retries - 1);
-    }
-
-    const isRateLimit =
-      (error instanceof Error && error.message?.includes('429')) ||
-      (error as any)?.status === 429 ||
-      (error as any)?.code === 'rateLimitExceeded';
-
-    if (isRateLimit && retries > 0) {
-      const delay = 200 * (3 - retries);
-      debugLog(requestId, 'ComposioAuthRetry', `Rate limit hit, retrying in ${delay}ms`, { context });
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      return executeWithRetryAndAuthRefresh(fn, context, userId, requestId, retries - 1);
-    }
-
-    throw error;
-  }
+  return executeWithRetry(fn, context, userId, requestId, retries);
 }
 
 // ============================================================

@@ -180,7 +180,7 @@ export async function runComposioAgent(
       }
 
       // Re-prompt with tool results
-      response = await chat.sendMessage({ message: JSON.stringify(parts) as any });
+      response = await chat.sendMessage({ message: parts });
     }
 
     if (iterations >= maxIterations) {

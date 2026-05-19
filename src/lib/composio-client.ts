@@ -29,6 +29,10 @@ export interface ComposioClientConfig {
   apiKey?: string;
   /** Optional: custom auth config ID for white-label OAuth (Composio managed auth is used by default) */
   googleAuthConfigId?: string;
+  /** Optional: custom auth config ID specifically for Google Docs */
+  googleDocsAuthConfigId?: string;
+  /** Optional: custom auth config ID specifically for Google Drive */
+  googleDriveAuthConfigId?: string;
   /** Callback URL for OAuth flow */
   callbackUrl?: string;
 }
@@ -74,7 +78,11 @@ export interface SessionConfig {
  * Returns the canonical session config for Google Docs/Drive.
  * Both composio-client.ts and composio-gemini.ts use this to stay in sync.
  */
-export function buildSessionConfig(authConfigId: string, waitForConnections = true): SessionConfig {
+export function buildSessionConfig(
+  docsAuthConfigId: string,
+  driveAuthConfigId: string,
+  waitForConnections = true
+): SessionConfig {
   return {
     toolkits: ['googledocs', 'googledrive'],
     tools: {
@@ -103,8 +111,8 @@ export function buildSessionConfig(authConfigId: string, waitForConnections = tr
       },
     },
     authConfigs: {
-      googledocs: authConfigId,
-      googledrive: authConfigId,
+      googledocs: docsAuthConfigId,
+      googledrive: driveAuthConfigId,
     },
     manageConnections: {
       waitForConnections,
@@ -172,7 +180,11 @@ function evictOldestIfNeeded(): void {
  * authConfigId is passed during session creation (not during authorize),
  * per the official SDK docs: https://docs.composio.dev/reference/sdk-reference/typescript/tool-router-session
  */
-async function getOrCreateSession(userId: string, authConfigId?: string): Promise<any> {
+async function getOrCreateSession(
+  userId: string,
+  docsAuthConfigId?: string,
+  driveAuthConfigId?: string
+): Promise<any> {
   const composio = getComposioBase();
   const cached = sessionCache.get(userId);
 
@@ -190,15 +202,16 @@ async function getOrCreateSession(userId: string, authConfigId?: string): Promis
   }
   evictOldestIfNeeded();
 
-  const effectiveAuthConfigId = authConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
-  if (!effectiveAuthConfigId) {
+  const effectiveDocsAuthConfigId = docsAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+  const effectiveDriveAuthConfigId = driveAuthConfigId || process.env.COMPOSIO_GOOGLEDRIVE_AUTH_CONFIG_ID || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+  if (!effectiveDocsAuthConfigId || !effectiveDriveAuthConfigId) {
     throw new Error(
-      'COMPOSIO_GOOGLE_AUTH_CONFIG_ID environment variable is not set. ' +
+      'COMPOSIO_GOOGLE_AUTH_CONFIG_ID environment variable must be set. ' +
       'Set it to your Composio Google auth config ID to configure OAuth.'
     );
   }
 
-  const createOptions = buildSessionConfig(effectiveAuthConfigId);
+  const createOptions = buildSessionConfig(effectiveDocsAuthConfigId, effectiveDriveAuthConfigId);
 
   const SESSION_CREATION_TIMEOUT_MS = 15000;
   const session = await Promise.race([
@@ -395,11 +408,12 @@ export async function createComposioClient(
     return 'FAILED';
   }
 
-  const authConfigId = config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
-  if (!authConfigId) {
+  const docsAuthConfigId = config.googleDocsAuthConfigId || config.googleAuthConfigId || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+  const driveAuthConfigId = config.googleDriveAuthConfigId || config.googleAuthConfigId || process.env.COMPOSIO_GOOGLEDRIVE_AUTH_CONFIG_ID || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+  if (!docsAuthConfigId || !driveAuthConfigId) {
     throw new Error(
-      'COMPOSIO_GOOGLE_AUTH_CONFIG_ID environment variable is not set. ' +
-      'Set it to your Composio Google auth config ID to configure OAuth.'
+      'COMPOSIO_GOOGLE_AUTH_CONFIG_ID environment variable must be set. ' +
+      'Set it to configure OAuth.'
     );
   }
 
@@ -411,7 +425,7 @@ export async function createComposioClient(
     async getDocumentContent(documentId: string): Promise<string> {
       try {
         debugLog(requestId, 'ComposioClient', 'getDocumentContent', { documentId, userId });
-        const session = await getOrCreateSession(userId, authConfigId);
+        const session = await getOrCreateSession(userId, docsAuthConfigId, driveAuthConfigId);
         const result = await executeWithRetry(
           () => executeTool(
             session,
@@ -445,7 +459,7 @@ export async function createComposioClient(
     async batchUpdateDocument(documentId: string, requests: any[]): Promise<void> {
       try {
         debugLog(requestId, 'ComposioClient', 'batchUpdateDocument', { documentId, requestCount: requests.length, userId });
-        const session = await getOrCreateSession(userId, authConfigId);
+        const session = await getOrCreateSession(userId, docsAuthConfigId, driveAuthConfigId);
         const composioRequests = convertBatchRequestsToComposio(requests);
 
         if (composioRequests.length > 0) {
@@ -478,7 +492,7 @@ export async function createComposioClient(
     async getFileMetadata(fileId: string): Promise<ComposioFileMetadata> {
       try {
         debugLog(requestId, 'ComposioClient', 'getFileMetadata', { fileId, userId });
-        const session = await getOrCreateSession(userId, authConfigId);
+        const session = await getOrCreateSession(userId, docsAuthConfigId, driveAuthConfigId);
         const result = await executeWithRetry(
           () => executeTool(
             session,
@@ -507,7 +521,7 @@ export async function createComposioClient(
     async copyFile(fileId: string, newName: string): Promise<string> {
       try {
         debugLog(requestId, 'ComposioClient', 'copyFile', { fileId, newName, userId });
-        const session = await getOrCreateSession(userId, authConfigId);
+        const session = await getOrCreateSession(userId, docsAuthConfigId, driveAuthConfigId);
         const result = await executeWithRetry(
           () => executeTool(
             session,
@@ -540,7 +554,7 @@ export async function createComposioClient(
     ): Promise<ComposioShareResult> {
       try {
         debugLog(requestId, 'ComposioClient', 'shareFile', { fileId, email, role, userId });
-        const session = await getOrCreateSession(userId, authConfigId);
+        const session = await getOrCreateSession(userId, docsAuthConfigId, driveAuthConfigId);
         const result = await executeWithRetry(
           () => executeTool(
             session,
@@ -602,7 +616,7 @@ export async function createComposioClient(
         // Authorize both GOOGLEDOCS and GOOGLEDRIVE (both use Google OAuth)
         // Note: authConfigId is passed during session.create(), not during authorize()
         // per SDK docs: https://docs.composio.dev/reference/sdk-reference/typescript/tool-router-session
-        const session = await getOrCreateSession(userId, authConfigId);
+        const session = await getOrCreateSession(userId, docsAuthConfigId, driveAuthConfigId);
 
         const authorizeOptions = {
           callbackUrl: callbackUrl.toString(),

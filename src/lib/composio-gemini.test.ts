@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi, beforeAll, afterAll } from 'vites
 beforeAll(() => {
   vi.stubEnv('COMPOSIO_API_KEY', 'test-api-key');
   vi.stubEnv('COMPOSIO_GOOGLE_AUTH_CONFIG_ID', 'test-auth-config-id');
+  vi.stubEnv('COMPOSIO_GOOGLEDRIVE_AUTH_CONFIG_ID', 'test-drive-auth-config-id');
   vi.stubEnv('GOOGLE_API_KEY', 'test-google-key');
 });
 

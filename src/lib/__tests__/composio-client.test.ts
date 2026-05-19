@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi, beforeAll, afterAll } from 'vites
 
 beforeAll(() => {
   vi.stubEnv('COMPOSIO_API_KEY', 'test-api-key');
-  vi.stubEnv('COMPOSIO_GOOGLE_AUTH_CONFIG_ID', 'test-auth-config-id');
+  vi.stubEnv('COMPOSIO_GOOGLE_AUTH_CONFIG_ID', 'test-docs-auth-config-id');
+  vi.stubEnv('COMPOSIO_GOOGLEDRIVE_AUTH_CONFIG_ID', 'test-drive-auth-config-id');
 });
 
 afterAll(() => {
@@ -102,6 +103,37 @@ describe('composio-client (v3 session-based)', () => {
       expect(callArgs.authConfigs).toEqual({
         googledocs: 'ac_custom',
         googledrive: 'ac_custom',
+      });
+    });
+
+    it('resolves distinct docs and drive auth config IDs from environment', async () => {
+      mockSessionAuthorize.mockResolvedValue({ redirectUrl: 'https://connect.composio.dev/link/test' });
+      mockConnectedAccountsList.mockResolvedValue({ items: [] });
+
+      const client = await createComposioClient('user-1');
+      await client.initiateConnection('user-1');
+
+      const callArgs = mockComposioCreate.mock.calls[0][1];
+      expect(callArgs.authConfigs).toEqual({
+        googledocs: 'test-docs-auth-config-id',
+        googledrive: 'test-drive-auth-config-id',
+      });
+    });
+
+    it('passes googleDocsAuthConfigId and googleDriveAuthConfigId from options', async () => {
+      mockSessionAuthorize.mockResolvedValue({ redirectUrl: 'https://connect.composio.dev/link/test' });
+      mockConnectedAccountsList.mockResolvedValue({ items: [] });
+
+      const client = await createComposioClient('user-1', {
+        googleDocsAuthConfigId: 'custom-docs-id',
+        googleDriveAuthConfigId: 'custom-drive-id',
+      });
+      await client.initiateConnection('user-1');
+
+      const callArgs = mockComposioCreate.mock.calls[0][1];
+      expect(callArgs.authConfigs).toEqual({
+        googledocs: 'custom-docs-id',
+        googledrive: 'custom-drive-id',
       });
     });
 

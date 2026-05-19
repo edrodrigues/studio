@@ -94,9 +94,10 @@ export async function runComposioAgent(
   let iterations = 0;
 
   try {
-    const authConfigId = process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
-    if (!authConfigId) {
-      throw new Error('COMPOSIO_GOOGLE_AUTH_CONFIG_ID is not set. Configure your Google auth config ID in environment variables.');
+    const docsAuthConfigId = process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+    const driveAuthConfigId = process.env.COMPOSIO_GOOGLEDRIVE_AUTH_CONFIG_ID || process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+    if (!docsAuthConfigId || !driveAuthConfigId) {
+      throw new Error('COMPOSIO_GOOGLE_AUTH_CONFIG_ID environment variable must be set.');
     }
 
     // Step 1: Create Composio base instance with Google provider (per request)
@@ -106,7 +107,7 @@ export async function runComposioAgent(
     });
 
     // Step 2: Create session for this user (v3 pattern)
-    const session = await composio.create(userId, buildSessionConfig(authConfigId));
+    const session = await composio.create(userId, buildSessionConfig(docsAuthConfigId, driveAuthConfigId));
 
     // Step 3: Get tools in Gemini function calling format
     const tools = await session.tools();

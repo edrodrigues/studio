@@ -16,6 +16,7 @@
 import { Composio } from '@composio/core';
 import { GoogleProvider } from '@composio/google';
 import { GoogleGenAI, type Part } from '@google/genai';
+import { buildSessionConfig } from './composio-client';
 
 // Initialize Google GenAI client
 const ai = new GoogleGenAI({
@@ -93,6 +94,11 @@ export async function runComposioAgent(
   let iterations = 0;
 
   try {
+    const authConfigId = process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID;
+    if (!authConfigId) {
+      throw new Error('COMPOSIO_GOOGLE_AUTH_CONFIG_ID is not set. Configure your Google auth config ID in environment variables.');
+    }
+
     // Step 1: Create Composio base instance with Google provider (per request)
     const composio = new Composio({
       apiKey: process.env.COMPOSIO_API_KEY,
@@ -100,40 +106,7 @@ export async function runComposioAgent(
     });
 
     // Step 2: Create session for this user (v3 pattern)
-    const session = await composio.create(userId, {
-      toolkits: ['googledocs', 'googledrive'],
-      tools: {
-        googledocs: {
-          enable: [
-            'GOOGLEDOCS_COPY_DOCUMENT',
-            'GOOGLEDOCS_CREATE_DOCUMENT',
-            'GOOGLEDOCS_CREATE_DOCUMENT_MARKDOWN',
-            'GOOGLEDOCS_CREATE_DOCUMENT2',
-            'GOOGLEDOCS_CREATE_FOOTER',
-            'GOOGLEDOCS_CREATE_FOOTNOTE',
-            'GOOGLEDOCS_CREATE_HEADER',
-            'GOOGLEDOCS_SEARCH_DOCUMENTS',
-            'GOOGLEDOCS_UPDATE_EXISTING_DOCUMENT',
-            'GOOGLEDOCS_REPLACE_ALL_TEXT',
-            'GOOGLEDOCS_GET_DOCUMENT_BY_ID',
-            'GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT',
-          ],
-        },
-        googledrive: {
-          enable: [
-            'GOOGLEDRIVE_GET_FILE_V2',
-            'GOOGLEDRIVE_COPY_FILE_ADVANCED',
-            'GOOGLEDRIVE_CREATE_PERMISSION',
-          ],
-        },
-      },
-      authConfigs: {
-        googledocs: process.env.COMPOSIO_GOOGLE_AUTH_CONFIG_ID || 'ac_hhBpnP-HVtg0',
-      },
-      manageConnections: {
-        waitForConnections: true,
-      },
-    });
+    const session = await composio.create(userId, buildSessionConfig(authConfigId));
 
     // Step 3: Get tools in Gemini function calling format
     const tools = await session.tools();

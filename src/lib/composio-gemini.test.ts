@@ -1,4 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, beforeAll, afterAll } from 'vitest';
+
+beforeAll(() => {
+  vi.stubEnv('COMPOSIO_API_KEY', 'test-api-key');
+  vi.stubEnv('COMPOSIO_GOOGLE_AUTH_CONFIG_ID', 'test-auth-config-id');
+  vi.stubEnv('GOOGLE_API_KEY', 'test-google-key');
+});
+
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 // ============================================================
 // MOCK DEPENDENCIES — must be defined with vi.hoisted before vi.mock
@@ -120,7 +130,10 @@ describe('composio-gemini (v3 session-based)', () => {
 
       // v3: new Composio() called per request, not singleton
       expect(mockComposioConstructor).toHaveBeenCalledTimes(1);
-      expect(mockComposioCreate).toHaveBeenCalledWith('user-123');
+      expect(mockComposioCreate).toHaveBeenCalledWith('user-123', expect.objectContaining({
+        toolkits: ['googledocs', 'googledrive'],
+        authConfigs: expect.any(Object),
+      }));
     });
 
     it('runs an agentic loop with Composio tools', async () => {

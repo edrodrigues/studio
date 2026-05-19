@@ -52,6 +52,67 @@ export interface ComposioClient {
 }
 
 // ============================================================
+// SHARED SESSION CONFIG (single source of truth)
+// ============================================================
+
+export interface SessionConfig {
+  toolkits: string[];
+  tools: {
+    googledocs: { enable: string[] };
+    googledrive: { enable: string[] };
+  };
+  authConfigs: {
+    googledocs: string;
+    googledrive: string;
+  };
+  manageConnections: {
+    waitForConnections: boolean;
+  };
+}
+
+/**
+ * Returns the canonical session config for Google Docs/Drive.
+ * Both composio-client.ts and composio-gemini.ts use this to stay in sync.
+ */
+export function buildSessionConfig(authConfigId: string, waitForConnections = true): SessionConfig {
+  return {
+    toolkits: ['googledocs', 'googledrive'],
+    tools: {
+      googledocs: {
+        enable: [
+          'GOOGLEDOCS_COPY_DOCUMENT',
+          'GOOGLEDOCS_CREATE_DOCUMENT',
+          'GOOGLEDOCS_CREATE_DOCUMENT_MARKDOWN',
+          'GOOGLEDOCS_CREATE_DOCUMENT2',
+          'GOOGLEDOCS_CREATE_FOOTER',
+          'GOOGLEDOCS_CREATE_FOOTNOTE',
+          'GOOGLEDOCS_CREATE_HEADER',
+          'GOOGLEDOCS_SEARCH_DOCUMENTS',
+          'GOOGLEDOCS_UPDATE_EXISTING_DOCUMENT',
+          'GOOGLEDOCS_REPLACE_ALL_TEXT',
+          'GOOGLEDOCS_GET_DOCUMENT_BY_ID',
+          'GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT',
+        ],
+      },
+      googledrive: {
+        enable: [
+          'GOOGLEDRIVE_GET_FILE_V2',
+          'GOOGLEDRIVE_COPY_FILE_ADVANCED',
+          'GOOGLEDRIVE_CREATE_PERMISSION',
+        ],
+      },
+    },
+    authConfigs: {
+      googledocs: authConfigId,
+      googledrive: authConfigId,
+    },
+    manageConnections: {
+      waitForConnections,
+    },
+  };
+}
+
+// ============================================================
 // SESSION MANAGEMENT (Composio v3 pattern)
 // ============================================================
 
@@ -137,42 +198,15 @@ async function getOrCreateSession(userId: string, authConfigId?: string): Promis
     );
   }
 
-  const createOptions = {
-    toolkits: ['googledocs', 'googledrive'],
-    tools: {
-      googledocs: {
-        enable: [
-          'GOOGLEDOCS_COPY_DOCUMENT',
-          'GOOGLEDOCS_CREATE_DOCUMENT',
-          'GOOGLEDOCS_CREATE_DOCUMENT_MARKDOWN',
-          'GOOGLEDOCS_CREATE_DOCUMENT2',
-          'GOOGLEDOCS_CREATE_FOOTER',
-          'GOOGLEDOCS_CREATE_FOOTNOTE',
-          'GOOGLEDOCS_CREATE_HEADER',
-          'GOOGLEDOCS_SEARCH_DOCUMENTS',
-          'GOOGLEDOCS_UPDATE_EXISTING_DOCUMENT',
-          'GOOGLEDOCS_REPLACE_ALL_TEXT',
-          'GOOGLEDOCS_GET_DOCUMENT_BY_ID',
-          'GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT',
-        ],
-      },
-      googledrive: {
-        enable: [
-          'GOOGLEDRIVE_GET_FILE_V2',
-          'GOOGLEDRIVE_COPY_FILE_ADVANCED',
-          'GOOGLEDRIVE_CREATE_PERMISSION',
-        ],
-      },
-    },
-    authConfigs: {
-      googledocs: effectiveAuthConfigId,
-    },
-    manageConnections: {
-      waitForConnections: true,
-    },
-  };
+  const createOptions = buildSessionConfig(effectiveAuthConfigId);
 
-  const session = await composio.create(userId, createOptions);
+  const SESSION_CREATION_TIMEOUT_MS = 15000;
+  const session = await Promise.race([
+    composio.create(userId, createOptions),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Composio session creation timed out after ${SESSION_CREATION_TIMEOUT_MS / 1000}s`)), SESSION_CREATION_TIMEOUT_MS)
+    ),
+  ]);
   if (session.sessionId) {
     sessionCache.set(userId, { sessionId: session.sessionId, createdAt: Date.now() });
   }
@@ -204,16 +238,16 @@ export function __clearAllSessionCachesForTesting(): void {
 /**
  * Executes a Composio tool and returns the result.
  *
- * NOTE: The v3 SDK docs discourage direct tool execution via composio.tools.execute()
- * (https://docs.composio.dev/reference/v3/api-reference/tool-router):
- *   "Do not generate composio.tools.execute() ... These are a supported but not
- *    recommended low-level interface."
- *
- * We use it intentionally here for deterministic operations (document generation,
- * file copies, etc.) where we know exactly which tool to call. The agentic pattern
- * (session.tools() → LLM) is used in composio-gemini.ts.
- * This is a tracked trade-off — see issue #XXX for full refactor to session-based execution.
+ * Uses the recommended SDK pattern (per docs §2.3):
+ *   session.toolkit(toolkitSlug).tool(toolSlug).execute(params)
+ * Falls back to session.tools.execute() if the recommended API is unavailable.
  */
+function resolveToolkitSlug(toolSlug: string): string {
+  if (toolSlug.startsWith('GOOGLEDOCS_')) return 'googledocs';
+  if (toolSlug.startsWith('GOOGLEDRIVE_')) return 'googledrive';
+  return toolSlug.split('_')[0].toLowerCase();
+}
+
 async function executeTool(
   session: any,
   toolSlug: string,
@@ -223,12 +257,31 @@ async function executeTool(
 ): Promise<unknown> {
   const reqId = requestId || generateRequestId();
   try {
-    debugLog(reqId, 'ComposioTool', 'Executing tool via session', { toolSlug, userId, params: Object.keys(params) });
+    debugLog(reqId, 'ComposioTool', 'Executing tool', { toolSlug, userId, params: Object.keys(params) });
+
+    // Try recommended SDK pattern first: session.toolkit(slug).tool(slug).execute(params)
+    const toolkitSlug = resolveToolkitSlug(toolSlug);
+    try {
+      const toolkit = session.toolkit?.(toolkitSlug);
+      if (toolkit?.tool) {
+        const tool = toolkit.tool(toolSlug);
+        if (tool?.execute) {
+          const result = await tool.execute(params);
+          debugLog(reqId, 'ComposioTool', 'Tool executed successfully (recommended API)', { toolSlug });
+          return result;
+        }
+      }
+    } catch {
+      // Fall through to legacy API
+    }
+
+    // Fallback: session.tools.execute() (discouraged but still supported)
+    debugLog(reqId, 'ComposioTool', 'Falling back to session.tools.execute()', { toolSlug });
     const result = await session.tools.execute(toolSlug, {
       arguments: params,
       version: 'latest',
     });
-    debugLog(reqId, 'ComposioTool', 'Tool executed successfully', { toolSlug });
+    debugLog(reqId, 'ComposioTool', 'Tool executed successfully (fallback API)', { toolSlug });
     return result;
   } catch (error) {
     debugError(reqId, 'ComposioTool', `Tool execution failed: ${toolSlug}`, error, { userId });

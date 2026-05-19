@@ -133,13 +133,13 @@ export function ComposioConnection({
     return () => { cancelledRef.current = true; };
   }, [user]);
 
-  const lastOpenSignal = useRef(openSignal ?? 0);
+  const prevOpenSignalRef = useRef(openSignal);
 
   useEffect(() => {
-    if (openSignal !== undefined && openSignal > lastOpenSignal.current) {
-      lastOpenSignal.current = openSignal;
+    if (openSignal !== undefined && openSignal > prevOpenSignalRef.current) {
       setDialogOpen(true);
     }
+    prevOpenSignalRef.current = openSignal;
   }, [openSignal]);
 
   async function checkConnectionStatus() {
@@ -286,34 +286,24 @@ export function ComposioConnection({
     handleCallback();
   }, [user]);
 
-  if (state.loading || pollingState.isPolling) {
-    const pollingText = pollingState.isPolling 
-      ? 'Verificando conexão com Google...'
-      : 'Verificando conexão...';
-    
-    return (
-      <div className={`flex items-center gap-2 text-muted-foreground ${className}`}>
-        <span className="animate-spin text-sm">⏳</span>
-        <span className="text-sm">{pollingText}</span>
-      </div>
-    );
-  }
-
-  if (inline) {
-    return (
-      <div className={`flex items-center gap-2 ${className}`}>
-        <span>{statusInfo.icon}</span>
-        <div>
-          <p className="text-sm font-medium">{statusInfo.label}</p>
-          <p className="text-xs text-muted-foreground">{statusInfo.description}</p>
+  return (
+    <>
+      {state.loading || pollingState.isPolling ? (
+        <div className={`flex items-center gap-2 text-muted-foreground ${className}`}>
+          <span className="animate-spin text-sm">⏳</span>
+          <span className="text-sm">
+            {pollingState.isPolling ? 'Verificando conexão com Google...' : 'Verificando conexão...'}
+          </span>
         </div>
-      </div>
-    );
-  }
-
-  if (showButton) {
-    return (
-      <>
+      ) : inline ? (
+        <div className={`flex items-center gap-2 ${className}`}>
+          <span>{statusInfo.icon}</span>
+          <div>
+            <p className="text-sm font-medium">{statusInfo.label}</p>
+            <p className="text-xs text-muted-foreground">{statusInfo.description}</p>
+          </div>
+        </div>
+      ) : showButton ? (
         <Button
           onClick={() => setDialogOpen(true)}
           variant={state.status === 'ACTIVE' ? 'secondary' : 'default'}
@@ -321,46 +311,56 @@ export function ComposioConnection({
         >
           {statusInfo.icon} {state.status === 'ACTIVE' ? 'Verificar conexão' : buttonLabel}
         </Button>
+      ) : children ? (
+        <div className={className}>{children}</div>
+      ) : null}
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {statusInfo.icon} {statusInfo.label}
-              </DialogTitle>
-              <DialogDescription>{statusInfo.description}</DialogDescription>
-            </DialogHeader>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {statusInfo.icon} {statusInfo.label}
+            </DialogTitle>
+            <DialogDescription>{statusInfo.description}</DialogDescription>
+          </DialogHeader>
 
-            {state.error && (
-              <div className="text-sm text-destructive bg-destructive/10 rounded-md p-3">
-                {state.error}
-              </div>
-            )}
+          {state.loading && (
+            <div className="flex items-center justify-center py-4 text-muted-foreground gap-2 text-sm">
+              <span className="animate-spin">⏳</span>
+              <span>Processando...</span>
+            </div>
+          )}
 
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancelar
+          {state.error && (
+            <div className="text-sm text-destructive bg-destructive/10 rounded-md p-3">
+              {state.error}
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancelar
+            </Button>
+            {state.status !== 'ACTIVE' && (
+              <Button onClick={initiateConnection} disabled={state.loading}>
+                {state.loading ? 'Redirecionando...' : 'Conectar Google'}
               </Button>
-              {state.status !== 'ACTIVE' && (
-                <Button onClick={initiateConnection} disabled={state.loading}>
-                  {state.loading ? 'Redirecionando...' : 'Conectar Google'}
-                </Button>
-              )}
-              {state.status === 'ACTIVE' && (
-                <Button onClick={checkConnectionStatus} variant="secondary">
+            )}
+            {state.status === 'ACTIVE' && (
+              <>
+                <Button onClick={checkConnectionStatus} variant="outline" disabled={state.loading}>
                   Atualizar status
                 </Button>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </>
-    );
-  }
-
-  return children ? (
-    <div className={className}>{children}</div>
-  ) : null;
+                <Button onClick={initiateConnection} disabled={state.loading}>
+                  {state.loading ? 'Redirecionando...' : 'Reconectar Google'}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 /**

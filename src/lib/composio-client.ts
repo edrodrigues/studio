@@ -376,7 +376,7 @@ export async function createComposioClient(
   }
 
   // Wrapper with timeout and retry to prevent indefinite hanging and handle transient network errors
-  async function getToolkitStatusWithTimeout(timeoutMs: number = 10000, maxRetries: number = 2): Promise<ConnectionStatus> {
+  async function getToolkitStatusWithTimeout(timeoutMs: number = 4000, maxRetries: number = 1): Promise<ConnectionStatus> {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const timeoutPromise = new Promise<ConnectionStatus>((_, reject) =>
         setTimeout(() => reject(new Error(`Connection check timed out after ${timeoutMs}ms`)), timeoutMs)

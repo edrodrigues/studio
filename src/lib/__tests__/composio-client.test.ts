@@ -153,6 +153,24 @@ describe('composio-client (v3 session-based)', () => {
   });
 
   describe('connection status via connectedAccounts.list()', () => {
+    it('returns connected true for INITIATED status when auth configs are shared', async () => {
+      mockConnectedAccountsList.mockResolvedValue({
+        items: [
+          { id: 'conn-1', toolkit: { slug: 'googledocs' }, status: 'ACTIVE' },
+        ],
+      });
+
+      // Inicializa o cliente com o mesmo ID para ambos os toolkits
+      const client = await createComposioClient('user-1', {
+        googleDocsAuthConfigId: 'shared-id',
+        googleDriveAuthConfigId: 'shared-id',
+      });
+      const result = await client.checkConnection('user-1');
+
+      expect(result.connected).toBe(true);
+      expect(result.status).toBe('INITIATED');
+    });
+
     it('returns ACTIVE when both googledocs and googledrive are active', async () => {
       mockConnectedAccountsList.mockResolvedValue({
         items: [

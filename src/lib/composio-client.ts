@@ -655,8 +655,14 @@ export async function createComposioClient(
     async checkConnection(userId: string): Promise<{ connected: boolean; status: ConnectionStatus }> {
       debugLog(requestId, 'ComposioClient', 'checkConnection', { userId });
       const status = await getToolkitStatusWithTimeout();
+      
+      // Se ambos os toolkits compartilham o mesmo ID de autenticação do Google,
+      // uma única conexão ativa (status INITIATED ou ACTIVE) é suficiente.
+      const isSharedConfig = docsAuthConfigId === driveAuthConfigId;
+      const connected = status === 'ACTIVE' || (isSharedConfig && status === 'INITIATED');
+
       const result = {
-        connected: status === 'ACTIVE',
+        connected,
         status,
       };
       debugLog(requestId, 'ComposioClient', 'checkConnection result', result);

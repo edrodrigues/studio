@@ -385,17 +385,18 @@ export async function createComposioClient(
       try {
         return await Promise.race([getToolkitStatus(), timeoutPromise]);
       } catch (error) {
-        const isNetworkError = error instanceof Error && (
+        const isRetryable = error instanceof Error && (
           error.message.includes('fetch') ||
           error.message.includes('connect') ||
           error.message.includes('refused') ||
           error.message.includes('network') ||
-          error.message.includes('ECONNREFUSED')
+          error.message.includes('ECONNREFUSED') ||
+          error.message.includes('timed out')
         );
 
-        if (isNetworkError && attempt < maxRetries) {
+        if (isRetryable && attempt < maxRetries) {
           const delay = 1000 * (attempt + 1);
-          debugError(requestId, 'ComposioClient', `Network error, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`, error, { userId });
+          debugError(requestId, 'ComposioClient', `Retryable error, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`, error, { userId });
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }

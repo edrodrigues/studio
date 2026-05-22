@@ -145,6 +145,18 @@ export function ComposioConnection({
   async function checkConnectionStatus() {
     if (!user) return;
 
+    // Se estamos no meio de um callback OAuth, deixar o handleCallback
+    // gerenciar o estado via polling — evita race condition onde a
+    // verificação inicial (antes da conexão estar ativa no Composio)
+    // sobrescreve o resultado ACTIVE obtido pelo polling.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('composio_connected') === 'true' || params.get('composio_error')) {
+      if (!cancelledRef.current) {
+        setState((prev) => ({ ...prev, loading: true, error: null }));
+      }
+      return;
+    }
+
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const result = await checkComposioConnectionStatus(user.uid);

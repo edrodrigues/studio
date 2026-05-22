@@ -81,6 +81,9 @@ export async function pollComposioConnectionStatus(
   const requestId = generateRequestId();
   debugLog(requestId, 'pollComposioConnectionStatus', 'Starting polling', { userId, maxAttempts, delayMs });
 
+  // Track the last seen status so we can report it accurately
+  let lastStatus: ConnectionStatus = 'INACTIVE';
+
   // Clear cache once before the polling loop starts
   try {
     clearSessionCache(userId);
@@ -100,6 +103,8 @@ export async function pollComposioConnectionStatus(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const result = await client.checkConnection(userId);
+
+      lastStatus = result.status;
 
       debugLog(requestId, 'pollComposioConnectionStatus', `Attempt ${attempt}/${maxAttempts}`, {
         userId,
@@ -127,6 +132,7 @@ export async function pollComposioConnectionStatus(
       }
     } catch (error) {
       debugError(requestId, 'pollComposioConnectionStatus', `Attempt ${attempt} failed`, error, { userId });
+      lastStatus = 'FAILED';
 
       // If not last attempt, wait before retrying
       if (attempt < maxAttempts) {
@@ -137,13 +143,14 @@ export async function pollComposioConnectionStatus(
     }
   }
 
-  // All attempts exhausted, return last known status
+  // All attempts exhausted — report the actual last status, not a hardcoded INACTIVE
   debugLog(requestId, 'pollComposioConnectionStatus', 'Polling complete, connection not active', {
     userId,
     maxAttempts,
+    lastStatus,
   });
 
-  return { connected: false, status: 'INACTIVE', attempts: maxAttempts };
+  return { connected: false, status: lastStatus, attempts: maxAttempts };
 }
 
 /**

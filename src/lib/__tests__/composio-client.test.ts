@@ -92,7 +92,7 @@ describe('composio-client (v3 session-based)', () => {
       expect(mockComposioCreate).toHaveBeenCalledWith('user-1', EXPECTED_CREATE_CONFIG);
     });
 
-    it('passes authConfigId in authConfigs for both toolkits', async () => {
+    it('passes authConfigId in authConfigs for googledocs when docs and drive configs are the same', async () => {
       mockSessionAuthorize.mockResolvedValue({ redirectUrl: 'https://connect.composio.dev/link/test' });
       mockConnectedAccountsList.mockResolvedValue({ items: [] });
 
@@ -102,7 +102,6 @@ describe('composio-client (v3 session-based)', () => {
       const callArgs = mockComposioCreate.mock.calls[0][1];
       expect(callArgs.authConfigs).toEqual({
         googledocs: 'ac_custom',
-        googledrive: 'ac_custom',
       });
     });
 
@@ -270,7 +269,7 @@ describe('composio-client (v3 session-based)', () => {
       expect(result).toBe('https://connect.composio.dev/link/test');
     });
 
-    it('passes authConfigId to composio.create() with full config when provided', async () => {
+    it('passes authConfigId to composio.create() omitting googledrive when it equals googledocs', async () => {
       mockSessionAuthorize.mockResolvedValue({
         redirectUrl: 'https://connect.composio.dev/link/custom',
       });
@@ -285,7 +284,6 @@ describe('composio-client (v3 session-based)', () => {
         toolkits: ['googledocs', 'googledrive'],
         authConfigs: {
           googledocs: 'ac_custom_config',
-          googledrive: 'ac_custom_config',
         },
         manageConnections: { waitForConnections: true },
       }));

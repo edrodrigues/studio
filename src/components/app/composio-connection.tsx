@@ -264,10 +264,17 @@ export function ComposioConnection({
               setState({ status: result.status, loading: false, error: null });
               onConnected?.();
             } else {
+              const statusDetail = {
+                FAILED: 'O servidor do Google não respondeu a tempo. Tente novamente.',
+                EXPIRED: 'Sua conexão anterior expirou. Reconecte sua conta.',
+                INACTIVE: 'Nenhuma conexão ativa encontrada. Clique em "Conectar Google" para autorizar.',
+                INITIATED: 'Conexão ainda sendo processada. Aguarde alguns segundos e atualize.',
+                INITIALIZING: 'Conexão ainda sendo processada. Aguarde alguns segundos e atualize.',
+              }[result.status] || 'Não foi possível verificar a conexão.';
               toast({
                 variant: 'destructive',
                 title: 'Conexão não verificada',
-                description: 'Não foi possível verificar a conexão. Tente clicar em "Atualizar status" ou reconecte.',
+                description: `${statusDetail} Tente clicar em "Atualizar status" ou reconecte.`,
               });
               setState({ status: result.status, loading: false, error: null });
             }
